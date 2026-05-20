@@ -1,0 +1,24 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm --version)",
+      "Bash(docker --version)",
+      "Bash(sqlite3 --version)",
+      "Bash(npm install *)",
+      "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm run db:generate)",
+      "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm run db:migrate)",
+      "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm run db:seed)",
+      "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm run dev:server)",
+      "Bash(curl -sS http://localhost:3001/health)",
+      "Bash(curl -sS http://localhost:3001/api/org)",
+      "Bash(curl -sS 'http://localhost:3001/api/assets')",
+      "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm --prefix /home/onset/z/inventory-hub run dev:server)",
+      "Bash(curl -sS http://localhost:3001/api/assets/LAP-00001)",
+      "Bash(curl -sS -X POST http://localhost:3001/api/assets -H 'content-type: application/json' -d '{\"name\":\"MacBook Pro 16\",\"code\":\"LAP-00099\"}')",
+      "Bash(curl -sS -X POST http://localhost:3001/api/assets -H \"content-type: application/json\" -d '{\"name\":\"MacBook Pro 16\",\"code\":\"LAP-00099\"}')",
+      "Bash(npm --prefix /home/onset/z/inventory-hub run test)",
+      "Bash(npm --prefix /home/onset/z/inventory-hub run typecheck)",
+      "Bash(npm --prefix /home/onset/z/inventory-hub run build)"
+    ]
+  }
+}

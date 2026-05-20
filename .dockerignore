@@ -1,0 +1,15 @@
+node_modules
+**/node_modules
+dist
+**/dist
+.git
+.gitignore
+data
+*.db
+*.db-*
+.env
+.env.local
+coverage
+.vscode
+.idea
+*.log
