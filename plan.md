@@ -146,23 +146,26 @@ podle závažnosti.
 - API přes tRPC nebo REST + Zod — sdílené typy s frontendem.
 
 **Auth:**
-- **better-auth** library (open-source, podporuje Google OAuth out-of-the-box,
-  sessions přes cookies, snadné rozšíření o vlastní hooks).
-- Google OAuth jako primární provider (e-mail/password volitelně později).
+- Custom session/cookie auth + raw Google OAuth (PKCE) — bez externí knihovny
+  (better-auth byl zvažovaný, ale jednoduchý vlastní kód = méně závislostí).
+- Google OAuth jako primární provider (e-mail/password není v plánu).
 - Single-tenant model: žádná `tenant_id` izolace v queries, jen autorizace
   podle role.
 - **Domain auto-join**: admin instance v nastavení přidá povolené e-mailové
   domény (`acme.com`). Kdokoli s Google e-mailem na povolené doméně se po
   prvním přihlášení automaticky stane uživatelem (default role: `member`),
   bez pozvánky.
-- Implementace v `after sign-in` hooku better-auth: zkontrolovat doménu
-  v `OrgSettings.allowed_domains`, vytvořit User záznam.
-- Per-doménu lze nastavit default role + požadavek verified e-mailu (Google
-  emaily jsou verified by default).
+- Implementace v Google callback handleru (`findOrCreateUserForGoogle`):
+  zkontrolovat doménu v `OrgSettings.allowed_domains`, vytvořit User záznam.
+- Per-doménu lze nastavit default role; Google emaily jsou verified by default
+  a neověřené odmítneme.
 - **Match je strict exact** — `acme.com` neodpovídá `eng.acme.com`. Subdomény
   musí být přidány samostatně.
 - Pozvánky e-mailem zůstávají jako fallback pro externisty mimo povolené
-  domény.
+  domény. V dev je dispatch e-mailů přes `ConsoleEmailSender` (vypíše do
+  stdoutu); produkce dostane SMTP implementaci.
+- Dev-login (POST `/auth/dev-login`) pro lokální testování bez Google
+  credentials — v produkci je vypnutý (`NODE_ENV=production`).
 
 **Storage:** lokální filesystem v dedikovaném volume (`/data/uploads`).
 S3-compatible (MinIO, R2) lze přidat později přes env config.
@@ -196,7 +199,7 @@ S3-compatible (MinIO, R2) lze přidat později přes env config.
 | Backend      | Node + Hono + TypeScript                     |
 | ORM          | Drizzle                                      |
 | Databáze     | SQLite (WAL mode)                            |
-| Auth         | better-auth + Google OAuth                   |
+| Auth         | Custom session + Google OAuth (PKCE)         |
 | QR           | html5-qrcode nebo @zxing/browser             |
 | Storage      | lokální FS (volume), volitelně S3-compatible |
 | Deployment   | Docker (single image) + docker-compose       |
@@ -212,7 +215,7 @@ S3-compatible (MinIO, R2) lze přidat později přes env config.
 - Tailwind, shadcn, ESLint, Prettier, Vitest.
 - Drizzle + SQLite, první migrace, seed script.
 - Dockerfile (multi-stage) + `docker-compose.yml`, lokální dev s
-  `docker compose up` i bez Dockeru (`pnpm dev`).
+  `docker compose up` i bez Dockeru (`npm run dev`).
 
 ### M1 — Auth & onboarding (≈ 4 dny)
 - better-auth + Google OAuth.
@@ -297,3 +300,118 @@ jako Docker image.
 - **Růst databáze přes přílohy** (fotky poškození) — uploads žijí mimo
   SQLite v `/data/uploads`, ale ratelimit / max size per file by měl být
   defaultně rozumný (např. 5 MB/foto).
+
+## 12. Stav implementace
+
+Sekce odpovídá aktuálnímu stavu repa — udržuj ji čerstvou, ať při dalším
+otevření projektu hned víme, kde jsme.
+
+### Hotovo
+
+**Backend (Hono + Drizzle + SQLite):**
+- Schema + migrace (org_settings, users, sessions, invitations, locations,
+  asset_types, assets, asset_events, damage_reports, loans, loan_items).
+- Org settings (název, code prefix, allowed_domains) — singleton.
+- Custom session auth (cookie `inv_session`) + Google OAuth (PKCE)
+  + dev-login (NODE_ENV != production) + role guard middleware.
+- Domain auto-join (strict exact-match) + first-user-becomes-admin bootstrap.
+- Pozvánky e-mailem (token + 7denní expirace) + public accept endpoint.
+  Sender abstrakce `EmailSender` — default `ConsoleEmailSender`.
+- Assets CRUD: list/filter/fulltext, get, create (auto-kód z typu i ručně),
+  PATCH s validací custom fields proti type schématu, archive/unarchive,
+  assign/unassign uživateli, photos add/remove, events log.
+- Asset types CRUD + custom fields schema (text/number/date/boolean/select).
+- Locations CRUD (s parentem; cyklus chráněn).
+- Damage reports: create s fotkami, list, resolve. Total severity →
+  asset auto-archive jako `damaged`.
+- Loans: create (validace dostupnosti), list (s derived status),
+  detail (join s assety), postupné vracení per položka, `damaged` při
+  vrácení → auto damage report + asset do `in_repair`.
+- Uploads: multipart POST s MIME whitelist (JPEG/PNG/WebP/GIF) a velikostí
+  limitem; GET pro stahování (path-traversal-safe, auth-protected).
+- CSV export (assets, loans, damages) — UTF-8 BOM, otevíratelné v Excelu.
+- QR endpoint (PNG) + bulk labels endpoint.
+- Users management (admin list + role/disable; self-protection).
+
+**Frontend (Vite + React + TanStack Query + Tailwind):**
+- Layout s navigací, auth gate, login page (Google + dev-login),
+  accept-invite page.
+- Assets list (filtry, status, archivované, hledání), nový asset (vč.
+  custom fields), detail (QR vedle, akce, fotky, poškození, historie,
+  přiřazení uživateli, edit form, archivace).
+- Asset types page s editorem custom field schématu.
+- Locations page s hierarchickým stromem + breadcrumb path.
+- Loans list s overdue flagem, nová výpůjčka (multi-select assetů),
+  detail s postupným vracením.
+- Štítky — bulk tisk QR + lidsky čitelný kód, print CSS.
+- Users — admin spravuje role a deaktivace.
+- Settings — org, allowed domains, pozvánky, CSV exporty.
+
+**Tooling & deployment:**
+- npm workspaces (root → apps/server, apps/web, packages/shared).
+- TypeScript strict, ESLint, Prettier, Vitest (14 unit testů: domain,
+  csv, custom-fields validátor).
+- Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
+- `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
+  Litestream sidecar, recovery flow).
+- `README.md` s onboardingem (lokální dev, Google OAuth setup, Docker).
+
+### Co chybí
+
+**Testy (priorita — `chceme testy`):**
+- **E2E (Playwright)**: pokrýt klíčové flow proti běžícímu serveru s SQLite
+  v temp adresáři. Minimální set:
+  - login (dev-login) + logout
+  - vytvoření asset typu s custom fields → vytvoření assetu → editace
+  - QR endpoint vrací PNG, štítky se renderují
+  - výpůjčka 2 assetů → postupné vrácení (jeden OK, druhý damaged) →
+    damage report se objeví, asset přechází do in_repair
+  - archivace assetu (sold) → mizí z default listu, vidí se s flagem
+  - admin pozve uživatele → otevření accept-invite linku → vytvoření
+    sessions + první přihlášení
+  - domain auto-join (mock Google OAuth callback) → user se vytvoří
+    s default rolí, neexistujicí doména → 403
+  - admin spravuje role + deaktivuje uživatele → deaktivovaný uživatel
+    je odhlášený
+- **Integrační (Vitest + supertest/`app.request`)**: API endpointy proti
+  in-memory SQLite, ověřit autorizační guardy a edge cases (postupné
+  vracení, double-return, custom fields required, file upload limity).
+- **Unit testy** (rozšířit): location tree (cycles + orphans), asset code
+  generator (kolize, padding), Google OAuth PKCE helpery.
+- **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
+  ephemeral kontejneru.
+
+**Funkční mezery:**
+- SMTP sender (interface připravená, jen implementace + env).
+- Notifikace pro overdue výpůjčky (e-mail borrowerovi + denní digest pro
+  admina; cron uvnitř aplikace nebo externí kron).
+- Explicit `in_repair` workflow tlačítko (teď nastane jen automaticky
+  po damaged vrácení; admin nemůže ručně poslat asset do opravy/zpět).
+- Damage attachment limit per report (DB nemá hard cap; přidat validaci).
+- Bulk import assetů (CSV upload + preview + commit).
+- Strom lokací: drag-and-drop reordering / přesun pod jiný parent.
+- Lokace v seznamu assetů jako sloupec (teď jen v detailu).
+- Vyhledávání podle externích identifikátorů (sériové číslo) přes
+  custom_fields — index nad JSONem nebo separátní `asset_external_ids`
+  tabulka.
+- Onboarding tour / empty states při prvním rozjetí instance.
+
+**Bezpečnost & provoz:**
+- Rate-limiting (login, OAuth callback, uploads) — teď neomezené.
+- CSRF ochrana pro stavové requesty (cookies jsou SameSite=Lax, ale
+  explicit token by neuškodil).
+- Audit log v UI (teď je v DB, ale není kde se na něj kouknout napříč
+  assety).
+- Healthcheck endpoint pro Docker (`/health` máme, ale není zapojený
+  v Dockerfile `HEALTHCHECK`).
+- Auto-migrace při startu (zatím manuální `npm run db:migrate`).
+
+**Polish / DX:**
+- Mobilní QR sken (kamera) — endpoint funguje, web UI ale jen statický
+  obrázek; potřeba `html5-qrcode` na detailu.
+- Lokalizace (zatím jen CZ, ale stringy nejsou centralizované —
+  i18next nebo aspoň `messages.ts`).
+- Dark mode (nice-to-have).
+- Filtrace výpůjček (status, borrower, datum).
+- E2E testovací data fixture / `db:seed --e2e` profil.
+
