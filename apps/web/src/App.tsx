@@ -11,6 +11,7 @@ import { NewLoanPage } from './pages/NewLoanPage.js';
 import { LabelsPage } from './pages/LabelsPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { LoginPage } from './pages/LoginPage.js';
+import { AcceptInvitePage } from './pages/AcceptInvitePage.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 import { Button } from './components/ui.js';
 
@@ -43,13 +44,15 @@ function Shell() {
     );
   }
 
-  const isLoginRoute = location.pathname === '/login';
+  const isPublicRoute =
+    location.pathname === '/login' || location.pathname === '/accept-invite';
 
   if (!state?.authenticated) {
-    if (isLoginRoute) {
+    if (isPublicRoute) {
       return (
         <Routes>
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/accept-invite" element={<AcceptInvitePage />} />
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
       );

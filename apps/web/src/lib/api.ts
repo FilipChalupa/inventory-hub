@@ -7,6 +7,7 @@ import type {
   ReturnLoanItemInput,
   AllowedDomain,
   UserRole,
+  CustomFieldsSchema,
 } from '@inventory-hub/shared';
 
 type ApiOptions = {
@@ -42,6 +43,7 @@ export type AssetTypeRow = {
   id: string;
   name: string;
   codePrefix: string;
+  customFieldsSchema: CustomFieldsSchema;
 };
 
 export type LocationRow = {
@@ -103,6 +105,32 @@ export type AuthMe =
       user: { id: string; email: string; name: string; role: UserRole; imageUrl: string | null };
     };
 
+export type InvitationRow = {
+  id: string;
+  email: string;
+  role: UserRole;
+  token: string;
+  invitedByUserId: string;
+  acceptedAt: string | null;
+  expiresAt: string;
+  createdAt: string;
+};
+
+export async function uploadFile(file: File): Promise<{ path: string; url: string }> {
+  const form = new FormData();
+  form.append('file', file);
+  const res = await fetch('/api/uploads', {
+    method: 'POST',
+    body: form,
+    credentials: 'include',
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(err?.error?.message ?? `HTTP ${res.status}`);
+  }
+  return res.json() as Promise<{ path: string; url: string }>;
+}
+
 export const apiClient = {
   health: () => api<{ status: string; time: string }>('/health'),
 
@@ -115,6 +143,21 @@ export const apiClient = {
         '/auth/dev-login',
         { method: 'POST', body: { email } },
       ),
+    getInvite: (token: string) =>
+      api<{ email: string; role: UserRole }>(`/auth/invite/${encodeURIComponent(token)}`),
+    acceptInvite: (token: string, name: string) =>
+      api<{ ok: true }>('/auth/accept-invite', { method: 'POST', body: { token, name } }),
+  },
+
+  invitations: {
+    list: () => api<{ items: InvitationRow[] }>('/api/invitations'),
+    create: (input: { email: string; role: UserRole }) =>
+      api<{ id: string; email: string; role: UserRole; acceptUrl: string }>(
+        '/api/invitations',
+        { method: 'POST', body: input },
+      ),
+    remove: (id: string) =>
+      api<{ ok: true }>(`/api/invitations/${id}`, { method: 'DELETE' }),
   },
 
   org: {
@@ -148,6 +191,7 @@ export const apiClient = {
         typeId?: string | null;
         locationId?: string | null;
         notes?: string | null;
+        customFields?: Record<string, unknown>;
       },
     ) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}`, {
@@ -173,10 +217,12 @@ export const apiClient = {
 
   assetTypes: {
     list: () => api<{ items: AssetTypeRow[] }>('/api/asset-types'),
-    create: (input: { name: string; codePrefix: string }) =>
+    create: (input: { name: string; codePrefix: string; customFieldsSchema?: CustomFieldsSchema }) =>
       api<AssetTypeRow>('/api/asset-types', { method: 'POST', body: input }),
-    update: (id: string, input: { name?: string; codePrefix?: string }) =>
-      api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'PATCH', body: input }),
+    update: (
+      id: string,
+      input: { name?: string; codePrefix?: string; customFieldsSchema?: CustomFieldsSchema },
+    ) => api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) =>
       api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'DELETE' }),
   },

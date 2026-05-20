@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useParams } from 'react-router-dom';
-import { apiClient } from '../lib/api.js';
+import { apiClient, uploadFile } from '../lib/api.js';
 import {
   Button,
   Card,
@@ -13,7 +13,8 @@ import {
   Textarea,
   formatDate,
 } from '../components/ui.js';
-import type { DamageSeverity } from '@inventory-hub/shared';
+import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
+import type { CustomFieldsSchema, DamageSeverity } from '@inventory-hub/shared';
 
 export function AssetDetailPage() {
   const { code = '' } = useParams<{ code: string }>();
@@ -69,6 +70,8 @@ export function AssetDetailPage() {
 
   const a = asset.data.asset;
   const isArchived = a.archivedAt !== null;
+  const assetType = types.data?.items.find((t) => t.id === a.typeId);
+  const customSchema: CustomFieldsSchema = assetType?.customFieldsSchema ?? [];
 
   return (
     <article className="space-y-6">
@@ -129,14 +132,17 @@ export function AssetDetailPage() {
             name: a.name,
             typeId: a.typeId ?? '',
             locationId: a.locationId ?? '',
+            customFields: (a.customFields ?? {}) as Record<string, unknown>,
           }}
           types={types.data?.items ?? []}
           locations={locations.data?.items ?? []}
+          customSchema={customSchema}
           onSubmit={async (values) => {
             await apiClient.assets.update(code, {
               name: values.name,
               typeId: values.typeId || null,
               locationId: values.locationId || null,
+              customFields: values.customFields,
             });
             setShowEditForm(false);
             invalidateAll();
@@ -153,7 +159,7 @@ export function AssetDetailPage() {
               occurredAt: values.occurredAt,
               description: values.description,
               severity: values.severity,
-              photoPaths: [],
+              photoPaths: values.photoPaths,
             });
             setShowDamageForm(false);
             invalidateAll();
@@ -171,6 +177,16 @@ export function AssetDetailPage() {
           <dd>{formatDate(a.updatedAt)}</dd>
           <dt className="text-slate-500">Archivováno</dt>
           <dd>{a.archivedAt ? formatDate(a.archivedAt) : '—'}</dd>
+          {customSchema.map((f) => {
+            const value = (a.customFields ?? {})[f.key];
+            return (
+              <FragmentRow
+                key={f.key}
+                label={f.label}
+                value={formatCustomFieldValue(f.type, value)}
+              />
+            );
+          })}
         </dl>
       </Card>
 
@@ -181,39 +197,60 @@ export function AssetDetailPage() {
         )}
         <ul className="divide-y">
           {damages.data?.items.map((d) => (
-            <li key={d.id} className="py-2 flex justify-between items-start gap-4">
-              <div>
-                <p className="text-sm">
-                  <span className="font-medium">{d.description}</span>
-                </p>
-                <p className="text-xs text-slate-500">
-                  {formatDate(d.occurredAt)} · severity:{' '}
-                  <span
-                    className={
-                      d.severity === 'total'
-                        ? 'text-red-600 font-medium'
-                        : d.severity === 'major'
-                          ? 'text-orange-600 font-medium'
-                          : 'text-slate-700'
-                    }
+            <li key={d.id} className="py-3 space-y-2">
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                  <p className="text-sm">
+                    <span className="font-medium">{d.description}</span>
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    {formatDate(d.occurredAt)} · severity:{' '}
+                    <span
+                      className={
+                        d.severity === 'total'
+                          ? 'text-red-600 font-medium'
+                          : d.severity === 'major'
+                            ? 'text-orange-600 font-medium'
+                            : 'text-slate-700'
+                      }
+                    >
+                      {d.severity}
+                    </span>
+                  </p>
+                </div>
+                {d.resolvedAt ? (
+                  <span className="text-xs text-slate-500">opraveno {formatDate(d.resolvedAt)}</span>
+                ) : (
+                  <Button
+                    variant="ghost"
+                    className="text-xs"
+                    onClick={async () => {
+                      await apiClient.damages.resolve(d.id);
+                      invalidateAll();
+                    }}
                   >
-                    {d.severity}
-                  </span>
-                </p>
+                    označit opravené
+                  </Button>
+                )}
               </div>
-              {d.resolvedAt ? (
-                <span className="text-xs text-slate-500">opraveno {formatDate(d.resolvedAt)}</span>
-              ) : (
-                <Button
-                  variant="ghost"
-                  className="text-xs"
-                  onClick={async () => {
-                    await apiClient.damages.resolve(d.id);
-                    invalidateAll();
-                  }}
-                >
-                  označit opravené
-                </Button>
+              {d.photoPaths.length > 0 && (
+                <div className="flex gap-2 flex-wrap">
+                  {d.photoPaths.map((p) => (
+                    <a
+                      key={p}
+                      href={`/api/uploads/${p}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="block w-20 h-20 rounded border overflow-hidden bg-slate-50"
+                    >
+                      <img
+                        src={`/api/uploads/${p}`}
+                        alt=""
+                        className="w-full h-full object-cover"
+                      />
+                    </a>
+                  ))}
+                </div>
               )}
             </li>
           ))}
@@ -239,19 +276,35 @@ function EditAssetForm({
   initial,
   types,
   locations,
+  customSchema,
   onSubmit,
   onCancel,
 }: {
-  initial: { name: string; typeId: string; locationId: string };
+  initial: {
+    name: string;
+    typeId: string;
+    locationId: string;
+    customFields: Record<string, unknown>;
+  };
   types: { id: string; name: string; codePrefix: string }[];
   locations: { id: string; name: string }[];
-  onSubmit: (v: { name: string; typeId: string; locationId: string }) => Promise<void>;
+  customSchema: CustomFieldsSchema;
+  onSubmit: (v: {
+    name: string;
+    typeId: string;
+    locationId: string;
+    customFields: Record<string, unknown>;
+  }) => Promise<void>;
   onCancel: () => void;
 }) {
   const { register, handleSubmit } = useForm({ defaultValues: initial });
+  const [customFieldValues, setCustomFieldValues] = useState(initial.customFields);
   return (
     <Card>
-      <form className="space-y-3" onSubmit={handleSubmit(onSubmit)}>
+      <form
+        className="space-y-3"
+        onSubmit={handleSubmit((v) => onSubmit({ ...v, customFields: customFieldValues }))}
+      >
         <Field label="Název">
           <Input {...register('name', { required: true })} />
         </Field>
@@ -275,6 +328,16 @@ function EditAssetForm({
             ))}
           </Select>
         </Field>
+        {customSchema.length > 0 && (
+          <div className="border-t pt-3">
+            <h3 className="font-medium text-sm text-slate-700 mb-2">Vlastní pole</h3>
+            <CustomFieldsValuesForm
+              schema={customSchema}
+              values={customFieldValues}
+              onChange={setCustomFieldValues}
+            />
+          </div>
+        )}
         <div className="flex gap-2">
           <Button type="submit">Uložit</Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
@@ -286,11 +349,39 @@ function EditAssetForm({
   );
 }
 
+function FragmentRow({ label, value }: { label: string; value: string }) {
+  return (
+    <>
+      <dt className="text-slate-500">{label}</dt>
+      <dd>{value || '—'}</dd>
+    </>
+  );
+}
+
+function formatCustomFieldValue(type: string, value: unknown): string {
+  if (value === undefined || value === null || value === '') return '';
+  switch (type) {
+    case 'boolean':
+      return value ? 'Ano' : 'Ne';
+    case 'date':
+      return typeof value === 'string'
+        ? new Date(value).toLocaleDateString('cs-CZ')
+        : String(value);
+    default:
+      return String(value);
+  }
+}
+
 function NewDamageForm({
   onSubmit,
   onCancel,
 }: {
-  onSubmit: (v: { occurredAt: Date; description: string; severity: DamageSeverity }) => Promise<void>;
+  onSubmit: (v: {
+    occurredAt: Date;
+    description: string;
+    severity: DamageSeverity;
+    photoPaths: string[];
+  }) => Promise<void>;
   onCancel: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 16);
@@ -301,12 +392,39 @@ function NewDamageForm({
   }>({
     defaultValues: { occurredAt: today, description: '', severity: 'minor' },
   });
+  const [photos, setPhotos] = useState<{ path: string; previewUrl: string }[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploadError(null);
+    setUploading(true);
+    try {
+      const uploaded = await Promise.all(
+        Array.from(files).map(async (file) => {
+          const res = await uploadFile(file);
+          return { path: res.path, previewUrl: URL.createObjectURL(file) };
+        }),
+      );
+      setPhotos((prev) => [...prev, ...uploaded]);
+    } catch (err) {
+      setUploadError((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
   return (
     <Card>
       <form
         className="space-y-3"
         onSubmit={handleSubmit((v) =>
-          onSubmit({ ...v, occurredAt: new Date(v.occurredAt) }),
+          onSubmit({
+            ...v,
+            occurredAt: new Date(v.occurredAt),
+            photoPaths: photos.map((p) => p.path),
+          }),
         )}
       >
         <Field label="Kdy se to stalo">
@@ -322,8 +440,41 @@ function NewDamageForm({
             <option value="total">Totální (asset → poškozen + archiv)</option>
           </Select>
         </Field>
+        <Field label="Fotky (volitelné)">
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            onChange={(e) => handleFiles(e.target.files)}
+            className="block w-full text-sm text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-slate-100 file:text-sm file:font-medium hover:file:bg-slate-200"
+          />
+        </Field>
+        {photos.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {photos.map((p, idx) => (
+              <div
+                key={p.path}
+                className="relative w-20 h-20 rounded border overflow-hidden bg-slate-50"
+              >
+                <img src={p.previewUrl} alt="" className="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setPhotos((prev) => prev.filter((_, i) => i !== idx))}
+                  className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 text-xs leading-none border"
+                  aria-label="Odebrat"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {uploading && <p className="text-xs text-slate-500">Nahrávám fotky…</p>}
+        {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
         <div className="flex gap-2">
-          <Button type="submit">Zaznamenat</Button>
+          <Button type="submit" disabled={uploading}>
+            Zaznamenat
+          </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
             Zrušit
           </Button>

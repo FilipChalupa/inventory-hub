@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { customFieldsSchemaSchema } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assetTypes } from '../db/schema.js';
 
@@ -14,11 +15,13 @@ const codePrefix = z
 const createInput = z.object({
   name: z.string().min(1).max(200),
   codePrefix,
+  customFieldsSchema: customFieldsSchemaSchema.optional(),
 });
 
 const updateInput = z.object({
   name: z.string().min(1).max(200).optional(),
   codePrefix: codePrefix.optional(),
+  customFieldsSchema: customFieldsSchemaSchema.optional(),
 });
 
 export const assetTypeRoutes = new Hono<AppContext>()
@@ -43,7 +46,12 @@ export const assetTypeRoutes = new Hono<AppContext>()
 
     const id = crypto.randomUUID();
     db.insert(assetTypes)
-      .values({ id, name: input.name, codePrefix: prefix })
+      .values({
+        id,
+        name: input.name,
+        codePrefix: prefix,
+        customFieldsSchema: input.customFieldsSchema ?? [],
+      })
       .run();
     return c.json({ id, name: input.name, codePrefix: prefix }, 201);
   })
@@ -51,11 +59,14 @@ export const assetTypeRoutes = new Hono<AppContext>()
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
-    const patch: { name?: string; codePrefix?: string; updatedAt?: Date } = {
+    const patch: Partial<typeof assetTypes.$inferInsert> = {
       updatedAt: new Date(),
     };
     if (input.name !== undefined) patch.name = input.name;
     if (input.codePrefix !== undefined) patch.codePrefix = input.codePrefix.toUpperCase();
+    if (input.customFieldsSchema !== undefined) {
+      patch.customFieldsSchema = input.customFieldsSchema;
+    }
     const result = db.update(assetTypes).set(patch).where(eq(assetTypes.id, id)).run();
     if (result.changes === 0) return c.json({ error: { message: 'Typ nenalezen' } }, 404);
     return c.json({ ok: true });

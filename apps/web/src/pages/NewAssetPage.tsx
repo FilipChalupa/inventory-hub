@@ -1,8 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Field, Input, Select } from '../components/ui.js';
+import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 
 type FormValues = {
   name: string;
@@ -14,7 +16,7 @@ type FormValues = {
 export function NewAssetPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
-  const { register, handleSubmit, formState } = useForm<FormValues>({
+  const { register, handleSubmit, watch, formState } = useForm<FormValues>({
     defaultValues: { name: '', typeId: '', locationId: '', code: '' },
   });
 
@@ -27,6 +29,12 @@ export function NewAssetPage() {
     queryFn: () => apiClient.locations.list(),
   });
 
+  const typeId = watch('typeId');
+  const selectedType = types.data?.items.find((t) => t.id === typeId);
+  const schema = selectedType?.customFieldsSchema ?? [];
+
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+
   const create = useMutation({
     mutationFn: async (values: FormValues) =>
       apiClient.assets.create({
@@ -34,6 +42,7 @@ export function NewAssetPage() {
         code: values.code.trim() ? values.code.trim().toUpperCase() : undefined,
         typeId: values.typeId || null,
         locationId: values.locationId || null,
+        customFields: customFieldValues,
       }),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: ['assets'] });
@@ -91,6 +100,19 @@ export function NewAssetPage() {
             }
           />
         </Field>
+
+        {schema.length > 0 && (
+          <div className="border-t pt-4">
+            <h2 className="font-semibold mb-3 text-sm text-slate-700">
+              Vlastní pole ({selectedType?.name})
+            </h2>
+            <CustomFieldsValuesForm
+              schema={schema}
+              values={customFieldValues}
+              onChange={setCustomFieldValues}
+            />
+          </div>
+        )}
 
         {create.error && (
           <p className="text-sm text-red-600">{(create.error as Error).message}</p>

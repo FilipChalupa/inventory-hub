@@ -100,9 +100,17 @@ export const assetTypes = sqliteTable(
     name: text('name').notNull(),
     codePrefix: text('code_prefix').notNull(),
     customFieldsSchema: text('custom_fields_schema', { mode: 'json' })
-      .$type<Record<string, unknown>>()
+      .$type<
+        Array<{
+          key: string;
+          label: string;
+          type: 'text' | 'number' | 'date' | 'boolean' | 'select';
+          required?: boolean;
+          options?: string[];
+        }>
+      >()
       .notNull()
-      .default({}),
+      .default([]),
     ...timestamps,
   },
   (t) => ({

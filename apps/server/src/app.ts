@@ -11,6 +11,9 @@ import { assetTypeRoutes } from './routes/asset-types.js';
 import { locationRoutes } from './routes/locations.js';
 import { damageRoutes } from './routes/damages.js';
 import { loanRoutes } from './routes/loans.js';
+import { uploadRoutes } from './routes/uploads.js';
+import { exportRoutes } from './routes/export.js';
+import { invitationRoutes } from './routes/invitations.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
 
@@ -49,6 +52,9 @@ export function createApp(deps: { db: Db; env: Env }) {
   app.route('/api/locations', locationRoutes);
   app.route('/api/damages', damageRoutes);
   app.route('/api/loans', loanRoutes);
+  app.route('/api/uploads', uploadRoutes);
+  app.route('/api/export', exportRoutes);
+  app.route('/api/invitations', invitationRoutes);
 
   app.onError((err, c) => {
     console.error('Request error:', err);

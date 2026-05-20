@@ -4,7 +4,7 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import { eq } from 'drizzle-orm';
 import type { AppContext } from '../app.js';
-import { users } from '../db/schema.js';
+import { invitations, users } from '../db/schema.js';
 import { findOrCreateUserForGoogle } from '../lib/auth-onboard.js';
 import {
   buildAuthorizationUrl,
@@ -134,6 +134,67 @@ export const authRoutes = new Hono<AppContext>()
 
     return c.redirect(env.PUBLIC_APP_URL + '/');
   })
+
+  // ---- Invitation acceptance (public) -------------------------------------
+
+  .get('/invite/:token', (c) => {
+    const db = c.get('db');
+    const token = c.req.param('token');
+    const invite = db.select().from(invitations).where(eq(invitations.token, token)).get();
+    if (!invite) return c.json({ error: { message: 'Pozvánka nenalezena' } }, 404);
+    if (invite.acceptedAt) {
+      return c.json({ error: { message: 'Pozvánka už byla použita' } }, 409);
+    }
+    if (invite.expiresAt.getTime() < Date.now()) {
+      return c.json({ error: { message: 'Pozvánka vypršela' } }, 410);
+    }
+    return c.json({ email: invite.email, role: invite.role });
+  })
+
+  .post(
+    '/accept-invite',
+    zValidator(
+      'json',
+      z.object({
+        token: z.string().min(1),
+        name: z.string().min(1).max(200),
+      }),
+    ),
+    (c) => {
+      const db = c.get('db');
+      const env = c.get('env');
+      const { token, name } = c.req.valid('json');
+
+      const invite = db.select().from(invitations).where(eq(invitations.token, token)).get();
+      if (!invite) return c.json({ error: { message: 'Pozvánka nenalezena' } }, 404);
+      if (invite.acceptedAt) {
+        return c.json({ error: { message: 'Pozvánka už byla použita' } }, 409);
+      }
+      if (invite.expiresAt.getTime() < Date.now()) {
+        return c.json({ error: { message: 'Pozvánka vypršela' } }, 410);
+      }
+
+      const existing = db.select().from(users).where(eq(users.email, invite.email)).get();
+      const userId = existing
+        ? existing.id
+        : (() => {
+            const id = crypto.randomUUID();
+            db.insert(users)
+              .values({ id, email: invite.email, name, role: invite.role })
+              .run();
+            return id;
+          })();
+
+      db.update(invitations)
+        .set({ acceptedAt: new Date() })
+        .where(eq(invitations.id, invite.id))
+        .run();
+
+      const { token: sessionToken, expiresAt } = createSession(db, userId);
+      setCookie(c, SESSION_COOKIE, sessionToken, sessionCookieOptions(env, expiresAt));
+      return c.json({ ok: true });
+    },
+  )
 
   // ---- Dev-only login (without real Google credentials) -------------------
 

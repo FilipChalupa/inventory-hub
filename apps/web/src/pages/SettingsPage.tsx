@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
-import { Button, Card, Field, Input, Select } from '../components/ui.js';
+import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
 import type { AllowedDomain, UserRole } from '@inventory-hub/shared';
 
 type SettingsForm = { name: string; codePrefix: string };
@@ -77,7 +77,141 @@ export function SettingsPage() {
           {save.isPending ? 'Ukládám…' : 'Uložit nastavení'}
         </Button>
       </form>
+
+      <InvitationsSection />
+
+      <Card>
+        <h2 className="font-semibold mb-2">Export CSV</h2>
+        <p className="text-xs text-slate-500 mb-3">
+          Stáhne aktuální data ve formátu CSV (UTF-8 + BOM, otevíratelné v Excelu).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <a
+            href="/api/export/assets.csv"
+            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            Assety
+          </a>
+          <a
+            href="/api/export/loans.csv"
+            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            Výpůjčky
+          </a>
+          <a
+            href="/api/export/damages.csv"
+            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+          >
+            Poškození
+          </a>
+        </div>
+      </Card>
     </section>
+  );
+}
+
+function InvitationsSection() {
+  const qc = useQueryClient();
+  const list = useQuery({ queryKey: ['invitations'], queryFn: () => apiClient.invitations.list() });
+  const [email, setEmail] = useState('');
+  const [role, setRole] = useState<UserRole>('member');
+  const [lastUrl, setLastUrl] = useState<string | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => apiClient.invitations.create({ email, role }),
+    onSuccess: async (res) => {
+      setEmail('');
+      setLastUrl(res.acceptUrl);
+      await qc.invalidateQueries({ queryKey: ['invitations'] });
+    },
+  });
+
+  const remove = useMutation({
+    mutationFn: (id: string) => apiClient.invitations.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['invitations'] }),
+  });
+
+  return (
+    <Card>
+      <h2 className="font-semibold mb-2">Pozvánky uživatelů</h2>
+      <p className="text-xs text-slate-500 mb-3">
+        Pozvaný uživatel dostane e-mail s odkazem (v dev módu se e-mail vypíše do
+        konzole serveru). Pokud má SMTP nakonfigurovaný, doručí se reálně.
+      </p>
+
+      <form
+        className="flex flex-wrap gap-2 items-end"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (email) create.mutate();
+        }}
+      >
+        <div className="flex-1 min-w-[200px]">
+          <Field label="E-mail">
+            <Input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="kolega@firma.cz"
+            />
+          </Field>
+        </div>
+        <div className="w-40">
+          <Field label="Role">
+            <Select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
+              <option value="member">member</option>
+              <option value="operator">operator</option>
+              <option value="auditor">auditor</option>
+              <option value="admin">admin</option>
+            </Select>
+          </Field>
+        </div>
+        <Button type="submit" disabled={create.isPending || !email}>
+          Pozvat
+        </Button>
+      </form>
+
+      {create.error && (
+        <p className="text-sm text-red-600 mt-2">{(create.error as Error).message}</p>
+      )}
+
+      {lastUrl && (
+        <div className="mt-3 p-3 rounded bg-emerald-50 border border-emerald-200 text-xs space-y-1">
+          <p className="font-medium">Pozvánka vytvořena. Odkaz:</p>
+          <code className="block break-all">{lastUrl}</code>
+          <Button
+            variant="secondary"
+            className="text-xs"
+            onClick={() => navigator.clipboard.writeText(lastUrl)}
+          >
+            Kopírovat
+          </Button>
+        </div>
+      )}
+
+      <ul className="divide-y border rounded mt-4">
+        {list.data?.items.length === 0 && (
+          <li className="p-3 text-sm text-slate-500">Žádné čekající pozvánky.</li>
+        )}
+        {list.data?.items.map((inv) => (
+          <li key={inv.id} className="flex items-center justify-between p-3 gap-2">
+            <div>
+              <p className="text-sm font-medium">{inv.email}</p>
+              <p className="text-xs text-slate-500">
+                role {inv.role} · platí do {formatDate(inv.expiresAt)}
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              className="text-red-600 text-xs"
+              onClick={() => remove.mutate(inv.id)}
+            >
+              Zrušit
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </Card>
   );
 }
 

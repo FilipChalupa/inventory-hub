@@ -3,3 +3,4 @@ export * from './loan.js';
 export * from './damage.js';
 export * from './user.js';
 export * from './org.js';
+export * from './custom-fields.js';

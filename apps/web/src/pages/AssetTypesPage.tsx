@@ -1,7 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
+import { CustomFieldsSchemaEditor } from '../components/CustomFieldsSchemaEditor.js';
+import type { CustomFieldsSchema } from '@inventory-hub/shared';
 
 export function AssetTypesPage() {
   const qc = useQueryClient();
@@ -64,28 +67,85 @@ export function AssetTypesPage() {
         )}
       </Card>
 
-      <div className="rounded border bg-white divide-y">
+      <div className="space-y-3">
         {list.data?.items.length === 0 && (
           <p className="p-4 text-sm text-slate-500">Žádné typy. Přidej první výše.</p>
         )}
         {list.data?.items.map((t) => (
-          <div key={t.id} className="flex items-center justify-between p-3">
-            <div>
-              <p className="font-medium">{t.name}</p>
-              <p className="font-mono text-xs text-slate-500">{t.codePrefix}-…</p>
-            </div>
-            <Button
-              variant="ghost"
-              className="text-red-600"
-              onClick={() => {
-                if (confirm(`Smazat typ "${t.name}"?`)) remove.mutate(t.id);
-              }}
-            >
-              Smazat
-            </Button>
-          </div>
+          <AssetTypeRow
+            key={t.id}
+            id={t.id}
+            name={t.name}
+            codePrefix={t.codePrefix}
+            customFieldsSchema={t.customFieldsSchema ?? []}
+            onRemove={() => {
+              if (confirm(`Smazat typ "${t.name}"?`)) remove.mutate(t.id);
+            }}
+            onSavedSchema={() => qc.invalidateQueries({ queryKey: ['asset-types'] })}
+          />
         ))}
       </div>
     </section>
+  );
+}
+
+function AssetTypeRow({
+  id,
+  name,
+  codePrefix,
+  customFieldsSchema,
+  onRemove,
+  onSavedSchema,
+}: {
+  id: string;
+  name: string;
+  codePrefix: string;
+  customFieldsSchema: CustomFieldsSchema;
+  onRemove: () => void;
+  onSavedSchema: () => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [schema, setSchema] = useState<CustomFieldsSchema>(customFieldsSchema);
+  const save = useMutation({
+    mutationFn: () => apiClient.assetTypes.update(id, { customFieldsSchema: schema }),
+    onSuccess: () => onSavedSchema(),
+  });
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="font-medium">{name}</p>
+          <p className="font-mono text-xs text-slate-500">
+            {codePrefix}-… · {customFieldsSchema.length} vlastní pole
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={() => setExpanded((v) => !v)}>
+            {expanded ? 'Skrýt' : 'Vlastní pole'}
+          </Button>
+          <Button variant="ghost" className="text-red-600" onClick={onRemove}>
+            Smazat
+          </Button>
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="mt-4 space-y-3">
+          <CustomFieldsSchemaEditor value={schema} onChange={setSchema} />
+          <div className="flex gap-2">
+            <Button onClick={() => save.mutate()} disabled={save.isPending}>
+              {save.isPending ? 'Ukládám…' : 'Uložit schéma'}
+            </Button>
+            <Button variant="ghost" onClick={() => setSchema(customFieldsSchema)}>
+              Reset
+            </Button>
+          </div>
+          {save.error && (
+            <p className="text-xs text-red-600">{(save.error as Error).message}</p>
+          )}
+        </div>
+      )}
+    </Card>
   );
 }
