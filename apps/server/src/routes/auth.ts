@@ -1,0 +1,166 @@
+import { Hono } from 'hono';
+import { zValidator } from '@hono/zod-validator';
+import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
+import { z } from 'zod';
+import { eq } from 'drizzle-orm';
+import type { AppContext } from '../app.js';
+import { users } from '../db/schema.js';
+import { findOrCreateUserForGoogle } from '../lib/auth-onboard.js';
+import {
+  buildAuthorizationUrl,
+  exchangeCode,
+  generatePkcePair,
+  generateState,
+  type GoogleConfig,
+} from '../lib/google-oauth.js';
+import { SESSION_COOKIE, createSession, deleteSession } from '../lib/sessions.js';
+
+const OAUTH_STATE_COOKIE = 'inv_oauth_state';
+const OAUTH_VERIFIER_COOKIE = 'inv_oauth_verifier';
+
+function googleConfig(env: AppContext['Variables']['env']): GoogleConfig | null {
+  if (!env.GOOGLE_CLIENT_ID || !env.GOOGLE_CLIENT_SECRET || !env.GOOGLE_REDIRECT_URL) {
+    return null;
+  }
+  return {
+    clientId: env.GOOGLE_CLIENT_ID,
+    clientSecret: env.GOOGLE_CLIENT_SECRET,
+    redirectUrl: env.GOOGLE_REDIRECT_URL,
+  };
+}
+
+function isSecure(env: AppContext['Variables']['env']): boolean {
+  return env.NODE_ENV === 'production';
+}
+
+function sessionCookieOptions(env: AppContext['Variables']['env'], expiresAt?: Date) {
+  return {
+    httpOnly: true,
+    sameSite: 'Lax',
+    secure: isSecure(env),
+    path: '/',
+    expires: expiresAt,
+  } as const;
+}
+
+export const authRoutes = new Hono<AppContext>()
+  .get('/me', (c) => {
+    const user = c.get('user');
+    if (!user) return c.json({ authenticated: false }, 200);
+    return c.json({
+      authenticated: true,
+      user: {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        imageUrl: user.imageUrl,
+      },
+    });
+  })
+
+  .post('/logout', (c) => {
+    const env = c.get('env');
+    const db = c.get('db');
+    const token = getCookie(c, SESSION_COOKIE);
+    if (token) deleteSession(db, token);
+    deleteCookie(c, SESSION_COOKIE, { path: '/', secure: isSecure(env) });
+    return c.json({ ok: true });
+  })
+
+  // ---- Google OAuth -------------------------------------------------------
+
+  .get('/google/start', (c) => {
+    const env = c.get('env');
+    const cfg = googleConfig(env);
+    if (!cfg) return c.json({ error: { message: 'Google OAuth není nakonfigurováno' } }, 503);
+
+    const { verifier, challenge } = generatePkcePair();
+    const state = generateState();
+    setCookie(c, OAUTH_STATE_COOKIE, state, {
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: isSecure(env),
+      path: '/',
+      maxAge: 600,
+    });
+    setCookie(c, OAUTH_VERIFIER_COOKIE, verifier, {
+      httpOnly: true,
+      sameSite: 'Lax',
+      secure: isSecure(env),
+      path: '/',
+      maxAge: 600,
+    });
+    return c.redirect(buildAuthorizationUrl(cfg, state, challenge));
+  })
+
+  .get('/google/callback', async (c) => {
+    const env = c.get('env');
+    const db = c.get('db');
+    const cfg = googleConfig(env);
+    if (!cfg) return c.json({ error: { message: 'Google OAuth není nakonfigurováno' } }, 503);
+
+    const code = c.req.query('code');
+    const state = c.req.query('state');
+    if (!code || !state) {
+      return c.json({ error: { message: 'Chybí code nebo state' } }, 400);
+    }
+    const expectedState = getCookie(c, OAUTH_STATE_COOKIE);
+    const verifier = getCookie(c, OAUTH_VERIFIER_COOKIE);
+    if (!expectedState || !verifier || state !== expectedState) {
+      return c.json({ error: { message: 'Neplatný OAuth state' } }, 400);
+    }
+    deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/', secure: isSecure(env) });
+    deleteCookie(c, OAUTH_VERIFIER_COOKIE, { path: '/', secure: isSecure(env) });
+
+    let identity;
+    try {
+      identity = await exchangeCode(cfg, code, verifier);
+    } catch (err) {
+      console.error('Google exchange failed:', err);
+      return c.json({ error: { message: 'Google sign-in selhal' } }, 400);
+    }
+
+    const user = findOrCreateUserForGoogle(db, identity);
+    if (!user) {
+      return c.json(
+        { error: { message: 'Tvůj e-mail nemá oprávnění se přihlásit. Kontaktuj administrátora.' } },
+        403,
+      );
+    }
+
+    const { token, expiresAt } = createSession(db, user.id);
+    setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(env, expiresAt));
+
+    return c.redirect(env.PUBLIC_APP_URL + '/');
+  })
+
+  // ---- Dev-only login (without real Google credentials) -------------------
+
+  .post(
+    '/dev-login',
+    zValidator(
+      'json',
+      z.object({
+        email: z.string().email(),
+      }),
+    ),
+    (c) => {
+      const env = c.get('env');
+      if (env.NODE_ENV === 'production') {
+        return c.json({ error: { message: 'Dev-login je dostupný jen v dev/test módu' } }, 403);
+      }
+      const db = c.get('db');
+      const { email } = c.req.valid('json');
+      const user = db.select().from(users).where(eq(users.email, email)).get();
+      if (!user) {
+        return c.json({ error: { message: `Uživatel ${email} neexistuje` } }, 404);
+      }
+      const { token, expiresAt } = createSession(db, user.id);
+      setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(env, expiresAt));
+      return c.json({
+        ok: true,
+        user: { id: user.id, email: user.email, name: user.name, role: user.role },
+      });
+    },
+  );

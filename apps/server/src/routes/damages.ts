@@ -4,7 +4,7 @@ import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import { damageSeverities } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
-import { assetEvents, assets, damageReports, users } from '../db/schema.js';
+import { assetEvents, assets, damageReports } from '../db/schema.js';
 
 const createInput = z.object({
   occurredAt: z.coerce.date(),
@@ -35,11 +35,7 @@ export const damageRoutes = new Hono<AppContext>()
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
 
-    // FIXME(auth): until auth is wired, fall back to the dev admin
-    const fallback = db.select().from(users).orderBy(users.createdAt).get();
-    if (!fallback) {
-      return c.json({ error: { message: 'Žádný uživatel v systému, nelze zapsat report' } }, 400);
-    }
+    const user = c.get('user')!;
 
     const id = crypto.randomUUID();
     db.insert(damageReports)
@@ -47,7 +43,7 @@ export const damageRoutes = new Hono<AppContext>()
         id,
         assetId: asset.id,
         occurredAt: input.occurredAt,
-        reportedByUserId: fallback.id,
+        reportedByUserId: user.id,
         description: input.description,
         severity: input.severity,
         photoPaths: input.photoPaths ?? [],
@@ -71,7 +67,7 @@ export const damageRoutes = new Hono<AppContext>()
     db.insert(assetEvents)
       .values({
         assetId: asset.id,
-        actorUserId: fallback.id,
+        actorUserId: user.id,
         type: 'damage_reported',
         payload: { damageReportId: id, severity: input.severity },
       })

@@ -106,7 +106,7 @@ export const assetRoutes = new Hono<AppContext>()
     db.insert(assetEvents)
       .values({
         assetId,
-        actorUserId: null,
+        actorUserId: c.get('user')?.id ?? null,
         type: 'created',
         payload: { code, name: input.name },
       })
@@ -136,7 +136,7 @@ export const assetRoutes = new Hono<AppContext>()
     db.insert(assetEvents)
       .values({
         assetId: asset.id,
-        actorUserId: null,
+        actorUserId: c.get('user')?.id ?? null,
         type: 'updated',
         payload: input as Record<string, unknown>,
       })
@@ -163,7 +163,7 @@ export const assetRoutes = new Hono<AppContext>()
     db.insert(assetEvents)
       .values({
         assetId: asset.id,
-        actorUserId: null,
+        actorUserId: c.get('user')?.id ?? null,
         type: 'archived',
         payload: { status: input.status, note: input.note },
       })
@@ -192,7 +192,7 @@ export const assetRoutes = new Hono<AppContext>()
     db.insert(assetEvents)
       .values({
         assetId: asset.id,
-        actorUserId: null,
+        actorUserId: c.get('user')?.id ?? null,
         type: 'unarchived',
         payload: { previousStatus: asset.status },
       })

@@ -3,6 +3,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import type { Db } from './db/client.js';
 import type { Env } from './env.js';
+import type { UserRow } from './db/schema.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/org.js';
 import { assetRoutes } from './routes/assets.js';
@@ -10,11 +11,14 @@ import { assetTypeRoutes } from './routes/asset-types.js';
 import { locationRoutes } from './routes/locations.js';
 import { damageRoutes } from './routes/damages.js';
 import { loanRoutes } from './routes/loans.js';
+import { authRoutes } from './routes/auth.js';
+import { authLoader, requireAuth } from './middleware/auth.js';
 
 export type AppContext = {
   Variables: {
     db: Db;
     env: Env;
+    user?: UserRow;
   };
 };
 
@@ -30,7 +34,15 @@ export function createApp(deps: { db: Db; env: Env }) {
     await next();
   });
 
+  // Loads the session if one is present, but doesn't enforce auth.
+  app.use('*', authLoader);
+
   app.route('/health', healthRoutes);
+  app.route('/auth', authRoutes);
+
+  // All /api/* routes require an authenticated session. Org PUT additionally
+  // requires admin role — handled inside the org router.
+  app.use('/api/*', requireAuth());
   app.route('/api/org', orgRoutes);
   app.route('/api/assets', assetRoutes);
   app.route('/api/asset-types', assetTypeRoutes);

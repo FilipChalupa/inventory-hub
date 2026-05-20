@@ -10,7 +10,6 @@ import {
   damageReports,
   loanItems,
   loans,
-  users,
 } from '../db/schema.js';
 
 export const loanRoutes = new Hono<AppContext>()
@@ -106,10 +105,7 @@ export const loanRoutes = new Hono<AppContext>()
       );
     }
 
-    const fallback = db.select().from(users).orderBy(users.createdAt).get();
-    if (!fallback) {
-      return c.json({ error: { message: 'Žádný uživatel v systému' } }, 400);
-    }
+    const user = c.get('user')!;
 
     const loanId = crypto.randomUUID();
     db.transaction((tx) => {
@@ -121,7 +117,7 @@ export const loanRoutes = new Hono<AppContext>()
           borrowerContact: input.borrowerContact ?? null,
           purpose: input.purpose ?? null,
           expectedReturnAt: input.expectedReturnAt ?? null,
-          createdByUserId: fallback.id,
+          createdByUserId: user.id,
         })
         .run();
 
@@ -135,7 +131,7 @@ export const loanRoutes = new Hono<AppContext>()
         tx.insert(assetEvents)
           .values({
             assetId: t.id,
-            actorUserId: fallback.id,
+            actorUserId: user.id,
             type: 'loan_started',
             payload: { loanId, borrower: input.borrowerName },
           })
@@ -164,10 +160,7 @@ export const loanRoutes = new Hono<AppContext>()
     const asset = db.select().from(assets).where(eq(assets.id, item.assetId)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
 
-    const fallback = db.select().from(users).orderBy(users.createdAt).get();
-    if (!fallback) {
-      return c.json({ error: { message: 'Žádný uživatel v systému' } }, 400);
-    }
+    const user = c.get('user')!;
 
     const now = new Date();
     db.transaction((tx) => {
@@ -196,7 +189,7 @@ export const loanRoutes = new Hono<AppContext>()
             id: damageId,
             assetId: asset.id,
             occurredAt: now,
-            reportedByUserId: fallback.id,
+            reportedByUserId: user.id,
             description: input.returnNotes ?? 'Poškození zjištěno při vrácení výpůjčky.',
             severity: 'minor',
           })
@@ -204,7 +197,7 @@ export const loanRoutes = new Hono<AppContext>()
         tx.insert(assetEvents)
           .values({
             assetId: asset.id,
-            actorUserId: fallback.id,
+            actorUserId: user.id,
             type: 'damage_reported',
             payload: { source: 'loan_return', loanId, damageReportId: damageId },
           })
@@ -214,7 +207,7 @@ export const loanRoutes = new Hono<AppContext>()
       tx.insert(assetEvents)
         .values({
           assetId: asset.id,
-          actorUserId: fallback.id,
+          actorUserId: user.id,
           type: 'loan_item_returned',
           payload: { loanId, itemId, condition: input.returnCondition },
         })

@@ -4,6 +4,7 @@ import { eq } from 'drizzle-orm';
 import { orgSettingsSchema } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { orgSettings } from '../db/schema.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const SINGLETON_ID = 'singleton';
 
@@ -21,7 +22,7 @@ export const orgRoutes = new Hono<AppContext>()
       },
     });
   })
-  .put('/', zValidator('json', orgSettingsSchema), (c) => {
+  .put('/', requireAuth('admin'), zValidator('json', orgSettingsSchema), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
     const now = new Date();

@@ -6,6 +6,7 @@ import type {
   CreateLoanInput,
   ReturnLoanItemInput,
   AllowedDomain,
+  UserRole,
 } from '@inventory-hub/shared';
 
 type ApiOptions = {
@@ -95,8 +96,26 @@ export type LoanRow = {
   status: 'open' | 'partially_returned' | 'fully_returned';
 };
 
+export type AuthMe =
+  | { authenticated: false }
+  | {
+      authenticated: true;
+      user: { id: string; email: string; name: string; role: UserRole; imageUrl: string | null };
+    };
+
 export const apiClient = {
   health: () => api<{ status: string; time: string }>('/health'),
+
+  auth: {
+    me: () => api<AuthMe>('/auth/me'),
+    logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
+    googleStartUrl: '/auth/google/start',
+    devLogin: (email: string) =>
+      api<{ ok: true; user: { id: string; email: string; name: string; role: UserRole } }>(
+        '/auth/dev-login',
+        { method: 'POST', body: { email } },
+      ),
+  },
 
   org: {
     get: () =>

@@ -13,7 +13,7 @@ cp apps/server/.env.example apps/server/.env
 
 npm run db:generate          # vygeneruje migrace ze schématu
 npm run db:migrate           # aplikuje migrace
-npm run db:seed              # naseje demo data
+npm run db:seed              # naseje demo data + dev admin
 
 # v jednom terminálu
 npm run dev:server
@@ -22,7 +22,28 @@ npm run dev:web
 ```
 
 - Server: <http://localhost:3001>
-- Web: <http://localhost:5173> (proxuje `/api` a `/health` na server)
+- Web: <http://localhost:5173> (proxuje `/api`, `/health` a `/auth` na server)
+
+### Přihlášení v dev módu
+
+Bez nakonfigurovaného Google OAuth použij **dev login** na `/login` —
+zadej e-mail existujícího uživatele (po seedu `admin@example.com`)
+a backend ti vytvoří session. Endpoint `/auth/dev-login` je v produkci
+zablokovaný (`NODE_ENV=production`).
+
+### Google OAuth (produkce nebo dev s reálnými credentials)
+
+1. V [Google Cloud Console](https://console.cloud.google.com/) vytvoř
+   OAuth 2.0 Client ID typu „Web application".
+2. Authorized redirect URI nastav na
+   `https://<tvoje-doména>/auth/google/callback`
+   (lokálně `http://localhost:3001/auth/google/callback`).
+3. Do `apps/server/.env` doplň `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
+   a `GOOGLE_REDIRECT_URL`.
+4. **První přihlášený uživatel** se automaticky stane adminem.
+5. V adminu otevři **Nastavení → Povolené domény** a přidej e-mailové
+   domény, jejichž uživatelé se mají přihlašovat automaticky bez pozvánky.
+   Match je strict-exact: `acme.com` nepokrývá `eng.acme.com`.
 
 ## Docker (produkce / self-hosting)
 
