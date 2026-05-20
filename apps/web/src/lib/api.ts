@@ -228,6 +228,16 @@ export const apiClient = {
       }),
     unassign: (code: string) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/unassign`, { method: 'POST' }),
+    addPhoto: (code: string, path: string) =>
+      api<{ photoPaths: string[] }>(`/api/assets/${encodeURIComponent(code)}/photos`, {
+        method: 'POST',
+        body: { path },
+      }),
+    removePhoto: (code: string, path: string) =>
+      api<{ photoPaths: string[] }>(`/api/assets/${encodeURIComponent(code)}/photos`, {
+        method: 'DELETE',
+        body: { path },
+      }),
     events: (code: string) =>
       api<{ items: AssetEventRow[] }>(`/api/assets/${encodeURIComponent(code)}/events`),
     qrUrl: (code: string) => `/api/assets/${encodeURIComponent(code)}/qr`,

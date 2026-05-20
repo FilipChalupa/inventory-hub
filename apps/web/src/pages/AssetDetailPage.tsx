@@ -14,6 +14,9 @@ import {
   formatDate,
 } from '../components/ui.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
+import { LocationSelect } from '../components/LocationSelect.js';
+import { locationPath } from '../lib/locations.js';
+import type { LocationRow } from '../lib/api.js';
 import type { CustomFieldsSchema, DamageSeverity } from '@inventory-hub/shared';
 
 export function AssetDetailPage() {
@@ -186,7 +189,7 @@ export function AssetDetailPage() {
             customFields: (a.customFields ?? {}) as Record<string, unknown>,
           }}
           types={types.data?.items ?? []}
-          locations={locations.data?.items ?? []}
+          locationsList={locations.data?.items ?? []}
           customSchema={customSchema}
           onSubmit={async (values) => {
             await apiClient.assets.update(code, {
@@ -222,6 +225,14 @@ export function AssetDetailPage() {
       <Card>
         <h2 className="font-semibold mb-2">Detaily</h2>
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
+          <dt className="text-slate-500">Typ</dt>
+          <dd>{assetType?.name ?? '—'}</dd>
+          <dt className="text-slate-500">Lokace</dt>
+          <dd>
+            {a.locationId
+              ? locationPath(locations.data?.items ?? [], a.locationId) || '—'
+              : '—'}
+          </dd>
           <dt className="text-slate-500">Vytvořeno</dt>
           <dd>{formatDate(a.createdAt)}</dd>
           <dt className="text-slate-500">Aktualizováno</dt>
@@ -240,6 +251,8 @@ export function AssetDetailPage() {
           })}
         </dl>
       </Card>
+
+      <AssetPhotosCard code={code} photos={a.photoPaths ?? []} onChanged={invalidateAll} />
 
       <Card>
         <h2 className="font-semibold mb-2">Poškození</h2>
@@ -323,10 +336,94 @@ export function AssetDetailPage() {
   );
 }
 
+function AssetPhotosCard({
+  code,
+  photos,
+  onChanged,
+}: {
+  code: string;
+  photos: string[];
+  onChanged: () => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    setError(null);
+    try {
+      for (const file of Array.from(files)) {
+        const res = await uploadFile(file);
+        await apiClient.assets.addPhoto(code, res.path);
+      }
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function removePhoto(path: string) {
+    if (!confirm('Odebrat fotku?')) return;
+    try {
+      await apiClient.assets.removePhoto(code, path);
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold">Fotky</h2>
+        <label className="inline-flex items-center text-xs cursor-pointer text-blue-600 hover:underline">
+          + nahrát
+          <input
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            multiple
+            className="hidden"
+            onChange={(e) => handleFiles(e.target.files)}
+          />
+        </label>
+      </div>
+      {uploading && <p className="text-xs text-slate-500">Nahrávám…</p>}
+      {error && <p className="text-xs text-red-600">{error}</p>}
+      {photos.length === 0 ? (
+        <p className="text-sm text-slate-500">Žádné fotky.</p>
+      ) : (
+        <div className="flex gap-2 flex-wrap">
+          {photos.map((p) => (
+            <div
+              key={p}
+              className="relative w-24 h-24 rounded border overflow-hidden bg-slate-50 group"
+            >
+              <a href={`/api/uploads/${p}`} target="_blank" rel="noreferrer" className="block w-full h-full">
+                <img src={`/api/uploads/${p}`} alt="" className="w-full h-full object-cover" />
+              </a>
+              <button
+                type="button"
+                onClick={() => removePhoto(p)}
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-xs leading-none border opacity-0 group-hover:opacity-100"
+                aria-label="Odebrat"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function EditAssetForm({
   initial,
   types,
-  locations,
+  locationsList,
   customSchema,
   onSubmit,
   onCancel,
@@ -338,7 +435,7 @@ function EditAssetForm({
     customFields: Record<string, unknown>;
   };
   types: { id: string; name: string; codePrefix: string }[];
-  locations: { id: string; name: string }[];
+  locationsList: LocationRow[];
   customSchema: CustomFieldsSchema;
   onSubmit: (v: {
     name: string;
@@ -370,14 +467,7 @@ function EditAssetForm({
           </Select>
         </Field>
         <Field label="Lokace">
-          <Select {...register('locationId')}>
-            <option value="">— bez lokace —</option>
-            {locations.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
+          <LocationSelect locations={locationsList} {...register('locationId')} />
         </Field>
         {customSchema.length > 0 && (
           <div className="border-t pt-3">

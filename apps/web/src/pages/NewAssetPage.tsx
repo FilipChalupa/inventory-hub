@@ -5,6 +5,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Field, Input, Select } from '../components/ui.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
+import { LocationSelect } from '../components/LocationSelect.js';
 
 type FormValues = {
   name: string;
@@ -80,14 +81,7 @@ export function NewAssetPage() {
         </Field>
 
         <Field label="Lokace">
-          <Select {...register('locationId')}>
-            <option value="">— bez lokace —</option>
-            {locations.data?.items.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.name}
-              </option>
-            ))}
-          </Select>
+          <LocationSelect locations={locations.data?.items ?? []} {...register('locationId')} />
         </Field>
 
         <Field label="Vlastní kód (nepovinné — jinak se vygeneruje z typu)">

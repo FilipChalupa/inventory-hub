@@ -29,6 +29,7 @@ export const assetSchema = z.object({
   status: z.enum(ASSET_STATUSES),
   archivedAt: z.coerce.date().nullable(),
   customFields: z.record(z.string(), z.unknown()).default({}),
+  photoPaths: z.array(z.string()).default([]),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });

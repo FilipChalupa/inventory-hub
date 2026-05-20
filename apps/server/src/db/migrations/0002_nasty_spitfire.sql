@@ -1,0 +1,1 @@
+ALTER TABLE `assets` ADD `photo_paths` text DEFAULT '[]' NOT NULL;

@@ -253,6 +253,44 @@ export const assetRoutes = new Hono<AppContext>()
     return c.json({ ok: true });
   })
   .post(
+    '/:code/photos',
+    zValidator('json', z.object({ path: z.string().min(1).max(500) })),
+    (c) => {
+      const db = c.get('db');
+      const code = c.req.param('code').toUpperCase();
+      const { path } = c.req.valid('json');
+      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      const existing = (asset.photoPaths ?? []) as string[];
+      if (existing.includes(path)) {
+        return c.json({ photoPaths: existing });
+      }
+      const next = [...existing, path];
+      db.update(assets)
+        .set({ photoPaths: next, updatedAt: new Date() })
+        .where(eq(assets.id, asset.id))
+        .run();
+      return c.json({ photoPaths: next });
+    },
+  )
+  .delete(
+    '/:code/photos',
+    zValidator('json', z.object({ path: z.string() })),
+    (c) => {
+      const db = c.get('db');
+      const code = c.req.param('code').toUpperCase();
+      const { path } = c.req.valid('json');
+      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      const next = ((asset.photoPaths ?? []) as string[]).filter((p) => p !== path);
+      db.update(assets)
+        .set({ photoPaths: next, updatedAt: new Date() })
+        .where(eq(assets.id, asset.id))
+        .run();
+      return c.json({ photoPaths: next });
+    },
+  )
+  .post(
     '/:code/assign',
     zValidator('json', z.object({ userId: z.string().uuid() })),
     (c) => {

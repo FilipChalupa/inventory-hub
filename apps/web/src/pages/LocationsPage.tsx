@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
-import { Button, Card, Field, Input, Select } from '../components/ui.js';
+import { Button, Card, Field, Input } from '../components/ui.js';
+import { LocationSelect } from '../components/LocationSelect.js';
+import { locationPath, locationsAsTree } from '../lib/locations.js';
 
 export function LocationsPage() {
   const qc = useQueryClient();
@@ -28,6 +30,8 @@ export function LocationsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
   });
 
+  const tree = locationsAsTree(list.data?.items ?? []);
+
   return (
     <section className="space-y-6">
       <h1 className="text-2xl font-bold">Lokace</h1>
@@ -45,41 +49,57 @@ export function LocationsPage() {
           </div>
           <div className="flex-1 min-w-[200px]">
             <Field label="Nadřazená">
-              <Select {...register('parentId')}>
-                <option value="">— žádná —</option>
-                {list.data?.items.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name}
-                  </option>
-                ))}
-              </Select>
+              <LocationSelect
+                locations={list.data?.items ?? []}
+                placeholder="— žádná (kořenová) —"
+                {...register('parentId')}
+              />
             </Field>
           </div>
           <Button type="submit" disabled={create.isPending}>
             Přidat
           </Button>
         </form>
+        {create.error && (
+          <p className="text-sm text-red-600 mt-2">{(create.error as Error).message}</p>
+        )}
       </Card>
 
-      <div className="rounded border bg-white divide-y">
-        {list.data?.items.length === 0 && (
-          <p className="p-4 text-sm text-slate-500">Žádné lokace.</p>
-        )}
-        {list.data?.items.map((l) => (
-          <div key={l.id} className="flex items-center justify-between p-3">
-            <p className="font-medium">{l.name}</p>
-            <Button
-              variant="ghost"
-              className="text-red-600"
-              onClick={() => {
-                if (confirm(`Smazat lokaci "${l.name}"?`)) remove.mutate(l.id);
-              }}
+      <Card>
+        <ul className="divide-y -m-2">
+          {tree.length === 0 && (
+            <li className="p-3 text-sm text-slate-500">Žádné lokace.</li>
+          )}
+          {tree.map(({ row, depth }) => (
+            <li
+              key={row.id}
+              className="flex items-center justify-between p-2"
+              style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
             >
-              Smazat
-            </Button>
-          </div>
-        ))}
-      </div>
+              <div>
+                <p className="font-medium">
+                  {depth > 0 && <span className="text-slate-400 mr-1">└</span>}
+                  {row.name}
+                </p>
+                {depth > 0 && (
+                  <p className="text-xs text-slate-500">
+                    {locationPath(list.data?.items ?? [], row.id)}
+                  </p>
+                )}
+              </div>
+              <Button
+                variant="ghost"
+                className="text-red-600 text-xs"
+                onClick={() => {
+                  if (confirm(`Smazat lokaci "${row.name}"?`)) remove.mutate(row.id);
+                }}
+              >
+                Smazat
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </Card>
     </section>
   );
 }

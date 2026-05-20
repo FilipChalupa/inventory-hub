@@ -137,6 +137,7 @@ export const assets = sqliteTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
+    photoPaths: text('photo_paths', { mode: 'json' }).$type<string[]>().notNull().default([]),
     notes: text('notes'),
     ...timestamps,
   },
