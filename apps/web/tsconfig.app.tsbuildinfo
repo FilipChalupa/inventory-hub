@@ -1,1 +1,1 @@
-{"root":["./src/App.tsx","./src/main.tsx","./src/lib/api.ts","./src/pages/AssetDetailPage.tsx","./src/pages/AssetsPage.tsx"],"version":"5.9.3"}
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/ui.tsx","./src/lib/api.ts","./src/pages/AssetDetailPage.tsx","./src/pages/AssetTypesPage.tsx","./src/pages/AssetsPage.tsx","./src/pages/LabelsPage.tsx","./src/pages/LoanDetailPage.tsx","./src/pages/LoansPage.tsx","./src/pages/LocationsPage.tsx","./src/pages/NewAssetPage.tsx","./src/pages/NewLoanPage.tsx","./src/pages/SettingsPage.tsx"],"version":"5.9.3"}

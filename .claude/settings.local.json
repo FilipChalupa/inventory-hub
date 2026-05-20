@@ -18,7 +18,8 @@
       "Bash(curl -sS -X POST http://localhost:3001/api/assets -H \"content-type: application/json\" -d '{\"name\":\"MacBook Pro 16\",\"code\":\"LAP-00099\"}')",
       "Bash(npm --prefix /home/onset/z/inventory-hub run test)",
       "Bash(npm --prefix /home/onset/z/inventory-hub run typecheck)",
-      "Bash(npm --prefix /home/onset/z/inventory-hub run build)"
+      "Bash(npm --prefix /home/onset/z/inventory-hub run build)",
+      "Bash(npm --prefix /home/onset/z/inventory-hub install)"
     ]
   }
 }

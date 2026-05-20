@@ -1,3 +1,19 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@media print {
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  main > div {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+}
+

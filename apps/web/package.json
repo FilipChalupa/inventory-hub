@@ -11,6 +11,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@hookform/resolvers": "^3.9.1",
     "@inventory-hub/shared": "*",
     "@tanstack/react-query": "^5.62.0",
     "clsx": "^2.1.1",
