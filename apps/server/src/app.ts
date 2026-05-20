@@ -14,6 +14,7 @@ import { loanRoutes } from './routes/loans.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { exportRoutes } from './routes/export.js';
 import { invitationRoutes } from './routes/invitations.js';
+import { userRoutes } from './routes/users.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
 
@@ -55,6 +56,7 @@ export function createApp(deps: { db: Db; env: Env }) {
   app.route('/api/uploads', uploadRoutes);
   app.route('/api/export', exportRoutes);
   app.route('/api/invitations', invitationRoutes);
+  app.route('/api/users', userRoutes);
 
   app.onError((err, c) => {
     console.error('Request error:', err);

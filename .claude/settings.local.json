@@ -32,7 +32,13 @@
       "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm --prefix /home/onset/z/inventory-hub run db:generate)",
       "Bash(SESSION_SECRET=devdevdevdevdevdevdev npm --prefix /home/onset/z/inventory-hub run db:migrate)",
       "Bash(curl -sS -b /tmp/c.txt http://localhost:3001/api/assets/DEMO-LAP-00001)",
-      "Bash(python3 -c \"import sys,json; a=json.load\\(sys.stdin\\)['asset']; print\\('code:',a['code']\\); print\\('customFields:',json.dumps\\(a['customFields'],ensure_ascii=False\\)\\)\")"
+      "Bash(python3 -c \"import sys,json; a=json.load\\(sys.stdin\\)['asset']; print\\('code:',a['code']\\); print\\('customFields:',json.dumps\\(a['customFields'],ensure_ascii=False\\)\\)\")",
+      "Bash(curl -sS -c /tmp/c.txt -X POST http://localhost:3001/auth/dev-login -H \"content-type: application/json\" -d '{\"email\":\"admin@example.com\"}')",
+      "Bash(curl -sS -b /tmp/c.txt http://localhost:3001/api/users)",
+      "Bash(python3 -c \"import sys,json; [print\\(u['email'],'-',u['role'],'-','disabled' if u['disabledAt'] else 'active'\\) for u in json.load\\(sys.stdin\\)['items']]\")",
+      "Bash(curl -sS -b /tmp/c.txt http://localhost:3001/api/asset-types)",
+      "Bash(python3 -c \"import sys,json; a=json.load\\(sys.stdin\\)['asset']; print\\('status:',a['status'],'assignee:',a['assignedToUserId']\\)\")",
+      "Bash(curl -sS -b /tmp/c.txt -X POST http://localhost:3001/api/assets/DEMO-LAP-00001/unassign)"
     ]
   }
 }

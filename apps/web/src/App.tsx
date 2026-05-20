@@ -12,6 +12,7 @@ import { LabelsPage } from './pages/LabelsPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { AcceptInvitePage } from './pages/AcceptInvitePage.js';
+import { UsersPage } from './pages/UsersPage.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 import { Button } from './components/ui.js';
 
@@ -21,6 +22,7 @@ const navItems = [
   { to: '/labels', label: 'Štítky' },
   { to: '/asset-types', label: 'Typy' },
   { to: '/locations', label: 'Lokace' },
+  { to: '/users', label: 'Uživatelé', role: 'admin' as const },
   { to: '/settings', label: 'Nastavení', role: 'admin' as const },
 ];
 
@@ -101,6 +103,7 @@ function Shell() {
             <Route path="/loans/new" element={<NewLoanPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />
             <Route path="/labels" element={<LabelsPage />} />
+            <Route path="/users" element={<UsersPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
           </Routes>

@@ -116,6 +116,16 @@ export type InvitationRow = {
   createdAt: string;
 };
 
+export type UserRow = {
+  id: string;
+  email: string;
+  name: string;
+  role: UserRole;
+  imageUrl: string | null;
+  disabledAt: string | null;
+  createdAt: string;
+};
+
 export async function uploadFile(file: File): Promise<{ path: string; url: string }> {
   const form = new FormData();
   form.append('file', file);
@@ -158,6 +168,12 @@ export const apiClient = {
       ),
     remove: (id: string) =>
       api<{ ok: true }>(`/api/invitations/${id}`, { method: 'DELETE' }),
+  },
+
+  users: {
+    list: () => api<{ items: UserRow[] }>('/api/users'),
+    update: (id: string, input: { role?: UserRole; disabled?: boolean }) =>
+      api<{ ok: true }>(`/api/users/${id}`, { method: 'PATCH', body: input }),
   },
 
   org: {
@@ -205,6 +221,13 @@ export const apiClient = {
       }),
     unarchive: (code: string) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/unarchive`, { method: 'POST' }),
+    assign: (code: string, userId: string) =>
+      api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/assign`, {
+        method: 'POST',
+        body: { userId },
+      }),
+    unassign: (code: string) =>
+      api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/unassign`, { method: 'POST' }),
     events: (code: string) =>
       api<{ items: AssetEventRow[] }>(`/api/assets/${encodeURIComponent(code)}/events`),
     qrUrl: (code: string) => `/api/assets/${encodeURIComponent(code)}/qr`,

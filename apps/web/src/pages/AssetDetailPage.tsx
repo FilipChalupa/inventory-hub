@@ -43,6 +43,11 @@ export function AssetDetailPage() {
     queryKey: ['locations'],
     queryFn: () => apiClient.locations.list(),
   });
+  const usersList = useQuery({
+    queryKey: ['users'],
+    queryFn: () => apiClient.users.list(),
+    retry: false,
+  });
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['asset', code] });
@@ -99,6 +104,52 @@ export function AssetDetailPage() {
           </Link>
         </div>
       </div>
+
+      <Card>
+        <h2 className="font-semibold mb-2">Přiřazení uživateli</h2>
+        {a.assignedToUserId ? (
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm">
+              {usersList.data?.items.find((u) => u.id === a.assignedToUserId)?.name ??
+                a.assignedToUserId}
+            </p>
+            <Button
+              variant="secondary"
+              onClick={async () => {
+                await apiClient.assets.unassign(code);
+                invalidateAll();
+              }}
+            >
+              Odebrat přiřazení
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <Select
+              className="flex-1"
+              onChange={async (e) => {
+                if (!e.target.value) return;
+                await apiClient.assets.assign(code, e.target.value);
+                e.target.value = '';
+                invalidateAll();
+              }}
+              defaultValue=""
+              disabled={isArchived || a.status === 'on_loan'}
+            >
+              <option value="" disabled>
+                — vybrat uživatele —
+              </option>
+              {usersList.data?.items
+                .filter((u) => !u.disabledAt)
+                .map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.email})
+                  </option>
+                ))}
+            </Select>
+          </div>
+        )}
+      </Card>
 
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" onClick={() => setShowEditForm((v) => !v)}>
