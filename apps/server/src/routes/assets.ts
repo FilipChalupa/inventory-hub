@@ -322,6 +322,44 @@ export const assetRoutes = new Hono<AppContext>()
     },
   )
   .post(
+    '/:code/documents',
+    zValidator('json', z.object({ path: z.string().min(1).max(500) })),
+    (c) => {
+      const db = c.get('db');
+      const code = c.req.param('code').toUpperCase();
+      const { path } = c.req.valid('json');
+      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      const existing = (asset.documentPaths ?? []) as string[];
+      if (existing.includes(path)) {
+        return c.json({ documentPaths: existing });
+      }
+      const next = [...existing, path];
+      db.update(assets)
+        .set({ documentPaths: next, updatedAt: new Date() })
+        .where(eq(assets.id, asset.id))
+        .run();
+      return c.json({ documentPaths: next });
+    },
+  )
+  .delete(
+    '/:code/documents',
+    zValidator('json', z.object({ path: z.string() })),
+    (c) => {
+      const db = c.get('db');
+      const code = c.req.param('code').toUpperCase();
+      const { path } = c.req.valid('json');
+      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      const next = ((asset.documentPaths ?? []) as string[]).filter((p) => p !== path);
+      db.update(assets)
+        .set({ documentPaths: next, updatedAt: new Date() })
+        .where(eq(assets.id, asset.id))
+        .run();
+      return c.json({ documentPaths: next });
+    },
+  )
+  .post(
     '/:code/assign',
     zValidator('json', z.object({ userId: z.string().uuid() })),
     (c) => {

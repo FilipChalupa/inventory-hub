@@ -266,22 +266,28 @@ S3-compatible (MinIO, R2) lze přidat později přes env config.
 **Cílem MVP** je dostat se na konec M5 — self-hostable produkt nasaditelný
 jako Docker image.
 
-## 10. Otevřené otázky
+## 10. Rozhodnuté otázky (historie)
 
-1. **Externí výpůjčky a uživatelé** — když půjčuju externí osobě, chceme
-   držet kontakty jako separátní entitu (Contact / Borrower), nebo stačí
-   free-text pole na výpůjčce? (Free-text je rychlejší pro MVP, ale ztratí
-   historii "co všechno měl Jan Novák půjčené".)
-2. **Notifikace o overdue výpůjčkách** — chceme automatický e-mail
-   borrowerovi a/nebo adminovi, když výpůjčka přejde expected_return_at?
-3. **Damage workflow** — má proces opravy svůj stav (`in_repair` jako
-   přechodný)? Kdo damage report uzavírá (admin? kdokoli?)?
-4. **Archivace** — má mít archivovaný asset volnou položku k stažení
-   (např. doklad o prodeji jako příloha)?
-5. **Custom fields** v MVP, nebo až po prvních uživatelích?
-6. **Offline support** — důležitý pro provoz ve skladech bez signálu?
-7. **Lokalizace** — jen CZ/EN, nebo víc jazyků?
-8. **Compliance** — GDPR určitě, ale potřebujeme i další?
+1. **Externí výpůjčky a uživatelé** — ✅ vyřešeno jako entita
+   `contacts`. Výpůjčka má `borrowerContactId` (volitelný) i původní
+   `borrowerName` (snapshot pro historii, pokud kontakt zmizí).
+2. **Notifikace o overdue výpůjčkách** — ✅ implementováno
+   (`runOverdueCheck`, e-mail borrowerovi + admin digest, idempotent
+   přes `loans.overdue_notified_at`).
+3. **Damage workflow** — ✅ `in_repair` je explicit přechodný stav,
+   admin/operator může spustit repair-start / repair-finish ručně,
+   nebo se nastaví automaticky při `damaged` vrácení z výpůjčky.
+   Damage report uzavírá kdokoli s admin/operator rolí (`/resolve`).
+4. **Archivace — přílohy** — ✅ asset má samostatnou „Dokumenty"
+   sekci (PDF i obrázky); zvýrazněná když je archivovaný.
+5. **Custom fields v MVP** — ✅ ano, přes `customFieldsSchema` na
+   asset typu.
+6. **Offline support** — ✅ základní read-only přes service worker.
+   Writes pass-through s offline banner; queue offline mutací odložen.
+7. **Lokalizace** — zatím jen CZ, infrastruktura (`messages.ts`)
+   připravená; EN doplníme až ji někdo bude potřebovat.
+8. **Compliance** — TODO koment ve `lib/sessions.ts`. GDPR v scope,
+   další regimes (HIPAA, SOC 2, ISO 27001…) explicitně mimo MVP.
 
 ## 11. Rizika
 
@@ -322,9 +328,10 @@ otevření projektu hned víme, kde jsme.
   `asset_external_ids` pro sériová čísla / EAN), get, create (auto-kód
   z typu i ručně), PATCH s validací custom fields proti type schématu,
   archive/unarchive, assign/unassign uživateli, photos add/remove,
-  external IDs add/list/remove, events log, explicit repair-start /
-  repair-finish, bulk CSV import (dry-run + commit, atomicky v
-  transakci).
+  documents add/remove (PDF + obrázky — typicky doklad o prodeji
+  u archivovaných), external IDs add/list/remove, events log, explicit
+  repair-start / repair-finish, bulk CSV import (dry-run + commit,
+  atomicky v transakci).
 - Asset types CRUD + custom fields schema (text/number/date/boolean/select),
   bulk CSV import.
 - Locations CRUD (s parentem; cyklus chráněn na backendu — zamítne
@@ -338,8 +345,16 @@ otevření projektu hned víme, kde jsme.
   + admin digest, idempotent přes `loans.overdue_notified_at`. Cron
   vestavěný v `index.ts` (interval 6 h + bootovací run za 30 s) +
   admin POST `/api/loans/notify-overdue` pro manuální spuštění.
-- Uploads: multipart POST s MIME whitelist (JPEG/PNG/WebP/GIF) a velikostí
-  limitem; GET pro stahování (path-traversal-safe, auth-protected).
+- Contacts CRUD (externí osoby — partneři, zákazníci): list s `?q=`
+  hledáním, detail s historií výpůjček, FK z `loans.borrower_contact_id`
+  s `ON DELETE SET NULL` (historie zůstává po smazání kontaktu).
+- Uploads: multipart POST s MIME whitelist (JPEG/PNG/WebP/GIF + PDF
+  pro dokumenty) a velikostí limitem; GET pro stahování
+  (path-traversal-safe, auth-protected).
+- Static-file serving SPA: Hono přes `@hono/node-server/serve-static`
+  servíruje `apps/web/dist` z stejného originu jako API, s SPA
+  fallbackem na `index.html`. Dev (kdy `dist` neexistuje) přepadá
+  na Vite proxy. „1 Docker = celá appka" bez reverse proxy.
 - CSV export (assets, loans, damages) — UTF-8 BOM, otevíratelné v Excelu.
 - QR endpoint (PNG) + bulk labels endpoint.
 - Users management (admin list + role/disable; self-protection).
@@ -348,7 +363,13 @@ otevření projektu hned víme, kde jsme.
 - Layout s navigací, auth gate, login page (Google + dev-login),
   accept-invite page. Dark mode (Tailwind `darkMode: 'class'`) s
   toggle v headeru, persistence v localStorage, výchozí podle
-  `prefers-color-scheme`.
+  `prefers-color-scheme`. Offline banner přes `online`/`offline` events.
+- PWA: manifest + service worker (`public/sw.js`) registrovaný jen v
+  produkci. SPA shell network-first s shell fallbackem, GET `/api/*`
+  stale-while-revalidate (cached data hned + revalidace na pozadí),
+  static assets cache-first. Writes pass-through (UI banner upozorní).
+- Centralizovaný `src/i18n/messages.ts` (zatím jen CZ — nav, asset
+  statuses, common slova) — připravený seed pro pozdější EN.
 - Assets list (filtry, status, archivované, hledání včetně sloupce
   lokace), nový asset (vč. custom fields), detail (QR vedle, akce,
   fotky, externí identifikátory, poškození, historie, přiřazení
@@ -358,6 +379,11 @@ otevření projektu hned víme, kde jsme.
   preview, chybové řádky podbarvené, dry-run / commit.
 - QR sken stránka (`html5-qrcode`) — kamera + ruční zadání kódu,
   rozparsuje URL i bare kód.
+- Kontakty (externí osoby) — list s hledáním, formulář na založení,
+  smazání. V Nová výpůjčka dropdown „vybrat existující kontakt"
+  který autofillne jméno + kontakt.
+- Asset detail má samostatnou „Dokumenty" sekci (PDF / obrázky) —
+  zvýrazněná když je asset archivovaný (doklad o prodeji / vyřazení).
 - Asset types page s editorem custom field schématu + import CSV.
 - Locations page — hierarchický strom, drag-and-drop reparenting
   (`@dnd-kit`), root drop zone, dropdown jako fallback pro klávesnici.
@@ -370,7 +396,7 @@ otevření projektu hned víme, kde jsme.
 
 **Tooling & deployment:**
 - npm workspaces (root → apps/server, apps/web, packages/shared).
-- TypeScript strict, ESLint, Prettier, Vitest (142 testů celkem):
+- TypeScript strict, ESLint, Prettier, Vitest (145 testů celkem):
   - Unit: domain, csv (writer + RFC 4180 parser), custom-fields
     validátor, asset-code generátor proti in-memory SQLite, Google
     OAuth PKCE helpery, location tree, overdue notifier, QR sken
@@ -421,13 +447,10 @@ otevření projektu hned víme, kde jsme.
   editace, admin spravuje role + deaktivuje uživatele (deaktivovaný
   se odhlásí). Základ (auth + asset CRUD + loan flow) už hotov.
 
-**Funkční mezery (zbytek):**
-- Vše vyřešeno v posledních kolech (in_repair workflow, SMTP sender,
-  overdue notifier, custom_fields fulltext + dedikovaná tabulka
-  `asset_external_ids`, bulk CSV import pro assety/typy/lokace,
-  drag-and-drop reparenting lokací, mobilní QR sken, dark mode,
-  filtrace výpůjček). Zbylé položky se posunuly do Polish / DX
-  a Bezpečnost & provoz.
+**Funkční mezery:** všechny vyřešeny (in_repair, SMTP, overdue notifier,
+custom_fields fulltext + `asset_external_ids`, bulk CSV import, DnD
+reparenting, mobilní QR sken, dark mode, filtrace výpůjček, Contact
+entita, archive attachments, offline read-only, static-file serving).
 
 **Bezpečnost & provoz (vyřešeno v posledním kole):**
 - Rate-limit middleware (`lib/rate-limit.ts`, sliding window per IP +
@@ -443,8 +466,7 @@ otevření projektu hned víme, kde jsme.
 - Auto-migrace na bootu (`migrate(db, ...)` v `index.ts` přes
   `findMigrationsFolder()` pro dev i dist layout).
 
-**Polish / DX:**
-- Lokalizace — zatím jen CZ, stringy nejsou centralizované (i18next
-  nebo aspoň `messages.ts`).
-- E2E testovací data fixture / `db:seed --e2e` profil.
+**Polish / DX:** všechno vyřešeno — `messages.ts` připraven (zatím jen
+CZ, EN přidat až bude potřeba), `db:seed:e2e` profil s deterministickými
+ID.
 

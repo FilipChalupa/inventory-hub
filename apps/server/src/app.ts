@@ -1,8 +1,12 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
+import { serveStatic } from '@hono/node-server/serve-static';
 import type { Db } from './db/client.js';
 import type { Env } from './env.js';
 import type { UserRow } from './db/schema.js';
@@ -18,6 +22,7 @@ import { uploadRoutes } from './routes/uploads.js';
 import { exportRoutes } from './routes/export.js';
 import { invitationRoutes } from './routes/invitations.js';
 import { userRoutes } from './routes/users.js';
+import { contactRoutes } from './routes/contacts.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
 
@@ -74,6 +79,23 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/export', exportRoutes);
   app.route('/api/invitations', invitationRoutes);
   app.route('/api/users', userRoutes);
+  app.route('/api/contacts', contactRoutes);
+
+  // Serve the built SPA when the dist directory is present (production
+  // image, single-container deploy). In dev the dist doesn't exist and we
+  // skip — Vite serves the frontend separately on port 5173.
+  const spaRoot = findSpaRoot();
+  if (spaRoot) {
+    app.use('/*', serveStatic({ root: spaRoot.serveRoot }));
+    // SPA fallback: anything that wasn't an API/auth/health route nor a
+    // real file in dist should serve index.html so client-side routing
+    // works on deep links + reloads.
+    app.get('/*', (c) => {
+      const indexPath = resolve(spaRoot.absoluteRoot, 'index.html');
+      if (!existsSync(indexPath)) return c.notFound();
+      return c.html(readFileSyncCached(indexPath));
+    });
+  }
 
   app.onError((err, c) => {
     if (err instanceof HTTPException) {
@@ -84,4 +106,40 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   });
 
   return app;
+}
+
+/**
+ * Locates the built SPA's dist directory across dev (`tsx` from
+ * apps/server) and production (`node apps/server/dist/index.js` from
+ * /app) layouts. Returns both the absolute path (for fs reads) and the
+ * relative path serveStatic needs (resolved against process.cwd()).
+ */
+function findSpaRoot(): { absoluteRoot: string; serveRoot: string } | null {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    resolve(here, '../../web/dist'), // production: /app/apps/server/dist/app.js
+    resolve(here, '../../../web/dist'), // dev fallback (src/app.ts)
+  ];
+  for (const abs of candidates) {
+    if (existsSync(resolve(abs, 'index.html'))) {
+      const rel = relativeFromCwd(abs);
+      return { absoluteRoot: abs, serveRoot: rel };
+    }
+  }
+  return null;
+}
+
+function relativeFromCwd(absolute: string): string {
+  const cwd = process.cwd();
+  if (absolute.startsWith(cwd + '/')) return absolute.slice(cwd.length + 1);
+  return absolute;
+}
+
+// Tiny module-level cache so we don't re-read index.html on every request.
+let indexHtmlCache: { path: string; body: string } | null = null;
+function readFileSyncCached(path: string): string {
+  if (!indexHtmlCache || indexHtmlCache.path !== path) {
+    indexHtmlCache = { path, body: readFileSync(path, 'utf8') };
+  }
+  return indexHtmlCache.body;
 }

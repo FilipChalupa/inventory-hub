@@ -9,6 +9,7 @@ const ALLOWED_MIME = new Map<string, string>([
   ['image/png', 'png'],
   ['image/webp', 'webp'],
   ['image/gif', 'gif'],
+  ['application/pdf', 'pdf'],
 ]);
 
 /**
@@ -65,7 +66,7 @@ export const uploadRoutes = new Hono<AppContext>()
       return c.json(
         {
           error: {
-            message: `Nepodporovaný typ souboru (${file.type || 'neznámý'}). Povoleno: JPEG, PNG, WebP, GIF`,
+            message: `Nepodporovaný typ souboru (${file.type || 'neznámý'}). Povoleno: JPEG, PNG, WebP, GIF, PDF`,
           },
         },
         415,
@@ -118,7 +119,9 @@ export const uploadRoutes = new Hono<AppContext>()
             ? 'image/webp'
             : ext === 'gif'
               ? 'image/gif'
-              : 'application/octet-stream';
+              : ext === 'pdf'
+                ? 'application/pdf'
+                : 'application/octet-stream';
 
     const data = await readFile(absolute);
     return new Response(data, {

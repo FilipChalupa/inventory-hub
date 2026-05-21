@@ -1,0 +1,1 @@
+ALTER TABLE `assets` ADD `document_paths` text DEFAULT '[]' NOT NULL;

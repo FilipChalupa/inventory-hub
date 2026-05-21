@@ -138,6 +138,10 @@ export const assets = sqliteTable(
       .notNull()
       .default({}),
     photoPaths: text('photo_paths', { mode: 'json' }).$type<string[]>().notNull().default([]),
+    documentPaths: text('document_paths', { mode: 'json' })
+      .$type<string[]>()
+      .notNull()
+      .default([]),
     notes: text('notes'),
     ...timestamps,
   },
@@ -216,12 +220,36 @@ export const damageReports = sqliteTable(
   }),
 );
 
+/**
+ * Standalone external borrowers (contractors, partners, customers…) that
+ * may be referenced by multiple loans. Internal employees use `users`
+ * directly via `loans.borrowerUserId`; this table is for everyone else.
+ */
+export const contacts = sqliteTable(
+  'contacts',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    email: text('email'),
+    phone: text('phone'),
+    organization: text('organization'),
+    note: text('note'),
+    ...timestamps,
+  },
+  (t) => ({
+    nameIdx: index('contacts_name_idx').on(t.name),
+  }),
+);
+
 export const loans = sqliteTable(
   'loans',
   {
     id: id(),
     borrowerName: text('borrower_name').notNull(),
     borrowerUserId: text('borrower_user_id').references(() => users.id, { onDelete: 'set null' }),
+    borrowerContactId: text('borrower_contact_id').references(() => contacts.id, {
+      onDelete: 'set null',
+    }),
     borrowerContact: text('borrower_contact'),
     purpose: text('purpose'),
     loanedAt: integer('loaned_at', { mode: 'timestamp_ms' })
@@ -236,6 +264,7 @@ export const loans = sqliteTable(
   },
   (t) => ({
     expectedReturnIdx: index('loans_expected_return_idx').on(t.expectedReturnAt),
+    contactIdx: index('loans_contact_idx').on(t.borrowerContactId),
   }),
 );
 

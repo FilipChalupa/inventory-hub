@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { applyTheme, getInitialTheme, toggleTheme, type Theme } from './lib/theme.js';
+import { OfflineBanner } from './components/OfflineBanner.js';
+import { t } from './i18n/messages.js';
 import { AssetsPage } from './pages/AssetsPage.js';
 import { AssetDetailPage } from './pages/AssetDetailPage.js';
 import { NewAssetPage } from './pages/NewAssetPage.js';
@@ -17,20 +19,22 @@ import { SettingsPage } from './pages/SettingsPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { AcceptInvitePage } from './pages/AcceptInvitePage.js';
 import { UsersPage } from './pages/UsersPage.js';
+import { ContactsPage } from './pages/ContactsPage.js';
 import { AuditLogPage } from './pages/AuditLogPage.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 import { Button } from './components/ui.js';
 
 const navItems = [
-  { to: '/', label: 'Assety', end: true },
-  { to: '/scan', label: 'Sken' },
-  { to: '/loans', label: 'Výpůjčky' },
-  { to: '/labels', label: 'Štítky' },
-  { to: '/asset-types', label: 'Typy' },
-  { to: '/locations', label: 'Lokace' },
-  { to: '/audit', label: 'Audit', role: 'admin' as const },
-  { to: '/users', label: 'Uživatelé', role: 'admin' as const },
-  { to: '/settings', label: 'Nastavení', role: 'admin' as const },
+  { to: '/', label: t.nav.assets, end: true },
+  { to: '/scan', label: t.nav.scan },
+  { to: '/loans', label: t.nav.loans },
+  { to: '/labels', label: t.nav.labels },
+  { to: '/asset-types', label: t.nav.types },
+  { to: '/locations', label: t.nav.locations },
+  { to: '/contacts', label: t.nav.contacts },
+  { to: '/audit', label: t.nav.audit, role: 'admin' as const },
+  { to: '/users', label: t.nav.users, role: 'admin' as const },
+  { to: '/settings', label: t.nav.settings, role: 'admin' as const },
 ];
 
 export function App() {
@@ -71,6 +75,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      <OfflineBanner />
       <header className="border-b border-slate-200 bg-white sticky top-0 z-10 print:hidden dark:bg-slate-800 dark:border-slate-700">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
           <NavLink to="/" className="font-semibold text-lg whitespace-nowrap">
@@ -116,6 +121,7 @@ function Shell() {
             <Route path="/labels" element={<LabelsPage />} />
             <Route path="/audit" element={<AuditLogPage />} />
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/contacts" element={<ContactsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
           </Routes>

@@ -8,6 +8,16 @@ import './index.css';
 
 applyTheme(getInitialTheme());
 
+// Register service worker in production builds only. In dev, Vite serves
+// fresh modules with HMR and a SW would cache them aggressively.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.error('Service worker registration failed:', err);
+    });
+  });
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

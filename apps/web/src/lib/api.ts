@@ -88,6 +88,7 @@ export type LoanRow = {
   id: string;
   borrowerName: string;
   borrowerUserId: string | null;
+  borrowerContactId: string | null;
   borrowerContact: string | null;
   purpose: string | null;
   loanedAt: string;
@@ -96,6 +97,24 @@ export type LoanRow = {
   createdAt: string;
   items: LoanItemRow[];
   status: 'open' | 'partially_returned' | 'fully_returned';
+};
+
+export type ContactRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  organization: string | null;
+  note: string | null;
+  createdAt: string;
+};
+
+export type ContactInput = {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+  organization?: string | null;
+  note?: string | null;
 };
 
 export type AuthMe =
@@ -294,6 +313,16 @@ export const apiClient = {
         method: 'DELETE',
         body: { path },
       }),
+    addDocument: (code: string, path: string) =>
+      api<{ documentPaths: string[] }>(`/api/assets/${encodeURIComponent(code)}/documents`, {
+        method: 'POST',
+        body: { path },
+      }),
+    removeDocument: (code: string, path: string) =>
+      api<{ documentPaths: string[] }>(`/api/assets/${encodeURIComponent(code)}/documents`, {
+        method: 'DELETE',
+        body: { path },
+      }),
     events: (code: string) =>
       api<{ items: AssetEventRow[] }>(`/api/assets/${encodeURIComponent(code)}/events`),
     eventsAll: (limit = 200) =>
@@ -342,6 +371,23 @@ export const apiClient = {
       }),
     resolve: (id: string) =>
       api<{ ok: true }>(`/api/damages/${id}/resolve`, { method: 'POST' }),
+  },
+
+  contacts: {
+    list: (q?: string) =>
+      api<{ items: ContactRow[] }>(
+        `/api/contacts${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+      ),
+    get: (id: string) =>
+      api<{ contact: ContactRow; loans: { id: string; borrowerName: string }[] }>(
+        `/api/contacts/${id}`,
+      ),
+    create: (input: ContactInput) =>
+      api<ContactRow>('/api/contacts', { method: 'POST', body: input }),
+    update: (id: string, input: Partial<ContactInput>) =>
+      api<{ ok: true }>(`/api/contacts/${id}`, { method: 'PATCH', body: input }),
+    remove: (id: string) =>
+      api<{ ok: true }>(`/api/contacts/${id}`, { method: 'DELETE' }),
   },
 
   loans: {

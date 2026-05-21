@@ -32,7 +32,7 @@ export default async function globalSetup(): Promise<void> {
   const repoRoot = resolve(here, '..');
   const seed = spawnSync(
     'npm',
-    ['run', '-s', '--workspace', '@inventory-hub/server', 'db:seed'],
+    ['run', '-s', '--workspace', '@inventory-hub/server', 'db:seed:e2e'],
     {
       cwd: repoRoot,
       env: {

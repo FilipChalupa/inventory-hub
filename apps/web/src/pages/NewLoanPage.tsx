@@ -1,9 +1,9 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
-import { Button, Card, Field, Input, Textarea } from '../components/ui.js';
+import { Button, Card, Field, Input, Select, Textarea } from '../components/ui.js';
 
 type FormValues = {
   borrowerName: string;
@@ -16,6 +16,7 @@ export function NewLoanPage() {
   const navigate = useNavigate();
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
   const [search, setSearch] = useState('');
+  const [contactId, setContactId] = useState<string>('');
 
   const assets = useQuery({
     queryKey: ['assets', { q: search, status: 'in_stock' as const }],
@@ -26,14 +27,31 @@ export function NewLoanPage() {
       }),
   });
 
-  const { register, handleSubmit, formState } = useForm<FormValues>({
+  const contacts = useQuery({
+    queryKey: ['contacts'],
+    queryFn: () => apiClient.contacts.list(),
+  });
+
+  const { register, handleSubmit, formState, setValue, watch } = useForm<FormValues>({
     defaultValues: { borrowerName: '', borrowerContact: '', purpose: '', expectedReturnAt: '' },
   });
+
+  // When the user picks a contact, autofill the name + contact fields so
+  // the loan still has a free-text snapshot of the borrower's name in
+  // case the contact is later renamed or deleted.
+  useEffect(() => {
+    if (!contactId) return;
+    const c = contacts.data?.items.find((x) => x.id === contactId);
+    if (!c) return;
+    setValue('borrowerName', c.name);
+    setValue('borrowerContact', c.email || c.phone || '');
+  }, [contactId, contacts.data, setValue]);
 
   const create = useMutation({
     mutationFn: (v: FormValues) =>
       apiClient.loans.create({
         borrowerName: v.borrowerName,
+        borrowerContactId: contactId || null,
         borrowerContact: v.borrowerContact || null,
         purpose: v.purpose || null,
         expectedReturnAt: v.expectedReturnAt ? new Date(v.expectedReturnAt) : null,
@@ -41,6 +59,8 @@ export function NewLoanPage() {
       }),
     onSuccess: (res) => navigate(`/loans/${res.id}`),
   });
+
+  void watch; // keep watch imported even though we only use setValue here
 
   const selectedSet = useMemo(() => new Set(selectedCodes), [selectedCodes]);
 
@@ -52,6 +72,18 @@ export function NewLoanPage() {
       <h1 className="text-2xl font-bold">Nová výpůjčka</h1>
 
       <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
+        <Field label="Vybrat existující kontakt (volitelné)">
+          <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
+            <option value="">— bez kontaktu, ručně níže —</option>
+            {contacts.data?.items.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+                {c.organization ? ` · ${c.organization}` : ''}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
         <Field label="Jméno vypůjčujícího" error={formState.errors.borrowerName?.message}>
           <Input
             {...register('borrowerName', { required: 'Jméno je povinné' })}

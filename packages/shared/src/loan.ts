@@ -31,6 +31,7 @@ export type Loan = z.infer<typeof loanSchema>;
 export const createLoanInput = z.object({
   borrowerName: z.string().min(1).max(200),
   borrowerUserId: z.string().uuid().nullable().optional(),
+  borrowerContactId: z.string().uuid().nullable().optional(),
   borrowerContact: z.string().max(200).nullable().optional(),
   purpose: z.string().max(500).nullable().optional(),
   expectedReturnAt: z.coerce.date().nullable().optional(),

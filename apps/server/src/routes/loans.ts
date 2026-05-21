@@ -116,6 +116,7 @@ export const loanRoutes = new Hono<AppContext>()
           id: loanId,
           borrowerName: input.borrowerName,
           borrowerUserId: input.borrowerUserId ?? null,
+          borrowerContactId: input.borrowerContactId ?? null,
           borrowerContact: input.borrowerContact ?? null,
           purpose: input.purpose ?? null,
           expectedReturnAt: input.expectedReturnAt ?? null,

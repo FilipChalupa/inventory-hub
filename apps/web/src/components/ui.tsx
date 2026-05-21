@@ -1,5 +1,6 @@
 import clsx from 'clsx';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react';
+import { t } from '../i18n/messages.js';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -81,16 +82,7 @@ const statusStyles: Record<string, string> = {
   retired: 'bg-slate-200 text-slate-700',
 };
 
-const statusLabels: Record<string, string> = {
-  in_stock: 'Skladem',
-  assigned: 'Přiřazeno',
-  on_loan: 'Vypůjčeno',
-  in_repair: 'V opravě',
-  damaged: 'Poškozeno',
-  sold: 'Prodáno',
-  lost: 'Ztraceno',
-  retired: 'Vyřazeno',
-};
+const statusLabels: Record<string, string> = t.asset.statuses;
 
 export function StatusBadge({ status }: { status: string }) {
   return (
