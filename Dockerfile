@@ -53,4 +53,10 @@ VOLUME ["/data"]
 RUN mkdir -p /data/uploads
 
 EXPOSE 3001
+
+# Health probe — fails the container if /health stops responding so
+# docker-compose / orchestrator can restart it.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:'+ (process.env.PORT||3001) + '/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+
 CMD ["node", "apps/server/dist/index.js"]

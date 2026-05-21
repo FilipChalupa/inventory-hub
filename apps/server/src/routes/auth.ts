@@ -13,6 +13,7 @@ import {
   generateState,
   type GoogleConfig,
 } from '../lib/google-oauth.js';
+import { rateLimit } from '../lib/rate-limit.js';
 import { SESSION_COOKIE, createSession, deleteSession } from '../lib/sessions.js';
 
 const OAUTH_STATE_COOKIE = 'inv_oauth_state';
@@ -94,7 +95,10 @@ export const authRoutes = new Hono<AppContext>()
     return c.redirect(buildAuthorizationUrl(cfg, state, challenge));
   })
 
-  .get('/google/callback', async (c) => {
+  .get(
+    '/google/callback',
+    rateLimit({ bucket: 'oauth-callback', windowMs: 60_000, max: 30 }),
+    async (c) => {
     const env = c.get('env');
     const db = c.get('db');
     const cfg = googleConfig(env);
@@ -133,7 +137,8 @@ export const authRoutes = new Hono<AppContext>()
     setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(env, expiresAt));
 
     return c.redirect(env.PUBLIC_APP_URL + '/');
-  })
+  },
+)
 
   // ---- Invitation acceptance (public) -------------------------------------
 
@@ -200,6 +205,7 @@ export const authRoutes = new Hono<AppContext>()
 
   .post(
     '/dev-login',
+    rateLimit({ bucket: 'dev-login', windowMs: 60_000, max: 10 }),
     zValidator(
       'json',
       z.object({

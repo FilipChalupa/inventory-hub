@@ -8,7 +8,11 @@ import type { Email, EmailSender } from './email.js';
 import { SESSION_COOKIE, createSession } from './sessions.js';
 import { createTestDb } from './test-db.js';
 
-const TEST_ENV: Env = {
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+const TEST_ENV_BASE: Env = {
   NODE_ENV: 'test',
   PORT: 3001,
   DATABASE_URL: 'file::memory:',
@@ -17,6 +21,15 @@ const TEST_ENV: Env = {
   UPLOAD_DIR: './data/uploads',
   UPLOAD_MAX_BYTES: 5_242_880,
 };
+
+function freshTestEnv(): Env {
+  return {
+    ...TEST_ENV_BASE,
+    UPLOAD_DIR: mkdtempSync(join(tmpdir(), 'inv-uploads-')),
+  };
+}
+
+const TEST_ENV = TEST_ENV_BASE;
 
 type Role = UserRow['role'];
 
@@ -51,7 +64,8 @@ export type TestServer = {
 export function setupTestServer(): TestServer {
   const { db, sqlite } = createTestDb();
   const emailSender = new MemoryEmailSender();
-  const app = createApp({ db, env: TEST_ENV, emailSender });
+  const env = freshTestEnv();
+  const app = createApp({ db, env, emailSender });
 
   db.insert(orgSettings)
     .values({ id: 'singleton', name: 'Test Org', codePrefix: null, allowedDomains: [] })
@@ -81,6 +95,9 @@ export function setupTestServer(): TestServer {
   const authRequest: TestServer['authRequest'] = async (path, init) => {
     const headers = new Headers(init?.headers);
     if (init?.cookie) headers.set('Cookie', init.cookie);
+    // Pretend to be a same-origin browser request so the CSRF middleware
+    // doesn't block POST/PATCH/DELETE in tests.
+    if (!headers.has('Origin')) headers.set('Origin', env.PUBLIC_APP_URL);
     return app.request(path, { ...init, headers });
   };
 
@@ -88,8 +105,15 @@ export function setupTestServer(): TestServer {
     app,
     db,
     sqlite,
-    env: TEST_ENV,
-    close: () => sqlite.close(),
+    env,
+    close: () => {
+      sqlite.close();
+      try {
+        rmSync(env.UPLOAD_DIR, { recursive: true, force: true });
+      } catch {
+        // ignore
+      }
+    },
     createUser,
     loginAs,
     authRequest,

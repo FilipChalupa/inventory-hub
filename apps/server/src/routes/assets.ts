@@ -517,6 +517,27 @@ export const assetRoutes = new Hono<AppContext>()
       .run();
     return c.json({ ok: true });
   })
+  .get('/events/all', (c) => {
+    const db = c.get('db');
+    const limit = Math.min(Number(c.req.query('limit') ?? '200') || 200, 500);
+    const rows = db
+      .select({
+        id: assetEvents.id,
+        assetId: assetEvents.assetId,
+        actorUserId: assetEvents.actorUserId,
+        type: assetEvents.type,
+        payload: assetEvents.payload,
+        occurredAt: assetEvents.occurredAt,
+        assetCode: assets.code,
+        assetName: assets.name,
+      })
+      .from(assetEvents)
+      .leftJoin(assets, eq(assetEvents.assetId, assets.id))
+      .orderBy(desc(assetEvents.occurredAt))
+      .limit(limit)
+      .all();
+    return c.json({ items: rows });
+  })
   .get('/:code/events', (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();

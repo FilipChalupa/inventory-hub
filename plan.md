@@ -370,20 +370,24 @@ otevření projektu hned víme, kde jsme.
 
 **Tooling & deployment:**
 - npm workspaces (root → apps/server, apps/web, packages/shared).
-- TypeScript strict, ESLint, Prettier, Vitest (124 testů celkem):
+- TypeScript strict, ESLint, Prettier, Vitest (142 testů celkem):
   - Unit: domain, csv (writer + RFC 4180 parser), custom-fields
     validátor, asset-code generátor proti in-memory SQLite, Google
     OAuth PKCE helpery, location tree, overdue notifier, QR sken
-    parser (URL i bare kód).
-  - Integrační (Hono `app.request` + in-memory SQLite, sdílený
-    helper `lib/test-server.ts` s in-memory email senderem): auth
-    guardy, asset CRUD (auto-kód, dup conflict, custom-fields
-    validace, archive/unarchive, filtrace, repair workflow, CSV
-    import, fulltext včetně custom_fields + external IDs, external
-    ID CRUD), loan flow (create, derived status, postupné vracení s
+    parser, rate-limit sliding window.
+  - Integrační (Hono `app.request` + in-memory SQLite + temp upload
+    dir, sdílený helper `lib/test-server.ts` s in-memory email
+    senderem a CSRF Origin injectionem): auth guardy, CSRF (POST bez
+    Origin → 403, cross-origin → 403, `/health` skip), asset CRUD
+    (auto-kód, dup conflict, custom-fields validace, archive/
+    unarchive, filtrace, repair workflow, CSV import, fulltext včetně
+    custom_fields + external IDs, external ID CRUD, audit log
+    endpoint), loan flow (create, derived status, postupné vracení s
     damage → in_repair + damage report), damage report limits,
     invitation accept flow s e-mailem, location reparenting + cycle
-    detection, location & asset-type CSV import.
+    detection, location & asset-type CSV import, uploads (MIME
+    whitelist, size limit, missing-field, auth gate, rate-limit
+    429), asset photos (add/remove/idempotence).
 - Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
 - `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
   Litestream sidecar, recovery flow).
@@ -391,7 +395,7 @@ otevření projektu hned víme, kde jsme.
 
 ### Co chybí
 
-**Testy (priorita — `chceme testy`):**
+**Testy:**
 - **E2E (Playwright)**: pokrýt klíčové flow proti běžícímu serveru s SQLite
   v temp adresáři. Minimální set:
   - login (dev-login) + logout
@@ -406,9 +410,6 @@ otevření projektu hned víme, kde jsme.
     s default rolí, neexistujicí doména → 403
   - admin spravuje role + deaktivuje uživatele → deaktivovaný uživatel
     je odhlášený
-- **Integrační — rozšířit pokrytí**: assignment cycle, photos add/remove,
-  invitation accept flow, damage report resolve, file upload limity,
-  CSV export round-trip. (Základ pro auth/assets/loans už hotov.)
 - **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
   ephemeral kontejneru.
 
@@ -420,15 +421,19 @@ otevření projektu hned víme, kde jsme.
   filtrace výpůjček). Zbylé položky se posunuly do Polish / DX
   a Bezpečnost & provoz.
 
-**Bezpečnost & provoz:**
-- Rate-limiting (login, OAuth callback, uploads) — teď neomezené.
-- CSRF ochrana pro stavové requesty (cookies jsou SameSite=Lax, ale
-  explicit token by neuškodil).
-- Audit log v UI (teď je v DB, ale není kde se na něj kouknout napříč
-  assety).
-- Healthcheck endpoint pro Docker (`/health` máme, ale není zapojený
-  v Dockerfile `HEALTHCHECK`).
-- Auto-migrace při startu (zatím manuální `npm run db:migrate`).
+**Bezpečnost & provoz (vyřešeno v posledním kole):**
+- Rate-limit middleware (`lib/rate-limit.ts`, sliding window per IP +
+  bucket) nasazený na `/auth/google/callback`, `/auth/dev-login`
+  a `/api/uploads`.
+- CSRF přes `hono/csrf` (Origin / Sec-Fetch-Site), výjimky `/health`
+  a OAuth callback. Globální `onError` propaguje `HTTPException.status`
+  místo paušálního 500.
+- Audit log endpoint `GET /api/assets/events/all?limit=…` (join na
+  `assets` kvůli kódu/názvu) + admin-only stránka `/audit` v UI
+  s filtrem typu a hledáním podle assetu.
+- Dockerfile `HEALTHCHECK` volá `/health` přes Node fetch každých 30 s.
+- Auto-migrace na bootu (`migrate(db, ...)` v `index.ts` přes
+  `findMigrationsFolder()` pro dev i dist layout).
 
 **Polish / DX:**
 - Lokalizace — zatím jen CZ, stringy nejsou centralizované (i18next

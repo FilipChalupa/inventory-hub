@@ -296,6 +296,10 @@ export const apiClient = {
       }),
     events: (code: string) =>
       api<{ items: AssetEventRow[] }>(`/api/assets/${encodeURIComponent(code)}/events`),
+    eventsAll: (limit = 200) =>
+      api<{
+        items: (AssetEventRow & { assetCode: string | null; assetName: string | null })[];
+      }>(`/api/assets/events/all?limit=${limit}`),
     qrUrl: (code: string) => `/api/assets/${encodeURIComponent(code)}/qr`,
     labels: (codes: string[]) =>
       api<{ items: { code: string; name: string; qrUrl: string }[] }>('/api/assets/labels', {

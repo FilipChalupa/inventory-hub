@@ -56,6 +56,44 @@ describe('auth guards', () => {
     expect(body.authenticated).toBe(false);
   });
 
+  describe('CSRF', () => {
+    it('rejects a POST with no Origin header', async () => {
+      const user = server.createUser();
+      const cookie = server.loginAs(user);
+      // Bypass authRequest's automatic Origin injection by calling app.request directly.
+      const res = await server.app.request('/auth/logout', {
+        method: 'POST',
+        headers: { Cookie: cookie },
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('rejects a POST with a cross-origin Origin header', async () => {
+      const user = server.createUser();
+      const cookie = server.loginAs(user);
+      const res = await server.app.request('/auth/logout', {
+        method: 'POST',
+        headers: { Cookie: cookie, Origin: 'https://evil.example.com' },
+      });
+      expect(res.status).toBe(403);
+    });
+
+    it('allows GETs without Origin (read-only requests are not state-changing)', async () => {
+      const user = server.createUser();
+      const cookie = server.loginAs(user);
+      const res = await server.app.request('/auth/me', {
+        method: 'GET',
+        headers: { Cookie: cookie },
+      });
+      expect(res.status).toBe(200);
+    });
+
+    it('skips CSRF on /health (probe-friendly)', async () => {
+      const res = await server.app.request('/health');
+      expect([200, 204]).toContain(res.status);
+    });
+  });
+
   it('logout clears the session so the next /api/* call fails', async () => {
     const user = server.createUser();
     const cookie = server.loginAs(user);

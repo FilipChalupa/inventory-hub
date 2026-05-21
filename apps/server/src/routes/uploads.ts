@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { mkdir, stat, writeFile, readFile } from 'node:fs/promises';
 import { resolve, join, normalize, sep } from 'node:path';
 import type { AppContext } from '../app.js';
+import { rateLimit } from '../lib/rate-limit.js';
 
 const ALLOWED_MIME = new Map<string, string>([
   ['image/jpeg', 'jpg'],
@@ -29,7 +30,7 @@ function isInside(parent: string, child: string): boolean {
 }
 
 export const uploadRoutes = new Hono<AppContext>()
-  .post('/', async (c) => {
+  .post('/', rateLimit({ bucket: 'uploads', windowMs: 60_000, max: 60 }), async (c) => {
     const env = c.get('env');
     const contentLength = Number(c.req.header('content-length') ?? '0');
     if (contentLength > env.UPLOAD_MAX_BYTES * 2) {

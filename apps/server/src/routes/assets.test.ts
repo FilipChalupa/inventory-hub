@@ -465,6 +465,39 @@ describe('assets API', () => {
     });
   });
 
+  describe('audit log (events/all)', () => {
+    it('lists events across all assets, newest first, with joined asset code', async () => {
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'A',
+        typeId: server.laptopTypeId,
+      });
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'B',
+        typeId: server.laptopTypeId,
+      });
+      const res = await server.authRequest('/api/assets/events/all', { cookie });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        items: { type: string; assetCode: string | null; occurredAt: string }[];
+      };
+      expect(body.items.length).toBeGreaterThanOrEqual(2);
+      expect(body.items.every((e) => e.type === 'created')).toBe(true);
+      expect(body.items[0]!.assetCode).toMatch(/^LAP-/);
+    });
+
+    it('honours the limit query param', async () => {
+      for (let i = 0; i < 5; i++) {
+        await jsonPost(server, cookie, '/api/assets', {
+          name: `A${i}`,
+          typeId: server.laptopTypeId,
+        });
+      }
+      const res = await server.authRequest('/api/assets/events/all?limit=2', { cookie });
+      const body = (await res.json()) as { items: unknown[] };
+      expect(body.items).toHaveLength(2);
+    });
+  });
+
   describe('damage cleanup', () => {
     // Sanity check that the damage_reports table is wired and we can clear it
     // between tests — this guards against cross-test pollution.

@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { csrf } from 'hono/csrf';
+import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
 import type { Db } from './db/client.js';
 import type { Env } from './env.js';
@@ -34,6 +36,17 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
 
   app.use('*', logger());
   app.use('*', cors({ origin: deps.env.PUBLIC_APP_URL, credentials: true }));
+  // CSRF: rejects state-changing requests whose Origin/Sec-Fetch-Site
+  // doesn't match our public URL. Cookies are SameSite=Lax which already
+  // blocks most CSRF, this is belt-and-suspenders. Skipped for /health
+  // and the OAuth callback (cross-origin redirect from Google).
+  app.use('*', async (c, next) => {
+    const path = new URL(c.req.url).pathname;
+    if (path === '/health' || path.startsWith('/auth/google/')) {
+      return next();
+    }
+    return csrf({ origin: deps.env.PUBLIC_APP_URL })(c, next);
+  });
 
   app.use('*', async (c, next) => {
     c.set('db', deps.db);
@@ -63,6 +76,9 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/users', userRoutes);
 
   app.onError((err, c) => {
+    if (err instanceof HTTPException) {
+      return c.json({ error: { message: err.message } }, err.status);
+    }
     console.error('Request error:', err);
     return c.json({ error: { message: err.message } }, 500);
   });

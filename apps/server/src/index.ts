@@ -1,4 +1,8 @@
 import { serve } from '@hono/node-server';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { migrate } from 'drizzle-orm/better-sqlite3/migrator';
 import { createApp } from './app.js';
 import { createDb } from './db/client.js';
 import { loadEnv } from './env.js';
@@ -8,6 +12,27 @@ import { runOverdueCheck } from './lib/overdue.js';
 const env = loadEnv();
 const { db, sqlite } = createDb(env.DATABASE_URL);
 const emailSender = createEmailSender(env);
+
+// Auto-migrate on boot. Falls back across the dev (src/index.ts) and
+// production (dist/index.js) layouts so the same code works in both.
+function findMigrationsFolder(): string {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    resolve(here, '../src/db/migrations'),
+    resolve(here, './db/migrations'),
+  ];
+  for (const c of candidates) if (existsSync(c)) return c;
+  throw new Error(`Migrations folder not found. Tried: ${candidates.join(', ')}`);
+}
+
+try {
+  migrate(db, { migrationsFolder: findMigrationsFolder() });
+  console.log('Migrace aplikovány.');
+} catch (err) {
+  console.error('Migrace selhaly:', err);
+  sqlite.close();
+  process.exit(1);
+}
 
 const app = createApp({ db, env, emailSender });
 
