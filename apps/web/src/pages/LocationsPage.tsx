@@ -30,6 +30,12 @@ export function LocationsPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
   });
 
+  const reparent = useMutation({
+    mutationFn: ({ id, parentId }: { id: string; parentId: string | null }) =>
+      apiClient.locations.update(id, { parentId }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
+  });
+
   const tree = locationsAsTree(list.data?.items ?? []);
 
   return (
@@ -73,10 +79,10 @@ export function LocationsPage() {
           {tree.map(({ row, depth }) => (
             <li
               key={row.id}
-              className="flex items-center justify-between p-2"
+              className="flex items-center justify-between gap-2 p-2"
               style={{ paddingLeft: `${0.5 + depth * 1.25}rem` }}
             >
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="font-medium">
                   {depth > 0 && <span className="text-slate-400 mr-1">└</span>}
                   {row.name}
@@ -87,15 +93,28 @@ export function LocationsPage() {
                   </p>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                className="text-red-600 text-xs"
-                onClick={() => {
-                  if (confirm(`Smazat lokaci "${row.name}"?`)) remove.mutate(row.id);
-                }}
-              >
-                Smazat
-              </Button>
+              <div className="flex items-center gap-2">
+                <LocationSelect
+                  locations={(list.data?.items ?? []).filter((l) => l.id !== row.id)}
+                  placeholder="— přesunout pod —"
+                  value={row.parentId ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (value === (row.parentId ?? '')) return;
+                    reparent.mutate({ id: row.id, parentId: value || null });
+                  }}
+                  className="text-xs"
+                />
+                <Button
+                  variant="ghost"
+                  className="text-red-600 text-xs"
+                  onClick={() => {
+                    if (confirm(`Smazat lokaci "${row.name}"?`)) remove.mutate(row.id);
+                  }}
+                >
+                  Smazat
+                </Button>
+              </div>
             </li>
           ))}
         </ul>

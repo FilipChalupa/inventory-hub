@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
-import { damageSeverities } from '@inventory-hub/shared';
+import { MAX_DAMAGE_PHOTOS, damageSeverities } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assetEvents, assets, damageReports } from '../db/schema.js';
 
@@ -10,7 +10,10 @@ const createInput = z.object({
   occurredAt: z.coerce.date(),
   description: z.string().min(1).max(2000),
   severity: z.enum(damageSeverities),
-  photoPaths: z.array(z.string()).max(20).optional(),
+  photoPaths: z
+    .array(z.string())
+    .max(MAX_DAMAGE_PHOTOS, `Maximálně ${MAX_DAMAGE_PHOTOS} fotek na hlášení.`)
+    .optional(),
 });
 
 export const damageRoutes = new Hono<AppContext>()

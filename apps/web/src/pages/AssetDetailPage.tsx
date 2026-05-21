@@ -17,7 +17,7 @@ import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js'
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
-import type { CustomFieldsSchema, DamageSeverity } from '@inventory-hub/shared';
+import { MAX_DAMAGE_PHOTOS, type CustomFieldsSchema, type DamageSeverity } from '@inventory-hub/shared';
 
 export function AssetDetailPage() {
   const { code = '' } = useParams<{ code: string }>();
@@ -66,6 +66,14 @@ export function AssetDetailPage() {
   });
   const unarchive = useMutation({
     mutationFn: () => apiClient.assets.unarchive(code),
+    onSuccess: invalidateAll,
+  });
+  const repairStart = useMutation({
+    mutationFn: () => apiClient.assets.repairStart(code),
+    onSuccess: invalidateAll,
+  });
+  const repairFinish = useMutation({
+    mutationFn: () => apiClient.assets.repairFinish(code),
     onSuccess: invalidateAll,
   });
 
@@ -163,6 +171,20 @@ export function AssetDetailPage() {
         </Button>
         {!isArchived ? (
           <>
+            {a.status === 'in_repair' ? (
+              <Button variant="secondary" onClick={() => repairFinish.mutate()}>
+                Oprava dokončena
+              </Button>
+            ) : (
+              <Button
+                variant="secondary"
+                onClick={() => repairStart.mutate()}
+                disabled={a.status === 'on_loan'}
+                title={a.status === 'on_loan' ? 'Asset je vypůjčen' : undefined}
+              >
+                Poslat do opravy
+              </Button>
+            )}
             <Button variant="danger" onClick={() => archive.mutate('sold')}>
               Prodáno
             </Button>
@@ -540,15 +562,26 @@ function NewDamageForm({
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
     setUploadError(null);
+    const remaining = MAX_DAMAGE_PHOTOS - photos.length;
+    if (remaining <= 0) {
+      setUploadError(`Maximálně ${MAX_DAMAGE_PHOTOS} fotek.`);
+      return;
+    }
+    const slice = Array.from(files).slice(0, remaining);
     setUploading(true);
     try {
       const uploaded = await Promise.all(
-        Array.from(files).map(async (file) => {
+        slice.map(async (file) => {
           const res = await uploadFile(file);
           return { path: res.path, previewUrl: URL.createObjectURL(file) };
         }),
       );
       setPhotos((prev) => [...prev, ...uploaded]);
+      if (files.length > slice.length) {
+        setUploadError(
+          `Některé soubory nebyly nahrány — limit je ${MAX_DAMAGE_PHOTOS} fotek.`,
+        );
+      }
     } catch (err) {
       setUploadError((err as Error).message);
     } finally {

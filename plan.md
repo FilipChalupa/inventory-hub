@@ -316,17 +316,26 @@ otevření projektu hned víme, kde jsme.
   + dev-login (NODE_ENV != production) + role guard middleware.
 - Domain auto-join (strict exact-match) + first-user-becomes-admin bootstrap.
 - Pozvánky e-mailem (token + 7denní expirace) + public accept endpoint.
-  Sender abstrakce `EmailSender` — default `ConsoleEmailSender`.
-- Assets CRUD: list/filter/fulltext, get, create (auto-kód z typu i ručně),
-  PATCH s validací custom fields proti type schématu, archive/unarchive,
-  assign/unassign uživateli, photos add/remove, events log.
+  Sender abstrakce `EmailSender` — default `ConsoleEmailSender`, SMTP přes
+  `nodemailer` (`SmtpEmailSender`) když jsou nastavené `SMTP_*` env.
+- Assets CRUD: list/filter/fulltext (vč. JSON custom_fields pro sériová
+  čísla apod.), get, create (auto-kód z typu i ručně), PATCH s validací
+  custom fields proti type schématu, archive/unarchive, assign/unassign
+  uživateli, photos add/remove, events log, explicit repair-start /
+  repair-finish, bulk CSV import (dry-run + commit, atomicky v
+  transakci).
 - Asset types CRUD + custom fields schema (text/number/date/boolean/select).
-- Locations CRUD (s parentem; cyklus chráněn).
-- Damage reports: create s fotkami, list, resolve. Total severity →
-  asset auto-archive jako `damaged`.
+- Locations CRUD (s parentem; cyklus chráněn na backendu — zamítne
+  i hloubkové cykly přes potomky).
+- Damage reports: create s fotkami (cap `MAX_DAMAGE_PHOTOS = 10`),
+  list, resolve. Total severity → asset auto-archive jako `damaged`.
 - Loans: create (validace dostupnosti), list (s derived status),
   detail (join s assety), postupné vracení per položka, `damaged` při
-  vrácení → auto damage report + asset do `in_repair`.
+  vrácení → auto damage report + asset do `in_repair`. Overdue
+  notifier (`runOverdueCheck` v `lib/overdue.ts`) — e-mail borrowerovi
+  + admin digest, idempotent přes `loans.overdue_notified_at`. Cron
+  vestavěný v `index.ts` (interval 6 h + bootovací run za 30 s) +
+  admin POST `/api/loans/notify-overdue` pro manuální spuštění.
 - Uploads: multipart POST s MIME whitelist (JPEG/PNG/WebP/GIF) a velikostí
   limitem; GET pro stahování (path-traversal-safe, auth-protected).
 - CSV export (assets, loans, damages) — UTF-8 BOM, otevíratelné v Excelu.
@@ -336,27 +345,36 @@ otevření projektu hned víme, kde jsme.
 **Frontend (Vite + React + TanStack Query + Tailwind):**
 - Layout s navigací, auth gate, login page (Google + dev-login),
   accept-invite page.
-- Assets list (filtry, status, archivované, hledání), nový asset (vč.
-  custom fields), detail (QR vedle, akce, fotky, poškození, historie,
-  přiřazení uživateli, edit form, archivace).
+- Assets list (filtry, status, archivované, hledání včetně sloupce
+  lokace), nový asset (vč. custom fields), detail (QR vedle, akce,
+  fotky, poškození, historie, přiřazení uživateli, edit form,
+  archivace, repair-start / repair-finish tlačítka). Onboarding karta
+  na prvním otevření instance.
+- Bulk CSV import s preview (chybové řádky podbarvené, dry-run / commit).
 - Asset types page s editorem custom field schématu.
-- Locations page s hierarchickým stromem + breadcrumb path.
-- Loans list s overdue flagem, nová výpůjčka (multi-select assetů),
-  detail s postupným vracením.
+- Locations page s hierarchickým stromem + breadcrumb path + reparenting
+  dropdownem (přesun pod jiný parent, cyklus chytá backend).
+- Loans list s overdue flagem + helpful empty state, nová výpůjčka
+  (multi-select assetů), detail s postupným vracením.
 - Štítky — bulk tisk QR + lidsky čitelný kód, print CSS.
 - Users — admin spravuje role a deaktivace.
 - Settings — org, allowed domains, pozvánky, CSV exporty.
 
 **Tooling & deployment:**
 - npm workspaces (root → apps/server, apps/web, packages/shared).
-- TypeScript strict, ESLint, Prettier, Vitest (69 testů celkem):
-  - Unit: domain, csv, custom-fields validátor, asset-code generátor
-    proti in-memory SQLite, Google OAuth PKCE helpery, location tree.
+- TypeScript strict, ESLint, Prettier, Vitest (103 testů celkem):
+  - Unit: domain, csv (writer + RFC 4180 parser), custom-fields
+    validátor, asset-code generátor proti in-memory SQLite, Google
+    OAuth PKCE helpery, location tree, overdue notifier (idempotence,
+    skip plně vrácených, admin endpoint guard).
   - Integrační (Hono `app.request` + in-memory SQLite, sdílený
-    helper `lib/test-server.ts`): auth guardy (401/logout),
-    asset CRUD (auto-kód, dup conflict, custom-fields validace,
-    archive/unarchive, filtrace), loan flow (create, derived
-    status, postupné vracení s damage → in_repair + damage report).
+    helper `lib/test-server.ts` s in-memory email senderem): auth
+    guardy (401/logout), asset CRUD (auto-kód, dup conflict,
+    custom-fields validace, archive/unarchive, filtrace, repair
+    workflow, CSV import dry-run/commit, search v custom_fields),
+    loan flow (create, derived status, postupné vracení s damage →
+    in_repair + damage report), damage report limits, invitation
+    accept flow s e-mailem, location reparenting + cycle detection.
 - Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
 - `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
   Litestream sidecar, recovery flow).
@@ -385,20 +403,14 @@ otevření projektu hned víme, kde jsme.
 - **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
   ephemeral kontejneru.
 
-**Funkční mezery:**
-- SMTP sender (interface připravená, jen implementace + env).
-- Notifikace pro overdue výpůjčky (e-mail borrowerovi + denní digest pro
-  admina; cron uvnitř aplikace nebo externí kron).
-- Explicit `in_repair` workflow tlačítko (teď nastane jen automaticky
-  po damaged vrácení; admin nemůže ručně poslat asset do opravy/zpět).
-- Damage attachment limit per report (DB nemá hard cap; přidat validaci).
-- Bulk import assetů (CSV upload + preview + commit).
-- Strom lokací: drag-and-drop reordering / přesun pod jiný parent.
-- Lokace v seznamu assetů jako sloupec (teď jen v detailu).
-- Vyhledávání podle externích identifikátorů (sériové číslo) přes
-  custom_fields — index nad JSONem nebo separátní `asset_external_ids`
-  tabulka.
-- Onboarding tour / empty states při prvním rozjetí instance.
+**Funkční mezery (zbytek po prvním kole):**
+- Drag-and-drop reordering pro lokace (zatím dropdown na přesun pod
+  jiný parent — DnD si žádá `@dnd-kit` nebo `react-dnd`).
+- Custom-fields hledání zatím přes `LIKE '%q%'` nad JSONem v
+  `custom_fields`. Při růstu by se hodil dedikovaný
+  `asset_external_ids` index / tabulka.
+- Bulk import zatím pouze pro assety; další entity (lokace, typy)
+  zůstávají ručně.
 
 **Bezpečnost & provoz:**
 - Rate-limiting (login, OAuth callback, uploads) — teď neomezené.

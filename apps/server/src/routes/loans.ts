@@ -11,6 +11,8 @@ import {
   loanItems,
   loans,
 } from '../db/schema.js';
+import { runOverdueCheck } from '../lib/overdue.js';
+import { requireAuth } from '../middleware/auth.js';
 
 export const loanRoutes = new Hono<AppContext>()
   .get('/', (c) => {
@@ -140,6 +142,13 @@ export const loanRoutes = new Hono<AppContext>()
     });
 
     return c.json({ id: loanId }, 201);
+  })
+  .post('/notify-overdue', requireAuth('admin'), async (c) => {
+    const db = c.get('db');
+    const env = c.get('env');
+    const emailSender = c.get('emailSender');
+    const result = await runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL });
+    return c.json(result);
   })
   .post('/:id/items/:itemId/return', zValidator('json', returnLoanItemInput.omit({ loanItemId: true })), (c) => {
     const db = c.get('db');

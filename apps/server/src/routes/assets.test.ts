@@ -240,6 +240,158 @@ describe('assets API', () => {
     });
   });
 
+  describe('import CSV', () => {
+    async function importCsv(text: string, dryRun: boolean) {
+      const form = new FormData();
+      form.append('file', new File([text], 'assets.csv', { type: 'text/csv' }));
+      form.append('dryRun', dryRun ? 'true' : 'false');
+      return server.authRequest('/api/assets/import', {
+        cookie,
+        method: 'POST',
+        body: form,
+      });
+    }
+
+    it('dry-run returns preview without inserting', async () => {
+      const csv = 'name,type\r\nFoo,LAP\r\nBar,LAP\r\n';
+      const res = await importCsv(csv, true);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { preview: unknown[]; created: number };
+      expect(body.preview).toHaveLength(2);
+      expect(body.created).toBe(0);
+      const list = await server.authRequest('/api/assets', { cookie });
+      expect(((await list.json()) as { items: unknown[] }).items).toHaveLength(0);
+    });
+
+    it('commits valid rows and auto-generates codes per type', async () => {
+      const csv = 'name,type\r\nFoo,LAP\r\nBar,LAP\r\n';
+      const res = await importCsv(csv, false);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { created: number; preview: { code: string | null }[] };
+      expect(body.created).toBe(2);
+      const codes = body.preview.map((p) => p.code);
+      expect(codes).toEqual([null, null]); // codes assigned at commit time, not in preview
+      const list = await server.authRequest('/api/assets', { cookie });
+      const items = ((await list.json()) as { items: { code: string }[] }).items;
+      const sorted = items.map((i) => i.code).sort();
+      expect(sorted).toEqual(['LAP-00001', 'LAP-00002']);
+    });
+
+    it('refuses to commit when any row has issues', async () => {
+      const csv = 'name,type\r\nFoo,LAP\r\n,LAP\r\n'; // second row missing name
+      const res = await importCsv(csv, false);
+      expect(res.status).toBe(400);
+      const list = await server.authRequest('/api/assets', { cookie });
+      expect(((await list.json()) as { items: unknown[] }).items).toHaveLength(0);
+    });
+
+    it('detects duplicate codes inside the CSV', async () => {
+      const csv = 'code,name,type\r\nLAP-77777,A,LAP\r\nLAP-77777,B,LAP\r\n';
+      const res = await importCsv(csv, true);
+      const body = (await res.json()) as { preview: { issues: string[] }[]; hasErrors: boolean };
+      expect(body.hasErrors).toBe(true);
+      expect(body.preview[1]!.issues.some((s) => /Duplicit/i.test(s))).toBe(true);
+    });
+
+    it('detects collision with an existing code in DB', async () => {
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'Existing',
+        code: 'LAP-88888',
+        typeId: server.laptopTypeId,
+      });
+      const csv = 'code,name,type\r\nLAP-88888,Other,LAP\r\n';
+      const res = await importCsv(csv, true);
+      const body = (await res.json()) as { preview: { issues: string[] }[]; hasErrors: boolean };
+      expect(body.hasErrors).toBe(true);
+    });
+
+    it('rejects non-admin/operator', async () => {
+      const memberCookie = server.loginAs(
+        server.createUser({ role: 'member', email: 'member@example.com' }),
+      );
+      const csv = 'name,type\r\nA,LAP\r\n';
+      const form = new FormData();
+      form.append('file', new File([csv], 'a.csv', { type: 'text/csv' }));
+      form.append('dryRun', 'false');
+      const res = await server.authRequest('/api/assets/import', {
+        cookie: memberCookie,
+        method: 'POST',
+        body: form,
+      });
+      expect(res.status).toBe(403);
+    });
+  });
+
+  describe('search', () => {
+    it('finds an asset by external identifier stored in custom_fields', async () => {
+      server.db
+        .update(assetTypes)
+        .set({
+          customFieldsSchema: [
+            { key: 'serial_number', label: 'SN', type: 'text', required: false },
+          ],
+        })
+        .where(eq(assetTypes.id, server.laptopTypeId))
+        .run();
+
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'With SN',
+        typeId: server.laptopTypeId,
+        customFields: { serial_number: 'SN-XYZ-12345' },
+      });
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'Other',
+        typeId: server.laptopTypeId,
+      });
+
+      const res = await server.authRequest('/api/assets?q=XYZ-12345', { cookie });
+      const body = (await res.json()) as { items: { name: string }[] };
+      expect(body.items.map((i) => i.name)).toEqual(['With SN']);
+    });
+  });
+
+  describe('repair workflow', () => {
+    it('start → finish round-trip moves through in_repair back to in_stock', async () => {
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name: 'Repair me',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+
+      const start = await jsonPost(server, cookie, `/api/assets/${code}/repair-start`, {});
+      expect(start.status).toBe(200);
+      const inRepair = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+      expect(inRepair.status).toBe('in_repair');
+
+      const finish = await jsonPost(server, cookie, `/api/assets/${code}/repair-finish`, {});
+      expect(finish.status).toBe(200);
+      const back = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+      expect(back.status).toBe('in_stock');
+    });
+
+    it('refuses repair-start on an archived asset', async () => {
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name: 'Sold',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+      await jsonPost(server, cookie, `/api/assets/${code}/archive`, { status: 'sold' });
+
+      const res = await jsonPost(server, cookie, `/api/assets/${code}/repair-start`, {});
+      expect(res.status).toBe(409);
+    });
+
+    it('refuses repair-finish when the asset is not in repair', async () => {
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name: 'Idle',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+      const res = await jsonPost(server, cookie, `/api/assets/${code}/repair-finish`, {});
+      expect(res.status).toBe(409);
+    });
+  });
+
   describe('damage cleanup', () => {
     // Sanity check that the damage_reports table is wired and we can clear it
     // between tests — this guards against cross-test pollution.

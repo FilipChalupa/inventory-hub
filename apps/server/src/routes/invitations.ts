@@ -6,10 +6,7 @@ import { USER_ROLES } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { invitations, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
-import { ConsoleEmailSender } from '../lib/email.js';
-
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
-const emailSender = new ConsoleEmailSender();
 
 const createInput = z.object({
   email: z.string().email(),
@@ -63,6 +60,7 @@ export const invitationRoutes = new Hono<AppContext>()
       .run();
 
     const acceptUrl = `${env.PUBLIC_APP_URL}/accept-invite?token=${encodeURIComponent(token)}`;
+    const emailSender = c.get('emailSender');
     await emailSender.send({
       to: email,
       subject: `Pozvánka do Inventory Hub`,

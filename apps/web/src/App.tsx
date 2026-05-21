@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { AssetsPage } from './pages/AssetsPage.js';
 import { AssetDetailPage } from './pages/AssetDetailPage.js';
 import { NewAssetPage } from './pages/NewAssetPage.js';
+import { ImportAssetsPage } from './pages/ImportAssetsPage.js';
 import { AssetTypesPage } from './pages/AssetTypesPage.js';
 import { LocationsPage } from './pages/LocationsPage.js';
 import { LoansPage } from './pages/LoansPage.js';
@@ -96,6 +97,7 @@ function Shell() {
           <Routes>
             <Route path="/" element={<AssetsPage />} />
             <Route path="/assets/new" element={<NewAssetPage />} />
+            <Route path="/assets/import" element={<ImportAssetsPage />} />
             <Route path="/a/:code" element={<AssetDetailPage />} />
             <Route path="/asset-types" element={<AssetTypesPage />} />
             <Route path="/locations" element={<LocationsPage />} />

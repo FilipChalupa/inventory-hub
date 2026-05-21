@@ -11,6 +11,11 @@ const envSchema = z.object({
   PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
   UPLOAD_DIR: z.string().default('./data/uploads'),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(5_242_880),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().int().positive().optional(),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -228,6 +228,14 @@ export const apiClient = {
       }),
     unassign: (code: string) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/unassign`, { method: 'POST' }),
+    repairStart: (code: string) =>
+      api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/repair-start`, {
+        method: 'POST',
+      }),
+    repairFinish: (code: string) =>
+      api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/repair-finish`, {
+        method: 'POST',
+      }),
     addPhoto: (code: string, path: string) =>
       api<{ photoPaths: string[] }>(`/api/assets/${encodeURIComponent(code)}/photos`, {
         method: 'POST',
@@ -246,6 +254,42 @@ export const apiClient = {
         method: 'POST',
         body: { codes },
       }),
+    import: async (file: File, dryRun: boolean) => {
+      const form = new FormData();
+      form.append('file', file);
+      form.append('dryRun', dryRun ? 'true' : 'false');
+      const res = await fetch('/api/assets/import', {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      });
+      const body = (await res.json().catch(() => null)) as
+        | {
+            preview: {
+              lineNumber: number;
+              input: Record<string, string>;
+              code: string | null;
+              issues: string[];
+            }[];
+            hasErrors: boolean;
+            created: number;
+          }
+        | { error: { message: string } };
+      if (!res.ok && 'error' in body) {
+        if ('preview' in (body as object)) return body as never;
+        throw new Error((body as { error: { message: string } }).error.message);
+      }
+      return body as {
+        preview: {
+          lineNumber: number;
+          input: Record<string, string>;
+          code: string | null;
+          issues: string[];
+        }[];
+        hasErrors: boolean;
+        created: number;
+      };
+    },
   },
 
   assetTypes: {
@@ -264,6 +308,8 @@ export const apiClient = {
     list: () => api<{ items: LocationRow[] }>('/api/locations'),
     create: (input: { name: string; parentId?: string | null }) =>
       api<LocationRow>('/api/locations', { method: 'POST', body: input }),
+    update: (id: string, input: { name?: string; parentId?: string | null }) =>
+      api<{ ok: true }>(`/api/locations/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) => api<{ ok: true }>(`/api/locations/${id}`, { method: 'DELETE' }),
   },
 

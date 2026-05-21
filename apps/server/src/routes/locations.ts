@@ -3,6 +3,7 @@ import { zValidator } from '@hono/zod-validator';
 import { asc, eq } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
+import type { Db } from '../db/client.js';
 import { locations } from '../db/schema.js';
 
 const createInput = z.object({
@@ -11,6 +12,28 @@ const createInput = z.object({
 });
 
 const updateInput = createInput.partial();
+
+/**
+ * True when moving `nodeId` under `newParentId` would create a cycle —
+ * i.e. `newParentId` is `nodeId` itself or a descendant of `nodeId`.
+ */
+function wouldCreateCycle(db: Db, nodeId: string, newParentId: string): boolean {
+  if (nodeId === newParentId) return true;
+  const all = db
+    .select({ id: locations.id, parentId: locations.parentId })
+    .from(locations)
+    .all();
+  const parentOf = new Map(all.map((r) => [r.id, r.parentId] as const));
+  let cursor: string | null = newParentId;
+  const guard = new Set<string>();
+  while (cursor) {
+    if (cursor === nodeId) return true;
+    if (guard.has(cursor)) return true; // existing cycle — treat as unsafe
+    guard.add(cursor);
+    cursor = parentOf.get(cursor) ?? null;
+  }
+  return false;
+}
 
 export const locationRoutes = new Hono<AppContext>()
   .get('/', (c) => {
@@ -31,6 +54,13 @@ export const locationRoutes = new Hono<AppContext>()
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
+    if (input.parentId !== undefined && input.parentId !== null) {
+      const parent = db.select().from(locations).where(eq(locations.id, input.parentId)).get();
+      if (!parent) return c.json({ error: { message: 'Cílová lokace neexistuje' } }, 400);
+      if (wouldCreateCycle(db, id, input.parentId)) {
+        return c.json({ error: { message: 'Přesun by vytvořil cyklus' } }, 409);
+      }
+    }
     const result = db
       .update(locations)
       .set({ ...input, updatedAt: new Date() })

@@ -1,0 +1,1 @@
+ALTER TABLE `loans` ADD `overdue_notified_at` integer;

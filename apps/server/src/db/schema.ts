@@ -205,6 +205,7 @@ export const loans = sqliteTable(
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
     expectedReturnAt: integer('expected_return_at', { mode: 'timestamp_ms' }),
+    overdueNotifiedAt: integer('overdue_notified_at', { mode: 'timestamp_ms' }),
     createdByUserId: text('created_by_user_id')
       .notNull()
       .references(() => users.id),

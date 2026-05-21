@@ -4,6 +4,7 @@ import { createApp } from '../app.js';
 import type { Db } from '../db/client.js';
 import { users, orgSettings, assetTypes, type UserRow } from '../db/schema.js';
 import type { Env } from '../env.js';
+import type { Email, EmailSender } from './email.js';
 import { SESSION_COOKIE, createSession } from './sessions.js';
 import { createTestDb } from './test-db.js';
 
@@ -19,6 +20,13 @@ const TEST_ENV: Env = {
 
 type Role = UserRow['role'];
 
+class MemoryEmailSender implements EmailSender {
+  readonly sent: Email[] = [];
+  async send(email: Email): Promise<void> {
+    this.sent.push(email);
+  }
+}
+
 export type TestServer = {
   app: ReturnType<typeof createApp>;
   db: Db;
@@ -32,6 +40,7 @@ export type TestServer = {
     init?: RequestInit & { cookie?: string },
   ) => Promise<Response>;
   laptopTypeId: string;
+  sentEmails: Email[];
 };
 
 /**
@@ -41,7 +50,8 @@ export type TestServer = {
  */
 export function setupTestServer(): TestServer {
   const { db, sqlite } = createTestDb();
-  const app = createApp({ db, env: TEST_ENV });
+  const emailSender = new MemoryEmailSender();
+  const app = createApp({ db, env: TEST_ENV, emailSender });
 
   db.insert(orgSettings)
     .values({ id: 'singleton', name: 'Test Org', codePrefix: null, allowedDomains: [] })
@@ -84,5 +94,6 @@ export function setupTestServer(): TestServer {
     loginAs,
     authRequest,
     laptopTypeId,
+    sentEmails: emailSender.sent,
   };
 }

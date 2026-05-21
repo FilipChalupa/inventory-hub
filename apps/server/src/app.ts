@@ -4,6 +4,7 @@ import { logger } from 'hono/logger';
 import type { Db } from './db/client.js';
 import type { Env } from './env.js';
 import type { UserRow } from './db/schema.js';
+import { createEmailSender, type EmailSender } from './lib/email.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/org.js';
 import { assetRoutes } from './routes/assets.js';
@@ -22,12 +23,14 @@ export type AppContext = {
   Variables: {
     db: Db;
     env: Env;
+    emailSender: EmailSender;
     user?: UserRow;
   };
 };
 
-export function createApp(deps: { db: Db; env: Env }) {
+export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender }) {
   const app = new Hono<AppContext>();
+  const emailSender = deps.emailSender ?? createEmailSender(deps.env);
 
   app.use('*', logger());
   app.use('*', cors({ origin: deps.env.PUBLIC_APP_URL, credentials: true }));
@@ -35,6 +38,7 @@ export function createApp(deps: { db: Db; env: Env }) {
   app.use('*', async (c, next) => {
     c.set('db', deps.db);
     c.set('env', deps.env);
+    c.set('emailSender', emailSender);
     await next();
   });
 

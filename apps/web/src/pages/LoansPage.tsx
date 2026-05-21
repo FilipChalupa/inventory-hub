@@ -31,7 +31,15 @@ export function LoansPage() {
 
       {list.data?.items.length === 0 && (
         <Card>
-          <p className="text-slate-500 text-sm">Žádné výpůjčky.</p>
+          <h2 className="font-semibold mb-1">Zatím žádné výpůjčky</h2>
+          <p className="text-slate-600 text-sm mb-3">
+            Výpůjčka eviduje, kdo si od tebe co odnesl. Můžeš ji založit komukoli
+            (interní uživatel nebo externí jméno) a vracet pak položku po
+            položce.
+          </p>
+          <Link to="/loans/new">
+            <Button>+ Vytvořit první výpůjčku</Button>
+          </Link>
         </Card>
       )}
 

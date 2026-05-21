@@ -6,6 +6,7 @@ import { z } from 'zod';
 import {
   ASSET_STATUSES,
   TERMINAL_ASSET_STATUSES,
+  assetCodeSchema,
   createAssetInput,
   validateCustomFieldValues,
   type AssetStatus,
@@ -19,6 +20,7 @@ import {
   orgSettings,
 } from '../db/schema.js';
 import { generateAssetCode } from '../lib/asset-code.js';
+import { parseCsv } from '../lib/csv.js';
 import type { Db } from '../db/client.js';
 
 /**
@@ -74,6 +76,18 @@ function isTerminalStatus(s: AssetStatus): boolean {
   return (TERMINAL_ASSET_STATUSES as readonly AssetStatus[]).includes(s);
 }
 
+/**
+ * Increments the trailing sequence on an asset code like LAP-00007 → LAP-00008,
+ * preserving the prefix and zero-padding.
+ */
+function incrementCode(code: string): string {
+  const lastDash = code.lastIndexOf('-');
+  const prefix = code.slice(0, lastDash + 1);
+  const seqStr = code.slice(lastDash + 1);
+  const next = String(Number(seqStr) + 1).padStart(seqStr.length, '0');
+  return `${prefix}${next}`;
+}
+
 export const assetRoutes = new Hono<AppContext>()
   .get('/', zValidator('query', listQuery), (c) => {
     const db = c.get('db');
@@ -81,7 +95,16 @@ export const assetRoutes = new Hono<AppContext>()
 
     const conditions = [];
     if (q) {
-      conditions.push(or(like(assets.code, `%${q.toUpperCase()}%`), like(assets.name, `%${q}%`)));
+      // Search across code, name, and the JSON-encoded custom_fields (so
+      // external identifiers like serial numbers stored as custom fields
+      // are findable from the same search box).
+      conditions.push(
+        or(
+          like(assets.code, `%${q.toUpperCase()}%`),
+          like(assets.name, `%${q}%`),
+          like(assets.customFields, `%${q}%`),
+        ),
+      );
     }
     if (status) conditions.push(eq(assets.status, status));
     if (typeId) conditions.push(eq(assets.typeId, typeId));
@@ -324,6 +347,56 @@ export const assetRoutes = new Hono<AppContext>()
       return c.json({ ok: true });
     },
   )
+  .post('/:code/repair-start', (c) => {
+    const db = c.get('db');
+    const code = c.req.param('code').toUpperCase();
+    const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+    if (asset.archivedAt) {
+      return c.json({ error: { message: 'Archivovaný asset nelze poslat do opravy' } }, 409);
+    }
+    if (asset.status === 'on_loan') {
+      return c.json({ error: { message: 'Vypůjčený asset nelze poslat do opravy' } }, 409);
+    }
+    if (asset.status === 'in_repair') {
+      return c.json({ error: { message: 'Asset už je v opravě' } }, 409);
+    }
+    db.update(assets)
+      .set({ status: 'in_repair', updatedAt: new Date() })
+      .where(eq(assets.id, asset.id))
+      .run();
+    db.insert(assetEvents)
+      .values({
+        assetId: asset.id,
+        actorUserId: c.get('user')?.id ?? null,
+        type: 'repair_started',
+        payload: { previousStatus: asset.status },
+      })
+      .run();
+    return c.json({ ok: true });
+  })
+  .post('/:code/repair-finish', (c) => {
+    const db = c.get('db');
+    const code = c.req.param('code').toUpperCase();
+    const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+    if (asset.status !== 'in_repair') {
+      return c.json({ error: { message: 'Asset není v opravě' } }, 409);
+    }
+    db.update(assets)
+      .set({ status: 'in_stock', updatedAt: new Date() })
+      .where(eq(assets.id, asset.id))
+      .run();
+    db.insert(assetEvents)
+      .values({
+        assetId: asset.id,
+        actorUserId: c.get('user')?.id ?? null,
+        type: 'repair_finished',
+        payload: {},
+      })
+      .run();
+    return c.json({ ok: true });
+  })
   .post('/:code/unassign', (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
@@ -379,6 +452,186 @@ export const assetRoutes = new Hono<AppContext>()
         'Cache-Control': 'public, max-age=86400',
       },
     });
+  })
+  .post('/import', async (c) => {
+    const db = c.get('db');
+    const user = c.get('user')!;
+    if (user.role !== 'admin' && user.role !== 'operator') {
+      return c.json({ error: { message: 'Pouze admin nebo operator může importovat' } }, 403);
+    }
+
+    let form: FormData;
+    try {
+      form = await c.req.formData();
+    } catch {
+      return c.json({ error: { message: 'Neplatná multipart data' } }, 400);
+    }
+    const file = form.get('file');
+    const dryRun = form.get('dryRun') === 'true';
+    if (!(file instanceof File)) {
+      return c.json({ error: { message: 'Pole „file" je povinné' } }, 400);
+    }
+    if (file.size > 1_000_000) {
+      return c.json({ error: { message: 'CSV soubor je větší než 1 MB' } }, 413);
+    }
+    const text = await file.text();
+    const { headers, rows } = parseCsv(text);
+    if (rows.length === 0) {
+      return c.json({ error: { message: 'CSV je prázdné (žádné datové řádky)' } }, 400);
+    }
+    if (rows.length > 1000) {
+      return c.json({ error: { message: 'Maximálně 1000 řádků na import' } }, 400);
+    }
+
+    const required = ['name'];
+    const knownHeaders = new Set(['code', 'name', 'type', 'notes']);
+    const customFieldHeaders = headers.filter((h) => !knownHeaders.has(h));
+    for (const r of required) {
+      if (!headers.includes(r)) {
+        return c.json({ error: { message: `Chybí povinný sloupec: ${r}` } }, 400);
+      }
+    }
+
+    // Cache asset types by prefix.
+    const typesByPrefix = new Map<string, (typeof assetTypes.$inferSelect)>();
+    for (const t of db.select().from(assetTypes).all()) {
+      typesByPrefix.set(t.codePrefix.toUpperCase(), t);
+    }
+    const org = db.select().from(orgSettings).where(eq(orgSettings.id, 'singleton')).get();
+    const orgPrefix = org?.codePrefix ?? null;
+
+    type PreviewRow = {
+      lineNumber: number;
+      input: Record<string, string>;
+      code: string | null;
+      issues: string[];
+    };
+    const preview: PreviewRow[] = [];
+    const seenCodes = new Set<string>();
+    const usedCodesInRun = new Set<string>();
+
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      const issues: string[] = [];
+      const name = row['name'] ?? '';
+      const codeRaw = (row['code'] ?? '').trim().toUpperCase();
+      const typePrefix = (row['type'] ?? '').trim().toUpperCase();
+      const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
+
+      if (!name) issues.push('Chybí name');
+      if (codeRaw) {
+        const parsed = assetCodeSchema.safeParse(codeRaw);
+        if (!parsed.success) issues.push('Neplatný code (formát PREFIX-…-…)');
+      }
+      if (!codeRaw && !type) {
+        issues.push('Bez code je povinný sloupec „type" (codePrefix existujícího typu)');
+      }
+      if (typePrefix && !type) {
+        issues.push(`Typ s prefixem „${typePrefix}" neexistuje`);
+      }
+
+      // Compute final code (may be generated only at commit-time; for preview
+      // we approximate by counting collisions inside the CSV itself).
+      let finalCode: string | null = null;
+      if (codeRaw) {
+        finalCode = codeRaw;
+        if (usedCodesInRun.has(codeRaw)) issues.push('Duplicitní code v CSV');
+        else usedCodesInRun.add(codeRaw);
+        // Check DB collision
+        const existing = db
+          .select({ id: assets.id })
+          .from(assets)
+          .where(eq(assets.code, codeRaw))
+          .get();
+        if (existing) issues.push(`Code ${codeRaw} už v databázi existuje`);
+      }
+
+      // Validate custom fields against schema if a type is resolved.
+      if (type && customFieldHeaders.length > 0) {
+        const raw: Record<string, unknown> = {};
+        for (const h of customFieldHeaders) {
+          const v = row[h];
+          if (v !== undefined && v !== '') raw[h] = v;
+        }
+        const schema = (type.customFieldsSchema ?? []) as CustomFieldsSchema;
+        if (schema.length > 0) {
+          const r = validateCustomFieldValues(schema, raw);
+          if (!r.ok) {
+            for (const [k, msg] of Object.entries(r.errors)) {
+              issues.push(`${k}: ${msg}`);
+            }
+          }
+        }
+      }
+
+      preview.push({ lineNumber: i + 2, input: row, code: finalCode, issues });
+      if (finalCode) seenCodes.add(finalCode);
+    }
+
+    const hasErrors = preview.some((p) => p.issues.length > 0);
+    if (dryRun || hasErrors) {
+      return c.json({ preview, hasErrors, created: 0 }, hasErrors && !dryRun ? 400 : 200);
+    }
+
+    // Pre-compute auto-generated codes outside the transaction so we
+    // can stay on the typed Db handle. Per type we query the DB max once
+    // then increment locally across rows that need a code.
+    const assignedCodes = new Map<number, string>(); // preview index → code
+    const counters = new Map<string, string>(); // codePrefix → last code
+    for (let idx = 0; idx < preview.length; idx++) {
+      const p = preview[idx]!;
+      if (p.code || p.issues.length > 0) continue;
+      const typePrefix = (p.input['type'] ?? '').trim().toUpperCase();
+      const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
+      if (!type) continue;
+      let lastCode = counters.get(type.codePrefix);
+      const nextCode = lastCode
+        ? incrementCode(lastCode)
+        : generateAssetCode(db, type.codePrefix, orgPrefix);
+      counters.set(type.codePrefix, nextCode);
+      assignedCodes.set(idx, nextCode);
+    }
+
+    let created = 0;
+    db.transaction((tx) => {
+      for (let idx = 0; idx < preview.length; idx++) {
+        const p = preview[idx]!;
+        const row = p.input;
+        const typePrefix = (row['type'] ?? '').trim().toUpperCase();
+        const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
+        const code = p.code ?? assignedCodes.get(idx) ?? null;
+        if (!code) continue;
+        const customFields: Record<string, unknown> = {};
+        if (type) {
+          for (const h of customFieldHeaders) {
+            const v = row[h];
+            if (v !== undefined && v !== '') customFields[h] = v;
+          }
+        }
+        const id = crypto.randomUUID();
+        tx.insert(assets)
+          .values({
+            id,
+            code,
+            name: row['name']!,
+            typeId: type?.id ?? null,
+            notes: row['notes'] || null,
+            customFields,
+          })
+          .run();
+        tx.insert(assetEvents)
+          .values({
+            assetId: id,
+            actorUserId: user.id,
+            type: 'created',
+            payload: { code, source: 'import' },
+          })
+          .run();
+        created += 1;
+      }
+    });
+
+    return c.json({ preview, hasErrors: false, created });
   })
   .post('/labels', zValidator('json', z.object({ codes: z.array(z.string()).min(1).max(100) })), (c) => {
     const db = c.get('db');
