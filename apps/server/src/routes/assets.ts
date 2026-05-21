@@ -301,6 +301,14 @@ export const assetRoutes = new Hono<AppContext>()
         .set({ photoPaths: next, updatedAt: new Date() })
         .where(eq(assets.id, asset.id))
         .run();
+      db.insert(assetEvents)
+        .values({
+          assetId: asset.id,
+          actorUserId: c.get('user')?.id ?? null,
+          type: 'updated',
+          payload: { photo: { path, op: 'added' } },
+        })
+        .run();
       return c.json({ photoPaths: next });
     },
   )
@@ -313,11 +321,22 @@ export const assetRoutes = new Hono<AppContext>()
       const { path } = c.req.valid('json');
       const asset = db.select().from(assets).where(eq(assets.code, code)).get();
       if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
-      const next = ((asset.photoPaths ?? []) as string[]).filter((p) => p !== path);
+      const before = (asset.photoPaths ?? []) as string[];
+      const next = before.filter((p) => p !== path);
       db.update(assets)
         .set({ photoPaths: next, updatedAt: new Date() })
         .where(eq(assets.id, asset.id))
         .run();
+      if (before.length !== next.length) {
+        db.insert(assetEvents)
+          .values({
+            assetId: asset.id,
+            actorUserId: c.get('user')?.id ?? null,
+            type: 'updated',
+            payload: { photo: { path, op: 'removed' } },
+          })
+          .run();
+      }
       return c.json({ photoPaths: next });
     },
   )
@@ -339,6 +358,14 @@ export const assetRoutes = new Hono<AppContext>()
         .set({ documentPaths: next, updatedAt: new Date() })
         .where(eq(assets.id, asset.id))
         .run();
+      db.insert(assetEvents)
+        .values({
+          assetId: asset.id,
+          actorUserId: c.get('user')?.id ?? null,
+          type: 'updated',
+          payload: { document: { path, op: 'added' } },
+        })
+        .run();
       return c.json({ documentPaths: next });
     },
   )
@@ -351,11 +378,22 @@ export const assetRoutes = new Hono<AppContext>()
       const { path } = c.req.valid('json');
       const asset = db.select().from(assets).where(eq(assets.code, code)).get();
       if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
-      const next = ((asset.documentPaths ?? []) as string[]).filter((p) => p !== path);
+      const before = (asset.documentPaths ?? []) as string[];
+      const next = before.filter((p) => p !== path);
       db.update(assets)
         .set({ documentPaths: next, updatedAt: new Date() })
         .where(eq(assets.id, asset.id))
         .run();
+      if (before.length !== next.length) {
+        db.insert(assetEvents)
+          .values({
+            assetId: asset.id,
+            actorUserId: c.get('user')?.id ?? null,
+            type: 'updated',
+            payload: { document: { path, op: 'removed' } },
+          })
+          .run();
+      }
       return c.json({ documentPaths: next });
     },
   )

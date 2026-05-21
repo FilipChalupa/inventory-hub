@@ -14,13 +14,18 @@ Inventory Hub běží jako jeden Docker kontejner s perzistentním volumem
 
 ## Reverse proxy
 
-Doporučeno za reverse proxy s TLS (Caddy / Traefik / nginx). Příklad Caddy:
+Frontend i API běží ze stejného portu (3001) — reverse proxy **není nutný
+pro běh**, ale je vhodný pro TLS terminaci, HTTPS-only cookies a vlastní
+doménu (Caddy / Traefik / nginx). Příklad Caddy:
 
 ```caddy
 inventory.example.com {
   reverse_proxy localhost:3001
 }
 ```
+
+Nezapomeň pak nastavit `PUBLIC_APP_URL=https://inventory.example.com`,
+ať CSRF (Origin check) a Google OAuth redirect mají správnou doménu.
 
 ## Zálohy
 
@@ -130,18 +135,20 @@ Uploads (binární fotky) Litestream neřeší — pro ně varianta A nebo
 
 ## Migrace databáze
 
-Migrace se aplikují **manuálně** přes:
+Migrace se aplikují **automaticky při startu serveru** (`migrate()`
+volaný v `index.ts` před tím, než server začne přijímat requesty). Pokud
+migrace selže, kontejner skončí s exit kódem 1 a docker-compose ho
+restartuje — proto **před nasazením nové verze vždy udělej zálohu**, ať se
+do případného restart-loopu nedostane corrupt DB.
 
-```bash
-docker exec inventory-hub node apps/server/dist/db/migrate.js
-```
-
-Nebo přidat do startupu (TODO: zvážit auto-migrate při bootu). Před každou
-migrací **udělej zálohu**.
+Ručně lze spustit přes `docker exec inventory-hub node apps/server/dist/db/migrate.js`,
+ale obvykle to není potřeba.
 
 ## Co monitorovat
 
 - Volné místo na disku, kde je volume `inventory_data`.
 - Velikost `/data/app.db` (růst).
 - Pokud Litestream: že proces běží a poslední replikace není stará.
-- HTTP healthcheck: `GET /health` → `{"status":"ok"}`.
+- HTTP healthcheck: `GET /health` → `{"status":"ok"}`. Image už má
+  vestavěný `HEALTHCHECK` (každých 30 s), takže status uvidíš v
+  `docker ps`.

@@ -81,11 +81,19 @@ export const damageRoutes = new Hono<AppContext>()
   .post('/:id/resolve', (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
-    const result = db
-      .update(damageReports)
+    const report = db.select().from(damageReports).where(eq(damageReports.id, id)).get();
+    if (!report) return c.json({ error: { message: 'Report nenalezen' } }, 404);
+    db.update(damageReports)
       .set({ resolvedAt: new Date() })
       .where(eq(damageReports.id, id))
       .run();
-    if (result.changes === 0) return c.json({ error: { message: 'Report nenalezen' } }, 404);
+    db.insert(assetEvents)
+      .values({
+        assetId: report.assetId,
+        actorUserId: c.get('user')?.id ?? null,
+        type: 'damage_resolved',
+        payload: { damageReportId: id, severity: report.severity },
+      })
+      .run();
     return c.json({ ok: true });
   });

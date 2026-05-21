@@ -4,6 +4,7 @@ import type { AppContext } from '../app.js';
 import {
   assetTypes,
   assets,
+  contacts,
   damageReports,
   loanItems,
   loans,
@@ -118,6 +119,19 @@ export const exportRoutes = new Hono<AppContext>()
       { key: 'resolvedAt', header: 'Vyřešeno' },
     ]);
     return csvResponse(`damages-${todayStamp()}.csv`, csv);
+  })
+  .get('/contacts.csv', (c) => {
+    const db = c.get('db');
+    const rows = db.select().from(contacts).orderBy(asc(contacts.name)).all();
+    const csv = toCsv(rows, [
+      { key: 'name', header: 'Jméno' },
+      { key: 'organization', header: 'Organizace' },
+      { key: 'email', header: 'E-mail' },
+      { key: 'phone', header: 'Telefon' },
+      { key: 'note', header: 'Poznámka' },
+      { key: 'createdAt', header: 'Vytvořeno' },
+    ]);
+    return csvResponse(`contacts-${todayStamp()}.csv`, csv);
   });
 
 function todayStamp(): string {

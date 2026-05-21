@@ -11,18 +11,20 @@ npm install
 cp apps/server/.env.example apps/server/.env
 # uprav SESSION_SECRET (min 16 znaků)
 
-npm run db:generate          # vygeneruje migrace ze schématu
-npm run db:migrate           # aplikuje migrace
-npm run db:seed              # naseje demo data + dev admin
+npm run db:seed              # naseje demo data + dev admin (admin@example.com)
 
 # v jednom terminálu
-npm run dev:server
+npm run dev:server           # auto-migrace běží na startu
 # v druhém
 npm run dev:web
 ```
 
 - Server: <http://localhost:3001>
 - Web: <http://localhost:5173> (proxuje `/api`, `/health` a `/auth` na server)
+
+Migrace se aplikují automaticky při startu serveru. Pokud měníš schéma,
+zavolej `npm run db:generate` pro novou migraci (Drizzle vytvoří SQL
+soubor v `apps/server/src/db/migrations/`).
 
 ### Přihlášení v dev módu
 
@@ -51,8 +53,12 @@ zablokovaný (`NODE_ENV=production`).
 SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
 ```
 
-Data (SQLite + uploads) jsou v named volume `inventory_data`. Viz
-[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md) pro instrukce ohledně záloh.
+Jeden Docker image servíruje frontend i API ze stejného portu (3001) —
+**žádný reverse proxy není potřeba** pro běh. Pro HTTPS/doménu napojuj
+nahoru obvyklý Caddy/Traefik (viz [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)).
+
+Data (SQLite + uploads) jsou v named volume `inventory_data`. Migrace
+běží automaticky při startu; backup workflow je v [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
 
 ## Struktura
 
@@ -75,7 +81,7 @@ packages/
 | `npm run typecheck`   | typecheck všech balíčků                      |
 | `npm run test`        | testy všech balíčků                          |
 | `npm run db:generate` | vygeneruje SQL migrace ze schématu Drizzle   |
-| `npm run db:migrate`  | aplikuje migrace na DB                       |
+| `npm run db:migrate`  | aplikuje migrace ručně (server to dělá automaticky na startu) |
 | `npm run db:seed`     | naseje demo data (jen pro dev)               |
 | `npm run test:e2e`    | Playwright E2E proti ephemeral serveru       |
 
@@ -88,8 +94,9 @@ npm run test:e2e                   # spustí Playwright proti ephemeral
 ```
 
 E2E config v `playwright.config.ts` startuje vlastní backend (`tsx watch`
-proti DB v `.e2e/app.db`) + Vite. Global setup po startu zavolá
-`db:seed` proti té DB.
+proti DB v `apps/server/.e2e/app.db`) + Vite. Global setup po startu
+zavolá `db:seed:e2e` (deterministická UUID + idempotentní lokace) proti
+té DB.
 
 Tip: po pádu testu otevři `playwright-report/index.html` nebo
 `npx playwright show-trace test-results/<failed-test>/trace.zip`.
