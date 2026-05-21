@@ -2,6 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer base {
+  body {
+    @apply bg-white text-slate-900 dark:bg-slate-900 dark:text-slate-100;
+  }
+}
+
 @media print {
   header,
   nav,

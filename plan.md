@@ -318,15 +318,17 @@ otevření projektu hned víme, kde jsme.
 - Pozvánky e-mailem (token + 7denní expirace) + public accept endpoint.
   Sender abstrakce `EmailSender` — default `ConsoleEmailSender`, SMTP přes
   `nodemailer` (`SmtpEmailSender`) když jsou nastavené `SMTP_*` env.
-- Assets CRUD: list/filter/fulltext (vč. JSON custom_fields pro sériová
-  čísla apod.), get, create (auto-kód z typu i ručně), PATCH s validací
-  custom fields proti type schématu, archive/unarchive, assign/unassign
-  uživateli, photos add/remove, events log, explicit repair-start /
+- Assets CRUD: list/filter/fulltext (vč. JSON custom_fields a tabulky
+  `asset_external_ids` pro sériová čísla / EAN), get, create (auto-kód
+  z typu i ručně), PATCH s validací custom fields proti type schématu,
+  archive/unarchive, assign/unassign uživateli, photos add/remove,
+  external IDs add/list/remove, events log, explicit repair-start /
   repair-finish, bulk CSV import (dry-run + commit, atomicky v
   transakci).
-- Asset types CRUD + custom fields schema (text/number/date/boolean/select).
+- Asset types CRUD + custom fields schema (text/number/date/boolean/select),
+  bulk CSV import.
 - Locations CRUD (s parentem; cyklus chráněn na backendu — zamítne
-  i hloubkové cykly přes potomky).
+  i hloubkové cykly přes potomky), bulk CSV import s lookup parent_name.
 - Damage reports: create s fotkami (cap `MAX_DAMAGE_PHOTOS = 10`),
   list, resolve. Total severity → asset auto-archive jako `damaged`.
 - Loans: create (validace dostupnosti), list (s derived status),
@@ -344,17 +346,23 @@ otevření projektu hned víme, kde jsme.
 
 **Frontend (Vite + React + TanStack Query + Tailwind):**
 - Layout s navigací, auth gate, login page (Google + dev-login),
-  accept-invite page.
+  accept-invite page. Dark mode (Tailwind `darkMode: 'class'`) s
+  toggle v headeru, persistence v localStorage, výchozí podle
+  `prefers-color-scheme`.
 - Assets list (filtry, status, archivované, hledání včetně sloupce
   lokace), nový asset (vč. custom fields), detail (QR vedle, akce,
-  fotky, poškození, historie, přiřazení uživateli, edit form,
-  archivace, repair-start / repair-finish tlačítka). Onboarding karta
-  na prvním otevření instance.
-- Bulk CSV import s preview (chybové řádky podbarvené, dry-run / commit).
-- Asset types page s editorem custom field schématu.
-- Locations page s hierarchickým stromem + breadcrumb path + reparenting
-  dropdownem (přesun pod jiný parent, cyklus chytá backend).
-- Loans list s overdue flagem + helpful empty state, nová výpůjčka
+  fotky, externí identifikátory, poškození, historie, přiřazení
+  uživateli, edit form, archivace, repair-start / repair-finish
+  tlačítka). Onboarding karta na prvním otevření instance.
+- Bulk CSV import (sdílená stránka pro assety, typy, lokace) s
+  preview, chybové řádky podbarvené, dry-run / commit.
+- QR sken stránka (`html5-qrcode`) — kamera + ruční zadání kódu,
+  rozparsuje URL i bare kód.
+- Asset types page s editorem custom field schématu + import CSV.
+- Locations page — hierarchický strom, drag-and-drop reparenting
+  (`@dnd-kit`), root drop zone, dropdown jako fallback pro klávesnici.
+- Loans list s overdue flagem + filtrace (borrower, status včetně
+  „overdue", datum od/do) + helpful empty state, nová výpůjčka
   (multi-select assetů), detail s postupným vracením.
 - Štítky — bulk tisk QR + lidsky čitelný kód, print CSS.
 - Users — admin spravuje role a deaktivace.
@@ -362,19 +370,20 @@ otevření projektu hned víme, kde jsme.
 
 **Tooling & deployment:**
 - npm workspaces (root → apps/server, apps/web, packages/shared).
-- TypeScript strict, ESLint, Prettier, Vitest (103 testů celkem):
+- TypeScript strict, ESLint, Prettier, Vitest (124 testů celkem):
   - Unit: domain, csv (writer + RFC 4180 parser), custom-fields
     validátor, asset-code generátor proti in-memory SQLite, Google
-    OAuth PKCE helpery, location tree, overdue notifier (idempotence,
-    skip plně vrácených, admin endpoint guard).
+    OAuth PKCE helpery, location tree, overdue notifier, QR sken
+    parser (URL i bare kód).
   - Integrační (Hono `app.request` + in-memory SQLite, sdílený
     helper `lib/test-server.ts` s in-memory email senderem): auth
-    guardy (401/logout), asset CRUD (auto-kód, dup conflict,
-    custom-fields validace, archive/unarchive, filtrace, repair
-    workflow, CSV import dry-run/commit, search v custom_fields),
-    loan flow (create, derived status, postupné vracení s damage →
-    in_repair + damage report), damage report limits, invitation
-    accept flow s e-mailem, location reparenting + cycle detection.
+    guardy, asset CRUD (auto-kód, dup conflict, custom-fields
+    validace, archive/unarchive, filtrace, repair workflow, CSV
+    import, fulltext včetně custom_fields + external IDs, external
+    ID CRUD), loan flow (create, derived status, postupné vracení s
+    damage → in_repair + damage report), damage report limits,
+    invitation accept flow s e-mailem, location reparenting + cycle
+    detection, location & asset-type CSV import.
 - Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
 - `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
   Litestream sidecar, recovery flow).
@@ -403,14 +412,13 @@ otevření projektu hned víme, kde jsme.
 - **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
   ephemeral kontejneru.
 
-**Funkční mezery (zbytek po prvním kole):**
-- Drag-and-drop reordering pro lokace (zatím dropdown na přesun pod
-  jiný parent — DnD si žádá `@dnd-kit` nebo `react-dnd`).
-- Custom-fields hledání zatím přes `LIKE '%q%'` nad JSONem v
-  `custom_fields`. Při růstu by se hodil dedikovaný
-  `asset_external_ids` index / tabulka.
-- Bulk import zatím pouze pro assety; další entity (lokace, typy)
-  zůstávají ručně.
+**Funkční mezery (zbytek):**
+- Vše vyřešeno v posledních kolech (in_repair workflow, SMTP sender,
+  overdue notifier, custom_fields fulltext + dedikovaná tabulka
+  `asset_external_ids`, bulk CSV import pro assety/typy/lokace,
+  drag-and-drop reparenting lokací, mobilní QR sken, dark mode,
+  filtrace výpůjček). Zbylé položky se posunuly do Polish / DX
+  a Bezpečnost & provoz.
 
 **Bezpečnost & provoz:**
 - Rate-limiting (login, OAuth callback, uploads) — teď neomezené.
@@ -423,11 +431,7 @@ otevření projektu hned víme, kde jsme.
 - Auto-migrace při startu (zatím manuální `npm run db:migrate`).
 
 **Polish / DX:**
-- Mobilní QR sken (kamera) — endpoint funguje, web UI ale jen statický
-  obrázek; potřeba `html5-qrcode` na detailu.
-- Lokalizace (zatím jen CZ, ale stringy nejsou centralizované —
-  i18next nebo aspoň `messages.ts`).
-- Dark mode (nice-to-have).
-- Filtrace výpůjček (status, borrower, datum).
+- Lokalizace — zatím jen CZ, stringy nejsou centralizované (i18next
+  nebo aspoň `messages.ts`).
 - E2E testovací data fixture / `db:seed --e2e` profil.
 

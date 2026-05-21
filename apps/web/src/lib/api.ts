@@ -126,6 +126,41 @@ export type UserRow = {
   createdAt: string;
 };
 
+export type ImportPreviewRow = {
+  lineNumber: number;
+  input: Record<string, string>;
+  code?: string | null;
+  issues: string[];
+};
+export type ImportResult = {
+  preview: ImportPreviewRow[];
+  hasErrors: boolean;
+  created: number;
+};
+
+async function uploadImportCsv(
+  path: string,
+  file: File,
+  dryRun: boolean,
+): Promise<ImportResult> {
+  const form = new FormData();
+  form.append('file', file);
+  form.append('dryRun', dryRun ? 'true' : 'false');
+  const res = await fetch(path, { method: 'POST', body: form, credentials: 'include' });
+  const body = (await res.json().catch(() => null)) as unknown;
+  if (body && typeof body === 'object' && 'preview' in body) {
+    return body as ImportResult;
+  }
+  if (!res.ok) {
+    const msg =
+      body && typeof body === 'object' && 'error' in body
+        ? (body as { error: { message: string } }).error.message
+        : `HTTP ${res.status}`;
+    throw new Error(msg);
+  }
+  return body as ImportResult;
+}
+
 export async function uploadFile(file: File): Promise<{ path: string; url: string }> {
   const form = new FormData();
   form.append('file', file);
@@ -236,6 +271,19 @@ export const apiClient = {
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/repair-finish`, {
         method: 'POST',
       }),
+    listExternalIds: (code: string) =>
+      api<{ items: { id: string; kind: string; value: string }[] }>(
+        `/api/assets/${encodeURIComponent(code)}/external-ids`,
+      ),
+    addExternalId: (code: string, input: { kind: string; value: string }) =>
+      api<{ id: string; kind: string; value: string }>(
+        `/api/assets/${encodeURIComponent(code)}/external-ids`,
+        { method: 'POST', body: input },
+      ),
+    removeExternalId: (code: string, id: string) =>
+      api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/external-ids/${id}`, {
+        method: 'DELETE',
+      }),
     addPhoto: (code: string, path: string) =>
       api<{ photoPaths: string[] }>(`/api/assets/${encodeURIComponent(code)}/photos`, {
         method: 'POST',
@@ -254,42 +302,7 @@ export const apiClient = {
         method: 'POST',
         body: { codes },
       }),
-    import: async (file: File, dryRun: boolean) => {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('dryRun', dryRun ? 'true' : 'false');
-      const res = await fetch('/api/assets/import', {
-        method: 'POST',
-        body: form,
-        credentials: 'include',
-      });
-      const body = (await res.json().catch(() => null)) as
-        | {
-            preview: {
-              lineNumber: number;
-              input: Record<string, string>;
-              code: string | null;
-              issues: string[];
-            }[];
-            hasErrors: boolean;
-            created: number;
-          }
-        | { error: { message: string } };
-      if (!res.ok && 'error' in body) {
-        if ('preview' in (body as object)) return body as never;
-        throw new Error((body as { error: { message: string } }).error.message);
-      }
-      return body as {
-        preview: {
-          lineNumber: number;
-          input: Record<string, string>;
-          code: string | null;
-          issues: string[];
-        }[];
-        hasErrors: boolean;
-        created: number;
-      };
-    },
+    import: (file: File, dryRun: boolean) => uploadImportCsv('/api/assets/import', file, dryRun),
   },
 
   assetTypes: {
@@ -302,6 +315,7 @@ export const apiClient = {
     ) => api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) =>
       api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'DELETE' }),
+    import: async (file: File, dryRun: boolean) => uploadImportCsv('/api/asset-types/import', file, dryRun),
   },
 
   locations: {
@@ -311,6 +325,7 @@ export const apiClient = {
     update: (id: string, input: { name?: string; parentId?: string | null }) =>
       api<{ ok: true }>(`/api/locations/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) => api<{ ok: true }>(`/api/locations/${id}`, { method: 'DELETE' }),
+    import: async (file: File, dryRun: boolean) => uploadImportCsv('/api/locations/import', file, dryRun),
   },
 
   damages: {

@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
 import { CustomFieldsSchemaEditor } from '../components/CustomFieldsSchemaEditor.js';
@@ -33,7 +34,15 @@ export function AssetTypesPage() {
 
   return (
     <section className="space-y-6">
-      <h1 className="text-2xl font-bold">Typy assetů</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Typy assetů</h1>
+        <Link
+          to="/assets/import?kind=asset-types"
+          className="text-sm text-blue-600 hover:underline"
+        >
+          Import CSV
+        </Link>
+      </div>
 
       <Card>
         <h2 className="font-semibold mb-2">Nový typ</h2>

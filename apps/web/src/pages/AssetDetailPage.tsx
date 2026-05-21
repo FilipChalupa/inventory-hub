@@ -38,6 +38,11 @@ export function AssetDetailPage() {
     queryFn: () => apiClient.assets.events(code),
     enabled: !!code,
   });
+  const externalIds = useQuery({
+    queryKey: ['external-ids', code],
+    queryFn: () => apiClient.assets.listExternalIds(code),
+    enabled: !!code,
+  });
   const types = useQuery({
     queryKey: ['asset-types'],
     queryFn: () => apiClient.assetTypes.list(),
@@ -56,6 +61,7 @@ export function AssetDetailPage() {
     qc.invalidateQueries({ queryKey: ['asset', code] });
     qc.invalidateQueries({ queryKey: ['damages', code] });
     qc.invalidateQueries({ queryKey: ['events', code] });
+    qc.invalidateQueries({ queryKey: ['external-ids', code] });
     qc.invalidateQueries({ queryKey: ['assets'] });
   };
 
@@ -274,6 +280,12 @@ export function AssetDetailPage() {
         </dl>
       </Card>
 
+      <ExternalIdsCard
+        code={code}
+        items={externalIds.data?.items ?? []}
+        onChanged={invalidateAll}
+      />
+
       <AssetPhotosCard code={code} photos={a.photoPaths ?? []} onChanged={invalidateAll} />
 
       <Card>
@@ -355,6 +367,96 @@ export function AssetDetailPage() {
         </ul>
       </Card>
     </article>
+  );
+}
+
+function ExternalIdsCard({
+  code,
+  items,
+  onChanged,
+}: {
+  code: string;
+  items: { id: string; kind: string; value: string }[];
+  onChanged: () => void;
+}) {
+  const [kind, setKind] = useState('serial');
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (!value.trim()) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await apiClient.assets.addExternalId(code, { kind: kind.trim(), value: value.trim() });
+      setValue('');
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(id: string) {
+    if (!confirm('Odebrat identifikátor?')) return;
+    try {
+      await apiClient.assets.removeExternalId(code, id);
+      onChanged();
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
+
+  return (
+    <Card>
+      <h2 className="font-semibold mb-2">Externí identifikátory</h2>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+        Sériová čísla, EAN, manufacturer SKU. Najdou se z hlavního vyhledávání i ze skeneru.
+      </p>
+      {items.length === 0 ? (
+        <p className="text-sm text-slate-500">Žádné identifikátory.</p>
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 mb-3">
+          {items.map((eid) => (
+            <li key={eid.id} className="flex items-center justify-between py-1.5 text-sm">
+              <span>
+                <span className="text-xs uppercase text-slate-500 dark:text-slate-400 mr-2">
+                  {eid.kind}
+                </span>
+                <span className="font-mono">{eid.value}</span>
+              </span>
+              <Button variant="ghost" className="text-red-600 text-xs" onClick={() => remove(eid.id)}>
+                Odebrat
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+      <form onSubmit={add} className="flex flex-wrap gap-2 items-end">
+        <div className="w-32">
+          <Field label="Typ">
+            <Select value={kind} onChange={(e) => setKind(e.target.value)}>
+              <option value="serial">Sériové číslo</option>
+              <option value="ean">EAN / čárový kód</option>
+              <option value="sku">SKU výrobce</option>
+              <option value="other">Jiný</option>
+            </Select>
+          </Field>
+        </div>
+        <div className="flex-1 min-w-[180px]">
+          <Field label="Hodnota">
+            <Input value={value} onChange={(e) => setValue(e.target.value)} className="font-mono" />
+          </Field>
+        </div>
+        <Button type="submit" disabled={busy || !value.trim()}>
+          Přidat
+        </Button>
+      </form>
+      {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
+    </Card>
   );
 }
 

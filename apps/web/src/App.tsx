@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
+import { applyTheme, getInitialTheme, toggleTheme, type Theme } from './lib/theme.js';
 import { AssetsPage } from './pages/AssetsPage.js';
 import { AssetDetailPage } from './pages/AssetDetailPage.js';
 import { NewAssetPage } from './pages/NewAssetPage.js';
 import { ImportAssetsPage } from './pages/ImportAssetsPage.js';
+import { ScanPage } from './pages/ScanPage.js';
 import { AssetTypesPage } from './pages/AssetTypesPage.js';
 import { LocationsPage } from './pages/LocationsPage.js';
 import { LoansPage } from './pages/LoansPage.js';
@@ -19,6 +22,7 @@ import { Button } from './components/ui.js';
 
 const navItems = [
   { to: '/', label: 'Assety', end: true },
+  { to: '/scan', label: 'Sken' },
   { to: '/loans', label: 'Výpůjčky' },
   { to: '/labels', label: 'Štítky' },
   { to: '/asset-types', label: 'Typy' },
@@ -65,7 +69,7 @@ function Shell() {
 
   return (
     <div className="min-h-screen flex flex-col">
-      <header className="border-b bg-white sticky top-0 z-10 print:hidden">
+      <header className="border-b border-slate-200 bg-white sticky top-0 z-10 print:hidden dark:bg-slate-800 dark:border-slate-700">
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
           <NavLink to="/" className="font-semibold text-lg whitespace-nowrap">
             Inventory Hub
@@ -81,7 +85,9 @@ function Shell() {
                   className={({ isActive }) =>
                     clsx(
                       'px-3 py-1.5 rounded transition-colors whitespace-nowrap',
-                      isActive ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+                      isActive
+                        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+                        : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700',
                     )
                   }
                 >
@@ -98,6 +104,7 @@ function Shell() {
             <Route path="/" element={<AssetsPage />} />
             <Route path="/assets/new" element={<NewAssetPage />} />
             <Route path="/assets/import" element={<ImportAssetsPage />} />
+            <Route path="/scan" element={<ScanPage />} />
             <Route path="/a/:code" element={<AssetDetailPage />} />
             <Route path="/asset-types" element={<AssetTypesPage />} />
             <Route path="/locations" element={<LocationsPage />} />
@@ -117,18 +124,32 @@ function Shell() {
 
 function UserMenu() {
   const { state, logout } = useAuth();
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
   if (!state?.authenticated) return null;
   const u = state.user;
   return (
     <div className="flex items-center gap-3">
+      <button
+        type="button"
+        onClick={() => {
+          const next = toggleTheme(theme);
+          setTheme(next);
+          applyTheme(next);
+        }}
+        className="text-sm w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
+        title={theme === 'dark' ? 'Přepnout na světlý' : 'Přepnout na tmavý'}
+        aria-label="Přepnout barevný režim"
+      >
+        {theme === 'dark' ? '☀️' : '🌙'}
+      </button>
       <div className="text-right hidden sm:block">
         <div className="text-sm font-medium">{u.name}</div>
-        <div className="text-xs text-slate-500">{u.role}</div>
+        <div className="text-xs text-slate-500 dark:text-slate-400">{u.role}</div>
       </div>
       {u.imageUrl ? (
         <img src={u.imageUrl} alt="" className="w-8 h-8 rounded-full" />
       ) : (
-        <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs font-medium text-slate-700">
+        <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-xs font-medium text-slate-700 dark:text-slate-200">
           {u.name.slice(0, 1).toUpperCase()}
         </div>
       )}

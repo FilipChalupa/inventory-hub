@@ -149,6 +149,29 @@ export const assets = sqliteTable(
   }),
 );
 
+/**
+ * External identifiers (serial number, EAN, manufacturer SKU, etc.) attached
+ * to an asset. One asset can have many; each (kind, value) pair is unique
+ * across the org so we can scan a serial number and resolve the asset.
+ */
+export const assetExternalIds = sqliteTable(
+  'asset_external_ids',
+  {
+    id: id(),
+    assetId: text('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    kind: text('kind').notNull(),
+    value: text('value').notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    assetIdx: index('asset_external_ids_asset_idx').on(t.assetId),
+    valueIdx: index('asset_external_ids_value_idx').on(t.value),
+    kindValueUnique: uniqueIndex('asset_external_ids_kind_value_unique').on(t.kind, t.value),
+  }),
+);
+
 export const assetEvents = sqliteTable(
   'asset_events',
   {

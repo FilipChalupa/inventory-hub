@@ -15,6 +15,7 @@ import {
 import type { AppContext } from '../app.js';
 import {
   assetEvents,
+  assetExternalIds,
   assetTypes,
   assets,
   orgSettings,
@@ -95,14 +96,21 @@ export const assetRoutes = new Hono<AppContext>()
 
     const conditions = [];
     if (q) {
-      // Search across code, name, and the JSON-encoded custom_fields (so
-      // external identifiers like serial numbers stored as custom fields
-      // are findable from the same search box).
+      // Search across code, name, JSON-encoded custom_fields, and the
+      // dedicated asset_external_ids table (so a scanned serial number
+      // resolves to its asset from the same search box).
+      const matchingByExternal = db
+        .select({ assetId: assetExternalIds.assetId })
+        .from(assetExternalIds)
+        .where(like(assetExternalIds.value, `%${q}%`))
+        .all();
+      const externalIds = matchingByExternal.map((r) => r.assetId);
       conditions.push(
         or(
           like(assets.code, `%${q.toUpperCase()}%`),
           like(assets.name, `%${q}%`),
           like(assets.customFields, `%${q}%`),
+          externalIds.length > 0 ? inArray(assets.id, externalIds) : sql`0`,
         ),
       );
     }
@@ -419,6 +427,92 @@ export const assetRoutes = new Hono<AppContext>()
         actorUserId: c.get('user')?.id ?? null,
         type: 'unassigned',
         payload: { previousAssignee: asset.assignedToUserId },
+      })
+      .run();
+    return c.json({ ok: true });
+  })
+  .get('/:code/external-ids', (c) => {
+    const db = c.get('db');
+    const code = c.req.param('code').toUpperCase();
+    const asset = db.select({ id: assets.id }).from(assets).where(eq(assets.code, code)).get();
+    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+    const items = db
+      .select()
+      .from(assetExternalIds)
+      .where(eq(assetExternalIds.assetId, asset.id))
+      .orderBy(asc(assetExternalIds.kind), asc(assetExternalIds.value))
+      .all();
+    return c.json({ items });
+  })
+  .post(
+    '/:code/external-ids',
+    zValidator(
+      'json',
+      z.object({
+        kind: z.string().min(1).max(40),
+        value: z.string().min(1).max(200),
+      }),
+    ),
+    (c) => {
+      const db = c.get('db');
+      const code = c.req.param('code').toUpperCase();
+      const input = c.req.valid('json');
+      const asset = db.select({ id: assets.id }).from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+
+      const existing = db
+        .select({ id: assetExternalIds.id, assetId: assetExternalIds.assetId })
+        .from(assetExternalIds)
+        .where(and(eq(assetExternalIds.kind, input.kind), eq(assetExternalIds.value, input.value)))
+        .get();
+      if (existing) {
+        return c.json(
+          {
+            error: {
+              message:
+                existing.assetId === asset.id
+                  ? 'Tento identifikátor je už přiřazen tomuto assetu'
+                  : 'Tento identifikátor patří jinému assetu',
+            },
+          },
+          409,
+        );
+      }
+
+      const id = crypto.randomUUID();
+      db.insert(assetExternalIds)
+        .values({ id, assetId: asset.id, kind: input.kind, value: input.value })
+        .run();
+      db.insert(assetEvents)
+        .values({
+          assetId: asset.id,
+          actorUserId: c.get('user')?.id ?? null,
+          type: 'updated',
+          payload: { externalId: { kind: input.kind, value: input.value, op: 'added' } },
+        })
+        .run();
+      return c.json({ id, kind: input.kind, value: input.value }, 201);
+    },
+  )
+  .delete('/:code/external-ids/:id', (c) => {
+    const db = c.get('db');
+    const code = c.req.param('code').toUpperCase();
+    const id = c.req.param('id');
+    const asset = db.select({ id: assets.id }).from(assets).where(eq(assets.code, code)).get();
+    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+    const result = db
+      .delete(assetExternalIds)
+      .where(and(eq(assetExternalIds.id, id), eq(assetExternalIds.assetId, asset.id)))
+      .run();
+    if (result.changes === 0) {
+      return c.json({ error: { message: 'Identifikátor nenalezen' } }, 404);
+    }
+    db.insert(assetEvents)
+      .values({
+        assetId: asset.id,
+        actorUserId: c.get('user')?.id ?? null,
+        type: 'updated',
+        payload: { externalId: { id, op: 'removed' } },
       })
       .run();
     return c.json({ ok: true });

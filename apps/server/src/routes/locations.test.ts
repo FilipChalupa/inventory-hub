@@ -78,4 +78,41 @@ describe('locations API', () => {
     const row = server.db.select().from(locations).where(eq(locations.id, b)).get()!;
     expect(row.parentId).toBeNull();
   });
+
+  describe('import CSV', () => {
+    async function importCsv(text: string, dryRun: boolean, who = cookie) {
+      const form = new FormData();
+      form.append('file', new File([text], 'locs.csv', { type: 'text/csv' }));
+      form.append('dryRun', dryRun ? 'true' : 'false');
+      return server.authRequest('/api/locations/import', { cookie: who, method: 'POST', body: form });
+    }
+
+    it('commits new locations and resolves parent_name to existing rows', async () => {
+      await createLocation('Budova A');
+      const res = await importCsv('name,parent_name\r\n1.NP,Budova A\r\nKancelář,Budova A\r\n', false);
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { created: number };
+      expect(body.created).toBe(2);
+      const all = server.db.select().from(locations).all();
+      expect(all.map((l) => l.name).sort()).toEqual(['1.NP', 'Budova A', 'Kancelář']);
+      const child = all.find((l) => l.name === '1.NP')!;
+      const root = all.find((l) => l.name === 'Budova A')!;
+      expect(child.parentId).toBe(root.id);
+    });
+
+    it('rejects when parent_name does not exist', async () => {
+      const res = await importCsv('name,parent_name\r\nA,Nonexistent\r\n', true);
+      const body = (await res.json()) as { preview: { issues: string[] }[]; hasErrors: boolean };
+      expect(body.hasErrors).toBe(true);
+      expect(body.preview[0]!.issues.some((s) => /neexistuje/.test(s))).toBe(true);
+    });
+
+    it('member is forbidden from import', async () => {
+      const memberCookie = server.loginAs(
+        server.createUser({ role: 'member', email: 'm@example.com' }),
+      );
+      const res = await importCsv('name\r\nX\r\n', false, memberCookie);
+      expect(res.status).toBe(403);
+    });
+  });
 });

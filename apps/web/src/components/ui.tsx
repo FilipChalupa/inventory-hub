@@ -4,10 +4,13 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, T
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
 const buttonVariants: Record<ButtonVariant, string> = {
-  primary: 'bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-400',
-  secondary: 'bg-white text-slate-900 border border-slate-300 hover:bg-slate-50',
+  primary:
+    'bg-slate-900 text-white hover:bg-slate-800 disabled:bg-slate-400 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-white dark:disabled:bg-slate-600',
+  secondary:
+    'bg-white text-slate-900 border border-slate-300 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-700',
   danger: 'bg-red-600 text-white hover:bg-red-700 disabled:bg-red-300',
-  ghost: 'text-slate-700 hover:bg-slate-100',
+  ghost:
+    'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700',
 };
 
 export function Button({
@@ -27,37 +30,27 @@ export function Button({
   );
 }
 
+const formControl =
+  'block w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
+
 export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={clsx('block w-full rounded border border-slate-300 px-3 py-2 text-sm', className)}
-      {...rest}
-    />
-  );
+  return <input className={clsx(formControl, className)} {...rest} />;
 }
 
 export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      className={clsx('block w-full rounded border border-slate-300 px-3 py-2 text-sm', className)}
-      {...rest}
-    />
-  );
+  return <select className={clsx(formControl, className)} {...rest} />;
 }
 
 export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      className={clsx('block w-full rounded border border-slate-300 px-3 py-2 text-sm', className)}
-      {...rest}
-    />
-  );
+  return <textarea className={clsx(formControl, className)} {...rest} />;
 }
 
 export function Field({ label, children, error }: { label: string; children: ReactNode; error?: string }) {
   return (
     <label className="block">
-      <span className="block text-sm font-medium text-slate-700 mb-1">{label}</span>
+      <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
+        {label}
+      </span>
       {children}
       {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}
     </label>
@@ -65,7 +58,16 @@ export function Field({ label, children, error }: { label: string; children: Rea
 }
 
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={clsx('rounded border bg-white p-4', className)}>{children}</div>;
+  return (
+    <div
+      className={clsx(
+        'rounded border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700',
+        className,
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 const statusStyles: Record<string, string> = {

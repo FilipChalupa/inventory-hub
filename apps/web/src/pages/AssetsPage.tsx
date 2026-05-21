@@ -130,14 +130,14 @@ export function AssetsPage() {
       )}
 
       {data && (
-        <ul className="divide-y rounded border bg-white">
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {data.items.length === 0 && !isFreshInstall && (
             <li className="p-4 text-slate-500">Žádné assety neodpovídají filtru.</li>
           )}
           {data.items.map((a) => {
             const path = a.locationId ? locationPath(locationRows, a.locationId) : '';
             return (
-              <li key={a.code} className="hover:bg-slate-50">
+              <li key={a.code} className="hover:bg-slate-50 dark:hover:bg-slate-700">
                 <Link to={`/a/${a.code}`} className="flex justify-between items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
                     <div className="font-mono text-xs text-slate-500">{a.code}</div>

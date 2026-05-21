@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { assets, assetTypes, damageReports } from '../db/schema.js';
+import { assets, assetExternalIds, assetTypes, damageReports } from '../db/schema.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
 async function jsonPost(server: TestServer, cookie: string, path: string, body: unknown) {
@@ -319,6 +319,79 @@ describe('assets API', () => {
         body: form,
       });
       expect(res.status).toBe(403);
+    });
+  });
+
+  describe('external IDs', () => {
+    async function makeAsset(name = 'A') {
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name,
+        typeId: server.laptopTypeId,
+      });
+      return ((await r.json()) as { code: string }).code;
+    }
+
+    it('add → list → remove round-trip', async () => {
+      const code = await makeAsset();
+      const add = await jsonPost(server, cookie, `/api/assets/${code}/external-ids`, {
+        kind: 'serial',
+        value: 'SN-123',
+      });
+      expect(add.status).toBe(201);
+
+      const list = await server.authRequest(`/api/assets/${code}/external-ids`, { cookie });
+      const body = (await list.json()) as { items: { id: string; value: string }[] };
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0]!.value).toBe('SN-123');
+
+      const removeRes = await server.authRequest(
+        `/api/assets/${code}/external-ids/${body.items[0]!.id}`,
+        { cookie, method: 'DELETE' },
+      );
+      expect(removeRes.status).toBe(200);
+
+      const after = server.db.select().from(assetExternalIds).all();
+      expect(after).toHaveLength(0);
+    });
+
+    it('rejects duplicate (kind, value) across the org', async () => {
+      const codeA = await makeAsset('A');
+      const codeB = await makeAsset('B');
+      await jsonPost(server, cookie, `/api/assets/${codeA}/external-ids`, {
+        kind: 'serial',
+        value: 'SN-DUP',
+      });
+      const dup = await jsonPost(server, cookie, `/api/assets/${codeB}/external-ids`, {
+        kind: 'serial',
+        value: 'SN-DUP',
+      });
+      expect(dup.status).toBe(409);
+    });
+
+    it('finds the asset by external ID via the main search', async () => {
+      const codeA = await makeAsset('Match me');
+      await makeAsset('Other');
+      await jsonPost(server, cookie, `/api/assets/${codeA}/external-ids`, {
+        kind: 'serial',
+        value: 'XYZ-99999',
+      });
+      const res = await server.authRequest('/api/assets?q=XYZ-99999', { cookie });
+      const body = (await res.json()) as { items: { name: string }[] };
+      expect(body.items.map((i) => i.name)).toEqual(['Match me']);
+    });
+
+    it('cascades external IDs when the asset is deleted', async () => {
+      const code = await makeAsset();
+      const r = await jsonPost(server, cookie, `/api/assets/${code}/external-ids`, {
+        kind: 'ean',
+        value: '1234567890123',
+      });
+      expect(r.status).toBe(201);
+      // Delete asset directly via DB (no public delete endpoint).
+      const asset = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+      server.db.delete(assets).where(eq(assets.id, asset.id)).run();
+      const after = server.db.select().from(assetExternalIds).all();
+      expect(after).toHaveLength(0);
     });
   });
 

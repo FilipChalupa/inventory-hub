@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import type { Db } from '../db/client.js';
 import { locations } from '../db/schema.js';
+import { parseCsv } from '../lib/csv.js';
 
 const createInput = z.object({
   name: z.string().min(1).max(200),
@@ -68,6 +69,92 @@ export const locationRoutes = new Hono<AppContext>()
       .run();
     if (result.changes === 0) return c.json({ error: { message: 'Lokace nenalezena' } }, 404);
     return c.json({ ok: true });
+  })
+  .post('/import', async (c) => {
+    const db = c.get('db');
+    const user = c.get('user')!;
+    if (user.role !== 'admin' && user.role !== 'operator') {
+      return c.json(
+        { error: { message: 'Pouze admin nebo operator může importovat lokace' } },
+        403,
+      );
+    }
+    let form: FormData;
+    try {
+      form = await c.req.formData();
+    } catch {
+      return c.json({ error: { message: 'Neplatná multipart data' } }, 400);
+    }
+    const file = form.get('file');
+    const dryRun = form.get('dryRun') === 'true';
+    if (!(file instanceof File)) {
+      return c.json({ error: { message: 'Pole „file" je povinné' } }, 400);
+    }
+    if (file.size > 100_000) {
+      return c.json({ error: { message: 'CSV soubor je větší než 100 KB' } }, 413);
+    }
+    const text = await file.text();
+    const { headers, rows } = parseCsv(text);
+    if (!headers.includes('name')) {
+      return c.json({ error: { message: 'CSV musí obsahovat sloupec: name' } }, 400);
+    }
+    if (rows.length === 0) {
+      return c.json({ error: { message: 'CSV neobsahuje žádný řádek' } }, 400);
+    }
+    if (rows.length > 500) {
+      return c.json({ error: { message: 'Maximálně 500 řádků' } }, 400);
+    }
+
+    // Look up by case-insensitive name. Existing locations are matched
+    // exactly to avoid surprising the user.
+    const existingByName = new Map<string, string>(); // lower(name) → id
+    for (const row of db.select({ id: locations.id, name: locations.name }).from(locations).all()) {
+      existingByName.set(row.name.toLowerCase(), row.id);
+    }
+
+    type PreviewRow = {
+      lineNumber: number;
+      input: Record<string, string>;
+      resolvedParentId: string | null;
+      issues: string[];
+    };
+    const preview: PreviewRow[] = [];
+    const namesInRun = new Set<string>();
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i]!;
+      const issues: string[] = [];
+      const name = (row['name'] ?? '').trim();
+      const parentName = (row['parent_name'] ?? '').trim();
+      let resolvedParentId: string | null = null;
+      if (!name) issues.push('Chybí name');
+      if (name && namesInRun.has(name.toLowerCase())) issues.push('Duplicitní name v CSV');
+      else if (name) namesInRun.add(name.toLowerCase());
+      if (parentName) {
+        const parentId = existingByName.get(parentName.toLowerCase());
+        if (!parentId) issues.push(`Nadřazená lokace „${parentName}" neexistuje`);
+        else resolvedParentId = parentId;
+      }
+      preview.push({ lineNumber: i + 2, input: row, resolvedParentId, issues });
+    }
+    const hasErrors = preview.some((p) => p.issues.length > 0);
+    if (dryRun || hasErrors) {
+      return c.json({ preview, hasErrors, created: 0 }, hasErrors && !dryRun ? 400 : 200);
+    }
+
+    let created = 0;
+    db.transaction((tx) => {
+      for (const p of preview) {
+        tx.insert(locations)
+          .values({
+            id: crypto.randomUUID(),
+            name: p.input['name']!.trim(),
+            parentId: p.resolvedParentId,
+          })
+          .run();
+        created += 1;
+      }
+    });
+    return c.json({ preview, hasErrors: false, created });
   })
   .delete('/:id', (c) => {
     const db = c.get('db');
