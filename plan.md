@@ -388,6 +388,25 @@ otevření projektu hned víme, kde jsme.
     detection, location & asset-type CSV import, uploads (MIME
     whitelist, size limit, missing-field, auth gate, rate-limit
     429), asset photos (add/remove/idempotence).
+- **E2E (Playwright)** v `e2e/` — 11 testů, ~5 min:
+  - Dva webServer instance (Hono backend + Vite) bootující proti
+    dočasné SQLite v `apps/server/.e2e/app.db`, global setup nasaje
+    admin uživatele a sample asset/lokace.
+  - Auth: redirect → /login bez session, dev-login → /, logout
+    zpět na /login.
+  - Assety: nový asset formulář renderuje typy, asset přes API
+    se objeví v listu a otevírá detail, seeded asset najde + opens,
+    archivace (sold) skryje z default listu a odhalí s
+    „includeArchived", QR endpoint vrací PNG.
+  - Pozvánky: admin pozve uživatele → invitee otevře accept-invite
+    link → vytvoří účet → session se založí → land na /.
+  - Výpůjčky: 2 assety vypůjčit, jeden vrátit OK, druhý damaged
+    (vznikne damage report), overdue badge se zobrazí na výpůjčce
+    po termínu.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`): dva joby —
+  `unit` (typecheck + vitest) a `e2e` (Playwright proti ephemeral
+  serveru). Při failu uploadne `playwright-report` + `test-results`
+  jako artefakt.
 - Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
 - `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
   Litestream sidecar, recovery flow).
@@ -395,23 +414,12 @@ otevření projektu hned víme, kde jsme.
 
 ### Co chybí
 
-**Testy:**
-- **E2E (Playwright)**: pokrýt klíčové flow proti běžícímu serveru s SQLite
-  v temp adresáři. Minimální set:
-  - login (dev-login) + logout
-  - vytvoření asset typu s custom fields → vytvoření assetu → editace
-  - QR endpoint vrací PNG, štítky se renderují
-  - výpůjčka 2 assetů → postupné vrácení (jeden OK, druhý damaged) →
-    damage report se objeví, asset přechází do in_repair
-  - archivace assetu (sold) → mizí z default listu, vidí se s flagem
-  - admin pozve uživatele → otevření accept-invite linku → vytvoření
-    sessions + první přihlášení
-  - domain auto-join (mock Google OAuth callback) → user se vytvoří
-    s default rolí, neexistujicí doména → 403
-  - admin spravuje role + deaktivuje uživatele → deaktivovaný uživatel
-    je odhlášený
-- **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
-  ephemeral kontejneru.
+**Testy (zbývá rozšířit):**
+- E2E pokrytí dalších flow: invitation accept (admin pozve → otevření
+  linku → vytvoření session), domain auto-join (mock Google OAuth
+  callback), asset type s custom fields → asset s custom fields →
+  editace, admin spravuje role + deaktivuje uživatele (deaktivovaný
+  se odhlásí). Základ (auth + asset CRUD + loan flow) už hotov.
 
 **Funkční mezery (zbytek):**
 - Vše vyřešeno v posledních kolech (in_repair workflow, SMTP sender,

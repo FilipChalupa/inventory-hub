@@ -18,6 +18,9 @@ data/
 # tests / coverage
 coverage/
 .vitest-cache/
+.e2e/
+playwright-report/
+test-results/
 
 # misc
 .cache/

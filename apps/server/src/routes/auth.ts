@@ -205,7 +205,10 @@ export const authRoutes = new Hono<AppContext>()
 
   .post(
     '/dev-login',
-    rateLimit({ bucket: 'dev-login', windowMs: 60_000, max: 10 }),
+    // dev-login is gated by NODE_ENV=production above, so the rate limit
+    // is purely a guard for noisy dev/test usage. Generous because each
+    // E2E spec's beforeEach calls it.
+    rateLimit({ bucket: 'dev-login', windowMs: 60_000, max: 100 }),
     zValidator(
       'json',
       z.object({

@@ -42,7 +42,24 @@
       "Bash(npx vitest *)",
       "Bash(npm test *)",
       "Bash(npm run *)",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(npx playwright *)",
+      "Bash(echo \"Exit: $?\")",
+      "Read(//tmp/**)",
+      "Bash(pkill -f \"playwright test\")",
+      "Bash(pkill -f \"tsx watch\")",
+      "Bash(pkill -f \"vite --port\")",
+      "Bash(kill -9 19075 19076 19087)",
+      "Bash(pkill -9 -f \"tsx watch\")",
+      "Bash(pkill -9 -f \"vite --port\")",
+      "Bash(pkill -9 -f \"playwright\")",
+      "Bash(netstat -ltn)",
+      "Bash(pkill -9 -f \"tsx\")",
+      "Bash(pkill -9 -f \"vite\")",
+      "Bash(kill -9 21324)",
+      "Bash(sqlite3 .e2e/app.db \"SELECT name, COUNT\\(*\\) FROM locations GROUP BY name; SELECT 'assets:', COUNT\\(*\\) FROM assets;\")",
+      "Bash(sqlite3 apps/server/.e2e/app.db \"SELECT name, COUNT\\(*\\) FROM locations GROUP BY name;\")",
+      "Bash(tee /tmp/e2e-run.log)"
     ]
   }
 }

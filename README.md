@@ -77,3 +77,19 @@ packages/
 | `npm run db:generate` | vygeneruje SQL migrace ze schématu Drizzle   |
 | `npm run db:migrate`  | aplikuje migrace na DB                       |
 | `npm run db:seed`     | naseje demo data (jen pro dev)               |
+| `npm run test:e2e`    | Playwright E2E proti ephemeral serveru       |
+
+## E2E testy
+
+```bash
+npx playwright install chromium    # jednorázově: stáhne browser
+npm run test:e2e                   # spustí Playwright proti ephemeral
+                                   # serveru (port 3101 + 5173)
+```
+
+E2E config v `playwright.config.ts` startuje vlastní backend (`tsx watch`
+proti DB v `.e2e/app.db`) + Vite. Global setup po startu zavolá
+`db:seed` proti té DB.
+
+Tip: po pádu testu otevři `playwright-report/index.html` nebo
+`npx playwright show-trace test-results/<failed-test>/trace.zip`.
