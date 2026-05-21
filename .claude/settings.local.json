@@ -41,7 +41,8 @@
       "Bash(curl -sS -b /tmp/c.txt -X POST http://localhost:3001/api/assets/DEMO-LAP-00001/unassign)",
       "Bash(npx vitest *)",
       "Bash(npm test *)",
-      "Bash(npm run *)"
+      "Bash(npm run *)",
+      "Bash(npx tsc *)"
     ]
   }
 }

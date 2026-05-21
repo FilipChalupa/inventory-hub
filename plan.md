@@ -349,9 +349,14 @@ otevření projektu hned víme, kde jsme.
 
 **Tooling & deployment:**
 - npm workspaces (root → apps/server, apps/web, packages/shared).
-- TypeScript strict, ESLint, Prettier, Vitest (42 unit testů: domain,
-  csv, custom-fields validátor, asset-code generátor proti in-memory
-  SQLite, Google OAuth PKCE helpery, location tree).
+- TypeScript strict, ESLint, Prettier, Vitest (69 testů celkem):
+  - Unit: domain, csv, custom-fields validátor, asset-code generátor
+    proti in-memory SQLite, Google OAuth PKCE helpery, location tree.
+  - Integrační (Hono `app.request` + in-memory SQLite, sdílený
+    helper `lib/test-server.ts`): auth guardy (401/logout),
+    asset CRUD (auto-kód, dup conflict, custom-fields validace,
+    archive/unarchive, filtrace), loan flow (create, derived
+    status, postupné vracení s damage → in_repair + damage report).
 - Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
 - `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
   Litestream sidecar, recovery flow).
@@ -374,9 +379,9 @@ otevření projektu hned víme, kde jsme.
     s default rolí, neexistujicí doména → 403
   - admin spravuje role + deaktivuje uživatele → deaktivovaný uživatel
     je odhlášený
-- **Integrační (Vitest + supertest/`app.request`)**: API endpointy proti
-  in-memory SQLite, ověřit autorizační guardy a edge cases (postupné
-  vracení, double-return, custom fields required, file upload limity).
+- **Integrační — rozšířit pokrytí**: assignment cycle, photos add/remove,
+  invitation accept flow, damage report resolve, file upload limity,
+  CSV export round-trip. (Základ pro auth/assets/loans už hotov.)
 - **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
   ephemeral kontejneru.
 
