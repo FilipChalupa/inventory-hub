@@ -349,8 +349,9 @@ otevření projektu hned víme, kde jsme.
 
 **Tooling & deployment:**
 - npm workspaces (root → apps/server, apps/web, packages/shared).
-- TypeScript strict, ESLint, Prettier, Vitest (14 unit testů: domain,
-  csv, custom-fields validátor).
+- TypeScript strict, ESLint, Prettier, Vitest (42 unit testů: domain,
+  csv, custom-fields validátor, asset-code generátor proti in-memory
+  SQLite, Google OAuth PKCE helpery, location tree).
 - Dockerfile (multi-stage) + `docker-compose.yml` s `/data` volumem.
 - `docs/SELF_HOSTING.md` (Caddy reverse proxy, cron+sqlite3 .backup,
   Litestream sidecar, recovery flow).
@@ -376,8 +377,6 @@ otevření projektu hned víme, kde jsme.
 - **Integrační (Vitest + supertest/`app.request`)**: API endpointy proti
   in-memory SQLite, ověřit autorizační guardy a edge cases (postupné
   vracení, double-return, custom fields required, file upload limity).
-- **Unit testy** (rozšířit): location tree (cycles + orphans), asset code
-  generator (kolize, padding), Google OAuth PKCE helpery.
 - **Smoke test v CI** — GitHub Actions: typecheck + unit + E2E proti
   ephemeral kontejneru.
 

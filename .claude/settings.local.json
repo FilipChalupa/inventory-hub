@@ -38,7 +38,10 @@
       "Bash(python3 -c \"import sys,json; [print\\(u['email'],'-',u['role'],'-','disabled' if u['disabledAt'] else 'active'\\) for u in json.load\\(sys.stdin\\)['items']]\")",
       "Bash(curl -sS -b /tmp/c.txt http://localhost:3001/api/asset-types)",
       "Bash(python3 -c \"import sys,json; a=json.load\\(sys.stdin\\)['asset']; print\\('status:',a['status'],'assignee:',a['assignedToUserId']\\)\")",
-      "Bash(curl -sS -b /tmp/c.txt -X POST http://localhost:3001/api/assets/DEMO-LAP-00001/unassign)"
+      "Bash(curl -sS -b /tmp/c.txt -X POST http://localhost:3001/api/assets/DEMO-LAP-00001/unassign)",
+      "Bash(npx vitest *)",
+      "Bash(npm test *)",
+      "Bash(npm run *)"
     ]
   }
 }
