@@ -112,7 +112,61 @@ export function SettingsPage() {
           </a>
         </div>
       </Card>
+
+      {/* TODO: Dočasné – tuto sekci odebrat před finálním nasazením. */}
+      <DemoDataSection />
     </section>
+  );
+}
+
+// TODO: Dočasné – tato komponenta slouží pouze pro vývoj a ukázky.
+// Vloží do DB sadu demo dat (typy assetů, lokace, assety, kontakt, výpůjčku
+// a hlášení poškození). Smazat spolu s /api/demo routou na serveru.
+function DemoDataSection() {
+  const qc = useQueryClient();
+
+  const seed = useMutation({
+    mutationFn: () => apiClient.demo.seed(),
+    onSuccess: () => {
+      // Invalidujeme všechny cache, aby se UI okamžitě překreslilo s novými daty.
+      void qc.invalidateQueries();
+    },
+  });
+
+  return (
+    <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700">
+      <h2 className="font-semibold mb-1 text-amber-900 dark:text-amber-300">
+        🧪 Demo data{' '}
+        <span className="text-xs font-normal text-amber-700 dark:text-amber-400">
+          (dočasné)
+        </span>
+      </h2>
+      <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">
+        Vloží ukázková data do databáze: typy assetů, lokace, 9 assetů v různých stavech,
+        kontakt, výpůjčku a hlášení poškození. Lze spustit opakovaně – pokaždé přidá novou sadu.
+      </p>
+
+      {seed.isSuccess && seed.data && (
+        <div className="mb-3 p-2 rounded bg-emerald-50 border border-emerald-200 text-xs dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300">
+          ✅ Hotovo! Vytvořeno: {seed.data.summary.assetsCreated} assetů,{' '}
+          {seed.data.summary.locationsCreated} lokací,{' '}
+          {seed.data.summary.loansCreated} výpůjček,{' '}
+          {seed.data.summary.damageReportsCreated} hlášení poškození.
+        </div>
+      )}
+
+      {seed.error && (
+        <p className="text-sm text-red-600 mb-2">{(seed.error as Error).message}</p>
+      )}
+
+      <Button
+        variant="secondary"
+        onClick={() => seed.mutate()}
+        disabled={seed.isPending}
+      >
+        {seed.isPending ? 'Vkládám data…' : 'Vložit demo data'}
+      </Button>
+    </Card>
   );
 }
 

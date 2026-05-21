@@ -25,6 +25,8 @@ import { userRoutes } from './routes/users.js';
 import { contactRoutes } from './routes/contacts.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
+// TODO: Dočasné – odebrat import a registraci demoRoutes před finálním releasem.
+import { demoRoutes } from './routes/demo.js';
 
 export type AppContext = {
   Variables: {
@@ -80,6 +82,8 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/invitations', invitationRoutes);
   app.route('/api/users', userRoutes);
   app.route('/api/contacts', contactRoutes);
+  // TODO: Dočasné – odebrat před finálním releasem.
+  app.route('/api/demo', demoRoutes);
 
   // Serve the built SPA when the dist directory is present (production
   // image, single-container deploy). In dev the dist doesn't exist and we

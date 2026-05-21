@@ -157,6 +157,19 @@ export type ImportResult = {
   created: number;
 };
 
+// TODO: Dočasné – odebrat po skončení potřeby demo seedování.
+export type DemoSeedResult = {
+  ok: true;
+  summary: {
+    assetTypesEnsured: number;
+    locationsCreated: number;
+    assetsCreated: number;
+    contactsCreated: number;
+    loansCreated: number;
+    damageReportsCreated: number;
+  };
+};
+
 async function uploadImportCsv(
   path: string,
   file: File,
@@ -400,5 +413,10 @@ export const apiClient = {
         method: 'POST',
         body: input,
       }),
+  },
+
+  // TODO: Dočasné – odebrat po skončení potřeby demo seedování.
+  demo: {
+    seed: () => api<DemoSeedResult>('/api/demo/seed', { method: 'POST' }),
   },
 };
