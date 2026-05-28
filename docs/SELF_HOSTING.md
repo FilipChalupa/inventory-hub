@@ -1,18 +1,63 @@
 # Self-hosting & zálohy
 
-Inventory Hub běží jako jeden Docker kontejner s perzistentním volumem
-`/data`, který obsahuje:
+Inventory Hub běží jako **jeden Docker kontejner** s perzistentním volumem
+`/data`. Žádná externí databáze, žádný povinný secret.
 
+## Obsah
+
+- [Rychlý start](#rychlý-start)
+- [Environment variables](#environment-variables)
+- [Reverse proxy a HTTPS](#reverse-proxy-a-https)
+- [Co obsahuje volume /data](#co-obsahuje-volume-data)
+- [Zálohy](#zálohy)
+- [Obnova](#obnova)
+- [Migrace databáze](#migrace-databáze)
+- [Co monitorovat](#co-monitorovat)
+
+## Rychlý start
+
+```bash
+docker compose up -d --build
 ```
-/data/app.db          # SQLite databáze (WAL mode)
-/data/app.db-wal      # WAL log (běžně se objevuje)
-/data/app.db-shm      # shared memory file
-/data/uploads/        # fotky poškození a další přílohy
-```
 
-**Ztráta `/data` = ztráta všeho.** Zálohujte ho.
+Spustí se bez jediné povinné proměnné. Pro produkci za doménou ale nastav
+`PUBLIC_APP_URL` (viz níže).
 
-## Reverse proxy
+**Platformy stavějící z Dockerfile (Coolify, Dokku, Railway, …):** env
+proměnné se zadávají v UI dané platformy (ne přes `docker-compose`). Image už
+má `NODE_ENV=production`, `PORT=3001` a cesty na `/data` zapečené, takže typicky
+stačí doplnit `PUBLIC_APP_URL`.
+
+## Environment variables
+
+**Žádná proměnná není povinná pro nastartování** procesu — image má rozumné
+defaulty. V produkci za vlastní doménou ale musíš nastavit `PUBLIC_APP_URL`,
+jinak appka odmítne requesty (viz `*`).
+
+| Proměnná | Povinná | Default | K čemu |
+|---|---|---|---|
+| `PUBLIC_APP_URL` | v produkci ano\* | `http://localhost:5173` | Veřejná URL appky. Používá se pro CORS, CSRF Origin check, OAuth redirect a QR kódy. Nastav na `https://tvoje-domena`. |
+| `NODE_ENV` | ne | `production` (v image) | `production` vypíná dev-login na `/login`. V Docker image už nastaveno. |
+| `PORT` | ne | `3001` | Port HTTP serveru (frontend i API). |
+| `DATABASE_URL` | ne | `file:/data/app.db` | Cesta k SQLite souboru. Drž ji na volume `/data`. |
+| `UPLOAD_DIR` | ne | `/data/uploads` | Adresář pro nahrané fotky/přílohy. Drž na `/data`. |
+| `UPLOAD_MAX_BYTES` | ne | `5242880` (5 MB) | Max velikost jednoho uploadu. |
+| `GOOGLE_CLIENT_ID` | ne | – | Google OAuth login. Bez něj funguje jen dev-login (v produkci zakázán). |
+| `GOOGLE_CLIENT_SECRET` | ne | – | Google OAuth secret. |
+| `GOOGLE_REDIRECT_URL` | ne | – | `https://tvoje-domena/auth/google/callback`. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | ne | – | Odesílání e-mailů (pozvánky, notifikace). Bez nich se e-maily jen logují do konzole. |
+
+\* `PUBLIC_APP_URL` technicky není potřeba pro start procesu, ale bez správné
+hodnoty appka za vlastní doménou nefunguje — login a všechny POST/PUT/DELETE
+requesty spadnou na CSRF/CORS Origin check (default míří na `localhost:5173`).
+
+> **Pozn. k migraci:** dřívější verze vyžadovaly `SESSION_SECRET`. Už není
+> potřeba a můžeš ji smazat — session jsou náhodné neuhádnutelné tokeny uložené
+> v DB, nic se nepodepisuje tajemstvím.
+
+Nastavení Google OAuth krok za krokem je v [README](../README.md#google-oauth-produkce-nebo-dev-s-reálnými-credentials).
+
+## Reverse proxy a HTTPS
 
 Frontend i API běží ze stejného portu (3001) — reverse proxy **není nutný
 pro běh**, ale je vhodný pro TLS terminaci, HTTPS-only cookies a vlastní
@@ -26,6 +71,17 @@ inventory.example.com {
 
 Nezapomeň pak nastavit `PUBLIC_APP_URL=https://inventory.example.com`,
 ať CSRF (Origin check) a Google OAuth redirect mají správnou doménu.
+
+## Co obsahuje volume /data
+
+```
+/data/app.db          # SQLite databáze (WAL mode)
+/data/app.db-wal      # WAL log (běžně se objevuje)
+/data/app.db-shm      # shared memory file
+/data/uploads/        # fotky poškození a další přílohy
+```
+
+**Ztráta `/data` = ztráta všeho.** Zálohujte ho.
 
 ## Zálohy
 
