@@ -13,7 +13,7 @@ COPY package.json package-lock.json* ./
 COPY apps/server/package.json apps/server/
 COPY apps/web/package.json apps/web/
 COPY packages/shared/package.json packages/shared/
-RUN npm install --workspaces --include-workspace-root
+RUN npm install --workspaces --include-workspace-root --include=dev
 
 # ---- build stage ----
 FROM deps AS build
