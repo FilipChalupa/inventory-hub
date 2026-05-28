@@ -52,10 +52,6 @@ the correct value the app won't work behind your own domain — login and all
 POST/PUT/DELETE requests fail the CSRF/CORS Origin check (the default points at
 `localhost:5173`).
 
-> **Migration note:** earlier versions required `SESSION_SECRET`. It is no
-> longer needed and you can delete it — sessions are random, unguessable tokens
-> stored in the DB; nothing is signed with a secret.
-
 Step-by-step Google OAuth setup is in the
 [README](../README.md#google-oauth-production-or-dev-with-real-credentials).
 
