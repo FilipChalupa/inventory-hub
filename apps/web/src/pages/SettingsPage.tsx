@@ -142,8 +142,8 @@ function DemoDataSection() {
         </span>
       </h2>
       <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">
-        Vloží ukázková data do databáze: typy assetů, lokace, 9 assetů v různých stavech,
-        kontakt, výpůjčku a hlášení poškození. Lze spustit opakovaně – pokaždé přidá novou sadu.
+        Vloží ukázková data do databáze: typy assetů, lokace, desítky assetů v různých stavech,
+        kontakty, výpůjčky a hlášení poškození. Lze spustit opakovaně – pokaždé přidá novou sadu.
       </p>
 
       {seed.isSuccess && seed.data && (
