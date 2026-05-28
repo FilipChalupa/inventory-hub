@@ -1,106 +1,109 @@
 # Inventory Hub
 
-Self-hostable systém pro trackování assetů — 1 Docker instance = 1 firma.
+Self-hostable asset-tracking system — 1 Docker instance = 1 company.
 
-## Lokální vývoj
+## Local development
 
-Předpoklady: Node.js 22+, npm 10+.
+Requirements: Node.js 22+, npm 10+.
 
 ```bash
 npm install
-# .env není pro dev potřeba (všechny proměnné mají default).
-# Pro Google OAuth si zkopíruj šablonu: cp apps/server/.env.example apps/server/.env
+# .env is not needed for dev (every variable has a default).
+# For Google OAuth, copy the template: cp apps/server/.env.example apps/server/.env
 
-npm run db:seed              # naseje demo data + dev admin (admin@example.com)
+npm run db:seed              # seeds demo data + a dev admin (admin@example.com)
 
-# v jednom terminálu
-npm run dev:server           # auto-migrace běží na startu
-# v druhém
+# in one terminal
+npm run dev:server           # auto-migration runs on startup
+# in another
 npm run dev:web
 ```
 
 - Server: <http://localhost:3001>
-- Web: <http://localhost:5173> (proxuje `/api`, `/health` a `/auth` na server)
+- Web: <http://localhost:5173> (proxies `/api`, `/health` and `/auth` to the server)
 
-Migrace se aplikují automaticky při startu serveru. Pokud měníš schéma,
-zavolej `npm run db:generate` pro novou migraci (Drizzle vytvoří SQL
-soubor v `apps/server/src/db/migrations/`).
+Migrations are applied automatically when the server starts. When you change
+the schema, run `npm run db:generate` to create a new migration (Drizzle
+writes the SQL file into `apps/server/src/db/migrations/`).
 
-### Přihlášení v dev módu
+### Dev-mode login
 
-Bez nakonfigurovaného Google OAuth použij **dev login** na `/login` —
-zadej e-mail existujícího uživatele (po seedu `admin@example.com`)
-a backend ti vytvoří session. Endpoint `/auth/dev-login` je v produkci
-zablokovaný (`NODE_ENV=production`).
+Without Google OAuth configured, use the **dev login** at `/login` — enter the
+email of an existing user (after seeding, `admin@example.com`) and the backend
+creates a session for you. The `/auth/dev-login` endpoint is disabled in
+production (`NODE_ENV=production`).
 
-### Google OAuth (produkce nebo dev s reálnými credentials)
+### Google OAuth (production, or dev with real credentials)
 
-1. V [Google Cloud Console](https://console.cloud.google.com/) vytvoř
-   OAuth 2.0 Client ID typu „Web application".
-2. Authorized redirect URI nastav na
-   `https://<tvoje-doména>/auth/google/callback`
-   (lokálně `http://localhost:3001/auth/google/callback`).
-3. Do `apps/server/.env` doplň `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`
-   a `GOOGLE_REDIRECT_URL`.
-4. **První přihlášený uživatel** se automaticky stane adminem.
-5. V adminu otevři **Nastavení → Povolené domény** a přidej e-mailové
-   domény, jejichž uživatelé se mají přihlašovat automaticky bez pozvánky.
-   Match je strict-exact: `acme.com` nepokrývá `eng.acme.com`.
+1. In the [Google Cloud Console](https://console.cloud.google.com/), create an
+   OAuth 2.0 Client ID of type "Web application".
+2. Set the authorized redirect URI to
+   `https://<your-domain>/auth/google/callback`
+   (locally `http://localhost:3001/auth/google/callback`).
+3. Add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` and `GOOGLE_REDIRECT_URL`
+   to `apps/server/.env`.
+4. The **first user to log in** automatically becomes an admin.
+5. In the admin UI open **Settings → Allowed domains** and add the email
+   domains whose users should be able to log in automatically without an
+   invitation. Matching is strict-exact: `acme.com` does not cover
+   `eng.acme.com`.
 
-## Docker (produkce / self-hosting)
+## Docker (production / self-hosting)
 
 ```bash
 docker compose up -d --build
 ```
 
-Běží to bez jediné povinné proměnné. Pro produkci nastav aspoň
-`PUBLIC_APP_URL` na svou veřejnou doménu — přehled všech proměnných je
-v [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#environment-variables).
+It runs without a single required variable. For production set at least
+`PUBLIC_APP_URL` to your public domain — the full list of variables is in
+[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#environment-variables).
 
-Jeden Docker image servíruje frontend i API ze stejného portu (3001) —
-**žádný reverse proxy není potřeba** pro běh. Pro HTTPS/doménu napojuj
-nahoru obvyklý Caddy/Traefik (viz [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)).
+A single Docker image serves both the frontend and the API from the same port
+(3001) — **no reverse proxy is required** to run. For HTTPS/a custom domain,
+put the usual Caddy/Traefik in front (see
+[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md)).
 
-Data (SQLite + uploads) jsou v named volume `inventory_data`. Migrace
-běží automaticky při startu; backup workflow je v [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
+Data (SQLite + uploads) lives in the named volume `inventory_data`. Migrations
+run automatically on startup; the backup workflow is in
+[docs/SELF_HOSTING.md](docs/SELF_HOSTING.md).
 
-## Struktura
+## Structure
 
 ```
 apps/
-  server/         # Hono + Drizzle + SQLite + better-auth
+  server/         # Hono + Drizzle + SQLite + custom session auth
   web/            # Vite + React + Tailwind + TanStack Query
 packages/
-  shared/         # Zod schémata a typy sdílené FE/BE
+  shared/         # Zod schemas and types shared between FE/BE
 ```
 
-## Skripty (root)
+## Scripts (root)
 
-| Skript                | Co dělá                                      |
-|-----------------------|----------------------------------------------|
-| `npm run dev`         | spustí dev server + web paralelně            |
-| `npm run dev:server`  | jen backend                                  |
-| `npm run dev:web`     | jen frontend                                 |
-| `npm run build`       | build všech balíčků                          |
-| `npm run typecheck`   | typecheck všech balíčků                      |
-| `npm run test`        | testy všech balíčků                          |
-| `npm run db:generate` | vygeneruje SQL migrace ze schématu Drizzle   |
-| `npm run db:migrate`  | aplikuje migrace ručně (server to dělá automaticky na startu) |
-| `npm run db:seed`     | naseje demo data (jen pro dev)               |
-| `npm run test:e2e`    | Playwright E2E proti ephemeral serveru       |
+| Script                | What it does                                  |
+|-----------------------|-----------------------------------------------|
+| `npm run dev`         | runs the dev server + web in parallel         |
+| `npm run dev:server`  | backend only                                  |
+| `npm run dev:web`     | frontend only                                 |
+| `npm run build`       | builds all packages                           |
+| `npm run typecheck`   | type-checks all packages                      |
+| `npm run test`        | tests for all packages                        |
+| `npm run db:generate` | generates SQL migrations from the Drizzle schema |
+| `npm run db:migrate`  | applies migrations manually (the server does it automatically on startup) |
+| `npm run db:seed`     | seeds demo data (dev only)                    |
+| `npm run test:e2e`    | Playwright E2E against an ephemeral server     |
 
-## E2E testy
+## E2E tests
 
 ```bash
-npx playwright install chromium    # jednorázově: stáhne browser
-npm run test:e2e                   # spustí Playwright proti ephemeral
-                                   # serveru (port 3101 + 5173)
+npx playwright install chromium    # one-time: downloads the browser
+npm run test:e2e                   # runs Playwright against an ephemeral
+                                   # server (port 3101 + 5173)
 ```
 
-E2E config v `playwright.config.ts` startuje vlastní backend (`tsx watch`
-proti DB v `apps/server/.e2e/app.db`) + Vite. Global setup po startu
-zavolá `db:seed:e2e` (deterministická UUID + idempotentní lokace) proti
-té DB.
+The E2E config in `playwright.config.ts` starts its own backend (`tsx watch`
+against a DB at `apps/server/.e2e/app.db`) + Vite. After startup the global
+setup calls `db:seed:e2e` (deterministic UUIDs + idempotent locations) against
+that DB.
 
-Tip: po pádu testu otevři `playwright-report/index.html` nebo
+Tip: after a test failure open `playwright-report/index.html` or
 `npx playwright show-trace test-results/<failed-test>/trace.zip`.

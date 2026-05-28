@@ -1,67 +1,69 @@
-# Self-hosting & zálohy
+# Self-hosting & backups
 
-Inventory Hub běží jako **jeden Docker kontejner** s perzistentním volumem
-`/data`. Žádná externí databáze, žádný povinný secret.
+Inventory Hub runs as a **single Docker container** with a persistent `/data`
+volume. No external database, no required secret.
 
-## Obsah
+## Contents
 
-- [Rychlý start](#rychlý-start)
+- [Quick start](#quick-start)
 - [Environment variables](#environment-variables)
-- [Reverse proxy a HTTPS](#reverse-proxy-a-https)
-- [Co obsahuje volume /data](#co-obsahuje-volume-data)
-- [Zálohy](#zálohy)
-- [Obnova](#obnova)
-- [Migrace databáze](#migrace-databáze)
-- [Co monitorovat](#co-monitorovat)
+- [Reverse proxy and HTTPS](#reverse-proxy-and-https)
+- [What the /data volume contains](#what-the-data-volume-contains)
+- [Backups](#backups)
+- [Restore](#restore)
+- [Database migrations](#database-migrations)
+- [What to monitor](#what-to-monitor)
 
-## Rychlý start
+## Quick start
 
 ```bash
 docker compose up -d --build
 ```
 
-Spustí se bez jediné povinné proměnné. Pro produkci za doménou ale nastav
-`PUBLIC_APP_URL` (viz níže).
+It starts without a single required variable. For production behind a domain,
+set `PUBLIC_APP_URL` (see below).
 
-**Platformy stavějící z Dockerfile (Coolify, Dokku, Railway, …):** env
-proměnné se zadávají v UI dané platformy (ne přes `docker-compose`). Image už
-má `NODE_ENV=production`, `PORT=3001` a cesty na `/data` zapečené, takže typicky
-stačí doplnit `PUBLIC_APP_URL`.
+**Platforms that build from a Dockerfile (Coolify, Dokku, Railway, …):** set
+env variables in that platform's UI (not via `docker-compose`). The image
+already bakes in `NODE_ENV=production`, `PORT=3001` and the `/data` paths, so
+typically you only need to add `PUBLIC_APP_URL`.
 
 ## Environment variables
 
-**Žádná proměnná není povinná pro nastartování** procesu — image má rozumné
-defaulty. V produkci za vlastní doménou ale musíš nastavit `PUBLIC_APP_URL`,
-jinak appka odmítne requesty (viz `*`).
+**No variable is required to start** the process — the image ships sensible
+defaults. In production behind your own domain you must set `PUBLIC_APP_URL`,
+otherwise the app rejects requests (see `*`).
 
-| Proměnná | Povinná | Default | K čemu |
+| Variable | Required | Default | Purpose |
 |---|---|---|---|
-| `PUBLIC_APP_URL` | v produkci ano\* | `http://localhost:5173` | Veřejná URL appky. Používá se pro CORS, CSRF Origin check, OAuth redirect a QR kódy. Nastav na `https://tvoje-domena`. |
-| `NODE_ENV` | ne | `production` (v image) | `production` vypíná dev-login na `/login`. V Docker image už nastaveno. |
-| `PORT` | ne | `3001` | Port HTTP serveru (frontend i API). |
-| `DATABASE_URL` | ne | `file:/data/app.db` | Cesta k SQLite souboru. Drž ji na volume `/data`. |
-| `UPLOAD_DIR` | ne | `/data/uploads` | Adresář pro nahrané fotky/přílohy. Drž na `/data`. |
-| `UPLOAD_MAX_BYTES` | ne | `5242880` (5 MB) | Max velikost jednoho uploadu. |
-| `GOOGLE_CLIENT_ID` | ne | – | Google OAuth login. Bez něj funguje jen dev-login (v produkci zakázán). |
-| `GOOGLE_CLIENT_SECRET` | ne | – | Google OAuth secret. |
-| `GOOGLE_REDIRECT_URL` | ne | – | `https://tvoje-domena/auth/google/callback`. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | ne | – | Odesílání e-mailů (pozvánky, notifikace). Bez nich se e-maily jen logují do konzole. |
+| `PUBLIC_APP_URL` | in production yes\* | `http://localhost:5173` | Public URL of the app. Used for CORS, the CSRF Origin check, OAuth redirect and QR codes. Set it to `https://your-domain`. |
+| `NODE_ENV` | no | `production` (in image) | `production` disables the dev login at `/login`. Already set in the Docker image. |
+| `PORT` | no | `3001` | HTTP server port (frontend + API). |
+| `DATABASE_URL` | no | `file:/data/app.db` | Path to the SQLite file. Keep it on the `/data` volume. |
+| `UPLOAD_DIR` | no | `/data/uploads` | Directory for uploaded photos/attachments. Keep it on `/data`. |
+| `UPLOAD_MAX_BYTES` | no | `5242880` (5 MB) | Max size of a single upload. |
+| `GOOGLE_CLIENT_ID` | no | – | Google OAuth login. Without it only the dev login works (disabled in production). |
+| `GOOGLE_CLIENT_SECRET` | no | – | Google OAuth secret. |
+| `GOOGLE_REDIRECT_URL` | no | – | `https://your-domain/auth/google/callback`. |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | no | – | Sending email (invitations, notifications). Without them, emails are just logged to the console. |
 
-\* `PUBLIC_APP_URL` technicky není potřeba pro start procesu, ale bez správné
-hodnoty appka za vlastní doménou nefunguje — login a všechny POST/PUT/DELETE
-requesty spadnou na CSRF/CORS Origin check (default míří na `localhost:5173`).
+\* `PUBLIC_APP_URL` is technically not needed to start the process, but without
+the correct value the app won't work behind your own domain — login and all
+POST/PUT/DELETE requests fail the CSRF/CORS Origin check (the default points at
+`localhost:5173`).
 
-> **Pozn. k migraci:** dřívější verze vyžadovaly `SESSION_SECRET`. Už není
-> potřeba a můžeš ji smazat — session jsou náhodné neuhádnutelné tokeny uložené
-> v DB, nic se nepodepisuje tajemstvím.
+> **Migration note:** earlier versions required `SESSION_SECRET`. It is no
+> longer needed and you can delete it — sessions are random, unguessable tokens
+> stored in the DB; nothing is signed with a secret.
 
-Nastavení Google OAuth krok za krokem je v [README](../README.md#google-oauth-produkce-nebo-dev-s-reálnými-credentials).
+Step-by-step Google OAuth setup is in the
+[README](../README.md#google-oauth-production-or-dev-with-real-credentials).
 
-## Reverse proxy a HTTPS
+## Reverse proxy and HTTPS
 
-Frontend i API běží ze stejného portu (3001) — reverse proxy **není nutný
-pro běh**, ale je vhodný pro TLS terminaci, HTTPS-only cookies a vlastní
-doménu (Caddy / Traefik / nginx). Příklad Caddy:
+The frontend and API run on the same port (3001) — a reverse proxy is **not
+required to run**, but it is useful for TLS termination, HTTPS-only cookies and
+a custom domain (Caddy / Traefik / nginx). Caddy example:
 
 ```caddy
 inventory.example.com {
@@ -69,28 +71,28 @@ inventory.example.com {
 }
 ```
 
-Nezapomeň pak nastavit `PUBLIC_APP_URL=https://inventory.example.com`,
-ať CSRF (Origin check) a Google OAuth redirect mají správnou doménu.
+Then don't forget to set `PUBLIC_APP_URL=https://inventory.example.com` so the
+CSRF (Origin check) and the Google OAuth redirect use the correct domain.
 
-## Co obsahuje volume /data
+## What the /data volume contains
 
 ```
-/data/app.db          # SQLite databáze (WAL mode)
-/data/app.db-wal      # WAL log (běžně se objevuje)
+/data/app.db          # SQLite database (WAL mode)
+/data/app.db-wal      # WAL log (appears during normal operation)
 /data/app.db-shm      # shared memory file
-/data/uploads/        # fotky poškození a další přílohy
+/data/uploads/        # damage photos and other attachments
 ```
 
-**Ztráta `/data` = ztráta všeho.** Zálohujte ho.
+**Losing `/data` = losing everything.** Back it up.
 
-## Zálohy
+## Backups
 
-SQLite je jediný soubor, takže zálohovat lze snadno. **Backup UI v appce
-neexistuje** — pro stažení potřebujete přístup k serveru.
+SQLite is a single file, so backups are easy. **There is no backup UI in the
+app** — you need server access to grab the files.
 
-### Varianta A: cron + sqlite3 .backup (jednoduché)
+### Option A: cron + sqlite3 .backup (simple)
 
-`sqlite3 .backup` je bezpečné i za běhu, používá online backup API.
+`sqlite3 .backup` is safe even while running; it uses the online backup API.
 
 ```bash
 # /etc/cron.d/inventory-hub-backup
@@ -110,7 +112,7 @@ docker exec inventory-hub sqlite3 /data/app.db ".backup /data/backup-$TS.db"
 docker cp inventory-hub:/data/backup-$TS.db "$BACKUP_DIR/"
 docker exec inventory-hub rm /data/backup-$TS.db
 
-# uploads (rsync nebo tar)
+# uploads (rsync or tar)
 docker run --rm \
   -v inventory_data:/data:ro \
   -v "$BACKUP_DIR":/backup \
@@ -119,17 +121,17 @@ docker run --rm \
 # off-site (S3, rsync, …)
 aws s3 sync "$BACKUP_DIR" s3://my-backups/inventory-hub/ --delete
 
-# rotace: smaž starší než 30 dní
+# rotation: delete anything older than 30 days
 find "$BACKUP_DIR" -mtime +30 -delete
 ```
 
-> Pozn.: `sqlite3` CLI ve výchozím `node:bookworm-slim` image není. Pro tuto
-> variantu buď doinstalujte `sqlite3` do image, nebo použijte variantu B.
+> Note: the `sqlite3` CLI is not in the default `node:bookworm-slim` image. For
+> this option either install `sqlite3` into the image, or use option B.
 
-### Varianta B: Litestream (continuous replication, doporučené pro produkci)
+### Option B: Litestream (continuous replication, recommended for production)
 
-Litestream replikuje SQLite změny do S3-compatible storage v reálném čase.
-Recovery point ≈ pár sekund.
+Litestream replicates SQLite changes to S3-compatible storage in real time.
+Recovery point ≈ a few seconds.
 
 `docker-compose.override.yml`:
 
@@ -165,13 +167,13 @@ dbs:
         region: auto
 ```
 
-Uploads (binární fotky) Litestream neřeší — pro ně varianta A nebo
-`rclone`/`restic` na adresář `/data/uploads`.
+Litestream does not handle uploads (binary photos) — for those use option A or
+`rclone`/`restic` on the `/data/uploads` directory.
 
-## Obnova
+## Restore
 
-1. Zastavte kontejner: `docker compose down`.
-2. Obnovte soubory do volumu:
+1. Stop the container: `docker compose down`.
+2. Restore the files into the volume:
    ```bash
    docker run --rm \
      -v inventory_data:/data \
@@ -179,7 +181,7 @@ Uploads (binární fotky) Litestream neřeší — pro ně varianta A nebo
      busybox sh -c "cp /restore/app.db /data/app.db && \
                     tar xzf /restore/uploads.tar.gz -C /data"
    ```
-3. Litestream restore (pokud z S3):
+3. Litestream restore (if from S3):
    ```bash
    docker run --rm \
      -v inventory_data:/data \
@@ -189,22 +191,24 @@ Uploads (binární fotky) Litestream neřeší — pro ně varianta A nebo
    ```
 4. Start: `docker compose up -d`.
 
-## Migrace databáze
+## Database migrations
 
-Migrace se aplikují **automaticky při startu serveru** (`migrate()`
-volaný v `index.ts` před tím, než server začne přijímat requesty). Pokud
-migrace selže, kontejner skončí s exit kódem 1 a docker-compose ho
-restartuje — proto **před nasazením nové verze vždy udělej zálohu**, ať se
-do případného restart-loopu nedostane corrupt DB.
+Migrations are applied **automatically when the server starts** (`migrate()`
+called in `index.ts` before the server starts accepting requests). If a
+migration fails, the container exits with code 1 and docker-compose restarts
+it — so **always take a backup before deploying a new version**, to avoid
+getting a corrupt DB stuck in a restart loop.
 
-Ručně lze spustit přes `docker exec inventory-hub node apps/server/dist/db/migrate.js`,
-ale obvykle to není potřeba.
+You can run them manually with
+`docker exec inventory-hub node apps/server/dist/db/migrate.js`, but that's
+usually not necessary.
 
-## Co monitorovat
+## What to monitor
 
-- Volné místo na disku, kde je volume `inventory_data`.
-- Velikost `/data/app.db` (růst).
-- Pokud Litestream: že proces běží a poslední replikace není stará.
-- HTTP healthcheck: `GET /health` → `{"status":"ok"}`. Image už má
-  vestavěný `HEALTHCHECK` (každých 30 s), takže status uvidíš v
+- Free disk space where the `inventory_data` volume lives.
+- Size of `/data/app.db` (growth).
+- With Litestream: that the process is running and the last replication isn't
+  stale.
+- HTTP healthcheck: `GET /health` → `{"status":"ok"}`. The image already has a
+  built-in `HEALTHCHECK` (every 30 s), so you'll see the status in
   `docker ps`.
