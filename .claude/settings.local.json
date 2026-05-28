@@ -61,7 +61,9 @@
       "Bash(sqlite3 apps/server/.e2e/app.db \"SELECT name, COUNT\\(*\\) FROM locations GROUP BY name;\")",
       "Bash(tee /tmp/e2e-run.log)",
       "Bash(timeout 580 docker build --target build -t inventory-hub-buildtest .)",
-      "Bash(docker rmi *)"
+      "Bash(docker rmi *)",
+      "Bash(timeout 580 docker build -t inventory-hub:fixtest .)",
+      "Bash(docker rm *)"
     ]
   }
 }

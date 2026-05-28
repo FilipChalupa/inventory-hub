@@ -20,7 +20,8 @@ FROM deps AS build
 COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
-RUN npm run build --workspace @inventory-hub/server \
+RUN npm run build --workspace @inventory-hub/shared \
+    && npm run build --workspace @inventory-hub/server \
     && npm run build --workspace @inventory-hub/web
 
 # ---- runtime ----
@@ -45,7 +46,7 @@ RUN npm install --workspace @inventory-hub/server --omit=dev --include-workspace
 # Copy compiled artefacts
 COPY --from=build /repo/apps/server/dist apps/server/dist
 COPY --from=build /repo/apps/server/src/db/migrations apps/server/src/db/migrations
-COPY --from=build /repo/packages/shared/src packages/shared/src
+COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/apps/web/dist apps/web/dist
 
 # Data volume for SQLite + uploads
@@ -59,4 +60,4 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD node -e "fetch('http://127.0.0.1:'+ (process.env.PORT||3001) + '/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 
-CMD ["node", "apps/server/dist/index.js"]
+CMD ["node", "--conditions=production", "apps/server/dist/index.js"]
