@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Inventory Hub">
+  <rect width="64" height="64" rx="14" fill="#0f172a" />
+  <polygon points="32,14 50,24 32,34 14,24" fill="#f8fafc" />
+  <polygon points="14,24 32,34 32,54 14,44" fill="#cbd5e1" />
+  <polygon points="50,24 50,44 32,54 32,34" fill="#94a3b8" />
+</svg>
