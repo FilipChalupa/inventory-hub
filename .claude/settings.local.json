@@ -63,7 +63,8 @@
       "Bash(timeout 580 docker build --target build -t inventory-hub-buildtest .)",
       "Bash(docker rmi *)",
       "Bash(timeout 580 docker build -t inventory-hub:fixtest .)",
-      "Bash(docker rm *)"
+      "Bash(docker rm *)",
+      "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")"
     ]
   }
 }
