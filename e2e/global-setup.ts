@@ -38,7 +38,6 @@ export default async function globalSetup(): Promise<void> {
       env: {
         ...process.env,
         DATABASE_URL: 'file:.e2e/app.db',
-        SESSION_SECRET: 'e2e-test-secret-at-least-16-chars',
       },
       stdio: 'inherit',
     },

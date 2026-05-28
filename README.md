@@ -8,8 +8,8 @@ Předpoklady: Node.js 22+, npm 10+.
 
 ```bash
 npm install
-cp apps/server/.env.example apps/server/.env
-# uprav SESSION_SECRET (min 16 znaků)
+# .env není pro dev potřeba (všechny proměnné mají default).
+# Pro Google OAuth si zkopíruj šablonu: cp apps/server/.env.example apps/server/.env
 
 npm run db:seed              # naseje demo data + dev admin (admin@example.com)
 
@@ -50,8 +50,12 @@ zablokovaný (`NODE_ENV=production`).
 ## Docker (produkce / self-hosting)
 
 ```bash
-SESSION_SECRET=$(openssl rand -hex 32) docker compose up -d --build
+docker compose up -d --build
 ```
+
+Běží to bez jediné povinné proměnné. Pro produkci nastav aspoň
+`PUBLIC_APP_URL` na svou veřejnou doménu — přehled všech proměnných je
+v [docs/SELF_HOSTING.md](docs/SELF_HOSTING.md#environment-variables).
 
 Jeden Docker image servíruje frontend i API ze stejného portu (3001) —
 **žádný reverse proxy není potřeba** pro běh. Pro HTTPS/doménu napojuj

@@ -33,7 +33,6 @@ export default defineConfig({
         `DATABASE_URL=file:.e2e/app.db UPLOAD_DIR=.e2e/uploads ` +
         `PORT=${SERVER_PORT} ` +
         `NODE_ENV=development ` +
-        `SESSION_SECRET=e2e-test-secret-at-least-16-chars ` +
         `PUBLIC_APP_URL=${BASE_URL} ` +
         `npm run -s --workspace @inventory-hub/server dev`,
       port: SERVER_PORT,

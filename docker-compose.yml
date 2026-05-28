@@ -10,7 +10,6 @@ services:
       NODE_ENV: production
       PORT: 3001
       DATABASE_URL: file:/data/app.db
-      SESSION_SECRET: ${SESSION_SECRET:-please-change-me-in-production-this-is-not-secure}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:3001/auth/google/callback}

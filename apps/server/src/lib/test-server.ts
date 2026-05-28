@@ -16,7 +16,6 @@ const TEST_ENV_BASE: Env = {
   NODE_ENV: 'test',
   PORT: 3001,
   DATABASE_URL: 'file::memory:',
-  SESSION_SECRET: 'test-secret-at-least-16-chars',
   PUBLIC_APP_URL: 'http://localhost:5173',
   UPLOAD_DIR: './data/uploads',
   UPLOAD_MAX_BYTES: 5_242_880,
