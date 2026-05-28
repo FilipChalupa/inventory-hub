@@ -1,7 +1,5 @@
-import { useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
-import { applyTheme, getInitialTheme, toggleTheme, type Theme } from './lib/theme.js';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { t } from './i18n/messages.js';
 import { AssetsPage } from './pages/AssetsPage.js';
@@ -133,24 +131,10 @@ function Shell() {
 
 function UserMenu() {
   const { state, logout } = useAuth();
-  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
   if (!state?.authenticated) return null;
   const u = state.user;
   return (
     <div className="flex items-center gap-3">
-      <button
-        type="button"
-        onClick={() => {
-          const next = toggleTheme(theme);
-          setTheme(next);
-          applyTheme(next);
-        }}
-        className="text-sm w-8 h-8 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"
-        title={theme === 'dark' ? 'Přepnout na světlý' : 'Přepnout na tmavý'}
-        aria-label="Přepnout barevný režim"
-      >
-        {theme === 'dark' ? '☀️' : '🌙'}
-      </button>
       <div className="text-right hidden sm:block">
         <div className="text-sm font-medium">{u.name}</div>
         <div className="text-xs text-slate-500 dark:text-slate-400">{u.role}</div>

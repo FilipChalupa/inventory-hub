@@ -3,10 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App.js';
-import { applyTheme, getInitialTheme } from './lib/theme.js';
 import './index.css';
-
-applyTheme(getInitialTheme());
 
 // Register service worker in production builds only. In dev, Vite serves
 // fresh modules with HMR and a SW would cache them aggressively.
