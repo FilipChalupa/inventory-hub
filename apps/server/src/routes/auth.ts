@@ -6,6 +6,7 @@ import { eq } from 'drizzle-orm';
 import type { AppContext } from '../app.js';
 import { invitations, users } from '../db/schema.js';
 import { findOrCreateUserForGoogle } from '../lib/auth-onboard.js';
+import { renderErrorPage } from '../lib/error-page.js';
 import {
   buildAuthorizationUrl,
   exchangeCode,
@@ -102,17 +103,30 @@ export const authRoutes = new Hono<AppContext>()
     const env = c.get('env');
     const db = c.get('db');
     const cfg = googleConfig(env);
-    if (!cfg) return c.json({ error: { message: 'Google OAuth není nakonfigurováno' } }, 503);
+    const fail = (status: 400 | 403 | 503, message: string) =>
+      c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL }), status);
+    if (!cfg) return fail(503, 'Přihlášení přes Google není nakonfigurováno.');
+
+    // Google redirects here with ?error=... when the user cancels or denies.
+    const oauthError = c.req.query('error');
+    if (oauthError) {
+      return fail(
+        400,
+        oauthError === 'access_denied'
+          ? 'Přihlášení přes Google bylo zrušeno.'
+          : 'Přihlášení přes Google se nezdařilo.',
+      );
+    }
 
     const code = c.req.query('code');
     const state = c.req.query('state');
     if (!code || !state) {
-      return c.json({ error: { message: 'Chybí code nebo state' } }, 400);
+      return fail(400, 'Chybí přihlašovací údaje z Googlu. Zkus to prosím znovu.');
     }
     const expectedState = getCookie(c, OAUTH_STATE_COOKIE);
     const verifier = getCookie(c, OAUTH_VERIFIER_COOKIE);
     if (!expectedState || !verifier || state !== expectedState) {
-      return c.json({ error: { message: 'Neplatný OAuth state' } }, 400);
+      return fail(400, 'Neplatný nebo vypršelý přihlašovací požadavek. Zkus to prosím znovu.');
     }
     deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/', secure: isSecure(env) });
     deleteCookie(c, OAUTH_VERIFIER_COOKIE, { path: '/', secure: isSecure(env) });
@@ -122,15 +136,12 @@ export const authRoutes = new Hono<AppContext>()
       identity = await exchangeCode(cfg, code, verifier);
     } catch (err) {
       console.error('Google exchange failed:', err);
-      return c.json({ error: { message: 'Google sign-in selhal' } }, 400);
+      return fail(400, 'Přihlášení přes Google selhalo. Zkus to prosím znovu.');
     }
 
     const user = findOrCreateUserForGoogle(db, identity);
     if (!user) {
-      return c.json(
-        { error: { message: 'Tvůj e-mail nemá oprávnění se přihlásit. Kontaktuj administrátora.' } },
-        403,
-      );
+      return fail(403, 'Tvůj e-mail nemá oprávnění se přihlásit. Kontaktuj administrátora.');
     }
 
     const { token, expiresAt } = createSession(db, user.id);

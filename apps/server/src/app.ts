@@ -11,6 +11,7 @@ import type { Db } from './db/client.js';
 import type { Env } from './env.js';
 import type { UserRow } from './db/schema.js';
 import { createEmailSender, type EmailSender } from './lib/email.js';
+import { renderErrorPage } from './lib/error-page.js';
 import { healthRoutes } from './routes/health.js';
 import { orgRoutes } from './routes/org.js';
 import { assetRoutes } from './routes/assets.js';
@@ -102,11 +103,20 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   }
 
   app.onError((err, c) => {
-    if (err instanceof HTTPException) {
-      return c.json({ error: { message: err.message } }, err.status);
+    const status = err instanceof HTTPException ? err.status : 500;
+    if (!(err instanceof HTTPException)) console.error('Request error:', err);
+
+    // Browser navigations (non-API GETs that accept text/html) get a styled
+    // HTML page; the SPA and API clients keep getting JSON.
+    const path = new URL(c.req.url).pathname;
+    const wantsHtml =
+      !path.startsWith('/api/') && (c.req.header('accept') ?? '').includes('text/html');
+    if (wantsHtml) {
+      const message =
+        err instanceof HTTPException ? err.message : 'Na serveru došlo k neočekávané chybě.';
+      return c.html(renderErrorPage(status, message, { homeUrl: deps.env.PUBLIC_APP_URL }), status);
     }
-    console.error('Request error:', err);
-    return c.json({ error: { message: err.message } }, 500);
+    return c.json({ error: { message: err.message } }, status);
   });
 
   return app;

@@ -65,7 +65,8 @@
       "Bash(timeout 580 docker build -t inventory-hub:fixtest .)",
       "Bash(docker rm *)",
       "Bash(node -e \"console.log\\(require\\('crypto'\\).randomBytes\\(32\\).toString\\('hex'\\)\\)\")",
-      "Bash(python3 -c \"import xml.dom.minidom,sys; xml.dom.minidom.parse\\('apps/web/public/favicon.svg'\\); print\\('SVG is well-formed XML'\\)\")"
+      "Bash(python3 -c \"import xml.dom.minidom,sys; xml.dom.minidom.parse\\('apps/web/public/favicon.svg'\\); print\\('SVG is well-formed XML'\\)\")",
+      "Bash(echo \"=== exit $? \\(1 = no matches = no tests on these\\) ===\")"
     ]
   }
 }
