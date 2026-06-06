@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui.js';
+import clsx from 'clsx';
 
 type FormValues = {
   borrowerName: string;
@@ -162,8 +163,9 @@ export function NewLoanPage() {
         <Card>
           <h2 className="font-semibold mb-2">Položky výpůjčky</h2>
           <p className="text-xs text-slate-500 mb-2">
-            Nabízíme assety volné ve zvoleném termínu – včetně právě půjčených, které se do
-            začátku stihnou vrátit. Vybráno: {selectedCodes.length}
+            Vybrat lze assety volné ve zvoleném termínu – včetně právě půjčených, které se do
+            začátku stihnou vrátit. Nedostupné jsou zašedlé i s důvodem. Vybráno:{' '}
+            {selectedCodes.length}
           </p>
           <Input
             type="search"
@@ -174,15 +176,25 @@ export function NewLoanPage() {
           />
           <ul className="max-h-64 overflow-y-auto divide-y rounded border">
             {assets.data?.items.length === 0 && (
-              <li className="p-3 text-sm text-slate-500">Žádné dostupné assety.</li>
+              <li className="p-3 text-sm text-slate-500">Žádné assety neodpovídají hledání.</li>
             )}
             {assets.data?.items.map((a) => {
               const checked = selectedSet.has(a.code);
+              // Disable only unavailable assets that aren't already picked,
+              // so a selection can still be undone if the window changes.
+              const disabled = !a.available && !checked;
               return (
-                <li key={a.code} className="flex items-center gap-3 p-2 hover:bg-slate-50">
+                <li
+                  key={a.code}
+                  className={clsx(
+                    'flex items-center gap-3 p-2',
+                    disabled ? 'opacity-50' : 'hover:bg-slate-50',
+                  )}
+                >
                   <input
                     type="checkbox"
                     checked={checked}
+                    disabled={disabled}
                     onChange={() =>
                       setSelectedCodes((prev) =>
                         checked ? prev.filter((c) => c !== a.code) : [...prev, a.code],
@@ -191,7 +203,12 @@ export function NewLoanPage() {
                   />
                   <span className="font-mono text-xs text-slate-500 w-28">{a.code}</span>
                   <span className="flex-1">{a.name}</span>
-                  {a.status === 'on_loan' && (
+                  {!a.available && a.reason && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                      {a.reason}
+                    </span>
+                  )}
+                  {a.available && a.status === 'on_loan' && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
                       teď půjčeno
                     </span>

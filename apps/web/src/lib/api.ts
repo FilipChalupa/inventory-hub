@@ -105,6 +105,8 @@ export type LoanAvailabilityAsset = {
   code: string;
   name: string;
   status: AssetStatus;
+  available: boolean;
+  reason?: string;
 };
 
 export type ContactRow = {

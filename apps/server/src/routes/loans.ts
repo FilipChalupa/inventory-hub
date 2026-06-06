@@ -25,6 +25,17 @@ import { requireAuth } from '../middleware/auth.js';
 // the time-overlap check decides whether it actually fits.
 const LOANABLE_STATUSES = ['in_stock', 'on_loan'] as const;
 
+// Why an asset cannot be loaned based purely on its current state (the
+// time-window conflict is handled separately).
+const STATUS_UNAVAILABLE_REASON: Record<string, string> = {
+  assigned: 'přiřazeno',
+  in_repair: 'v opravě',
+  damaged: 'poškozeno',
+  sold: 'prodáno',
+  lost: 'ztraceno',
+  retired: 'vyřazeno',
+};
+
 export const loanRoutes = new Hono<AppContext>()
   .get('/', (c) => {
     const db = c.get('db');
@@ -59,9 +70,11 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ items: result });
   })
-  // Assets that can be committed to a loan in a given time window. Includes
-  // currently borrowed assets when they are free again in [from, to) — so a
-  // popular item can be reserved ahead of its return.
+  // All live (non-archived) assets annotated with whether they can be
+  // committed to a loan in the given window. Unavailable assets are still
+  // returned (with a reason) so the UI can show them disabled rather than
+  // hiding their existence. A currently borrowed asset is available when it
+  // is free again within [from, to).
   .get('/availability', (c) => {
     const db = c.get('db');
     const q = c.req.query('q')?.trim().toLowerCase();
@@ -73,7 +86,7 @@ export const loanRoutes = new Hono<AppContext>()
     let candidates = db
       .select({ id: assets.id, code: assets.code, name: assets.name, status: assets.status })
       .from(assets)
-      .where(and(isNull(assets.archivedAt), inArray(assets.status, LOANABLE_STATUSES)))
+      .where(isNull(assets.archivedAt))
       .orderBy(asc(assets.code))
       .all();
 
@@ -104,11 +117,24 @@ export const loanRoutes = new Hono<AppContext>()
       windowsByAsset.set(w.assetId, list);
     }
 
-    const items = candidates.filter((a) => {
+    const loanable = new Set<string>(LOANABLE_STATUSES);
+    const items = candidates.map((a) => {
+      if (!loanable.has(a.status)) {
+        return {
+          ...a,
+          available: false,
+          reason: STATUS_UNAVAILABLE_REASON[a.status] ?? a.status,
+        };
+      }
       const windows = windowsByAsset.get(a.id) ?? [];
-      return !windows.some((w) =>
+      const busy = windows.some((w) =>
         loanWindowsOverlap(from, to, w.loanedAt, w.expectedReturnAt),
       );
+      return {
+        ...a,
+        available: !busy,
+        reason: busy ? 'obsazeno ve zvoleném termínu' : undefined,
+      };
     });
 
     return c.json({ items });

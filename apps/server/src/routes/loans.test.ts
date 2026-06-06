@@ -268,10 +268,15 @@ describe('loans API', () => {
         assetCodes: [a],
       });
 
-      // Right now the asset is out → not available for an immediate window.
+      // Right now the asset is out → listed but not available for an
+      // immediate window.
       const nowList = await server.authRequest('/api/loans/availability', { cookie });
-      const nowBody = (await nowList.json()) as { items: { code: string }[] };
-      expect(nowBody.items.some((x) => x.code === a)).toBe(false);
+      const nowBody = (await nowList.json()) as {
+        items: { code: string; available: boolean; reason?: string }[];
+      };
+      const nowRow = nowBody.items.find((x) => x.code === a);
+      expect(nowRow).toBeTruthy();
+      expect(nowRow!.available).toBe(false);
 
       // A window starting after the return is available — even though the
       // asset is currently on_loan.
@@ -279,9 +284,12 @@ describe('loans API', () => {
         `/api/loans/availability?from=${encodeURIComponent(inDays(5))}`,
         { cookie },
       );
-      const laterBody = (await laterList.json()) as { items: { code: string; status: string }[] };
+      const laterBody = (await laterList.json()) as {
+        items: { code: string; status: string; available: boolean }[];
+      };
       const offered = laterBody.items.find((x) => x.code === a);
       expect(offered).toBeTruthy();
+      expect(offered!.available).toBe(true);
       expect(offered!.status).toBe('on_loan');
 
       // And it can actually be reserved for that window.
@@ -292,6 +300,27 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       expect(reserve.status).toBe(201);
+    });
+
+    it('lists a non-loanable asset (in repair) as unavailable with a reason', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      await jsonPost(server, cookie, `/api/assets/${a}/repair-start`, {});
+
+      const list = await server.authRequest('/api/loans/availability', { cookie });
+      const body = (await list.json()) as {
+        items: { code: string; available: boolean; reason?: string }[];
+      };
+      const row = body.items.find((x) => x.code === a);
+      expect(row).toBeTruthy();
+      expect(row!.available).toBe(false);
+      expect(row!.reason).toBe('v opravě');
+
+      // And it is rejected if someone tries to loan it directly.
+      const res = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      expect(res.status).toBe(409);
     });
 
     it('a past start date creates the loan as already active', async () => {
