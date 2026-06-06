@@ -94,30 +94,45 @@ function ReturnAllButton({
   count: number;
   onDone: () => void;
 }) {
+  const [open, setOpen] = useState(false);
+  const [returnedAt, setReturnedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const returnAll = useMutation({
-    mutationFn: () => apiClient.loans.returnAll(loanId),
-    onSuccess: onDone,
+    mutationFn: () => apiClient.loans.returnAll(loanId, returnedAt ? new Date(returnedAt) : undefined),
+    onSuccess: () => {
+      setOpen(false);
+      onDone();
+    },
   });
-  return (
-    <div className="flex items-center gap-2">
-      {returnAll.error && (
-        <span className="text-sm text-red-600">{(returnAll.error as Error).message}</span>
-      )}
-      <Button
-        variant="secondary"
-        disabled={returnAll.isPending}
-        onClick={() => {
-          if (
-            window.confirm(
-              `Vrátit všech ${count} nevrácených položek jako v pořádku? Poškozené řeš jednotlivě.`,
-            )
-          ) {
-            returnAll.mutate();
-          }
-        }}
-      >
-        {returnAll.isPending ? 'Vracím…' : `Vrátit vše (${count})`}
+
+  if (!open) {
+    return (
+      <Button variant="secondary" onClick={() => setOpen(true)}>
+        Vrátit vše ({count})
       </Button>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center justify-end gap-2">
+      <label className="text-xs text-slate-500">Datum vrácení</label>
+      <Input
+        type="date"
+        value={returnedAt}
+        max={new Date().toISOString().slice(0, 10)}
+        onChange={(e) => setReturnedAt(e.target.value)}
+        className="w-auto"
+      />
+      <Button onClick={() => returnAll.mutate()} disabled={returnAll.isPending}>
+        {returnAll.isPending ? 'Vracím…' : `Vrátit vše (${count}) jako v pořádku`}
+      </Button>
+      <Button variant="ghost" onClick={() => setOpen(false)}>
+        Zrušit
+      </Button>
+      {returnAll.error && (
+        <p className="w-full text-right text-sm text-red-600">
+          {(returnAll.error as Error).message}
+        </p>
+      )}
     </div>
   );
 }

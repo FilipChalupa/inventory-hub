@@ -36,6 +36,14 @@ const STATUS_UNAVAILABLE_REASON: Record<string, string> = {
   retired: 'vyřazeno',
 };
 
+// Shared guard for a (possibly backdated) return date: it cannot be in the
+// future, nor before the loan actually started.
+function returnDateError(returnedAt: Date, loanStart: Date, now: Date): string | null {
+  if (returnedAt.getTime() > now.getTime()) return 'Datum vrácení nemůže být v budoucnu';
+  if (returnedAt.getTime() < loanStart.getTime()) return 'Datum vrácení nemůže být před zapůjčením';
+  return null;
+}
+
 export const loanRoutes = new Hono<AppContext>()
   .get('/', (c) => {
     const db = c.get('db');
@@ -318,9 +326,10 @@ export const loanRoutes = new Hono<AppContext>()
     activateLoan(db, id, user.id, new Date());
     return c.json({ ok: true });
   })
-  .post('/:id/return-all', (c) => {
+  .post('/:id/return-all', zValidator('json', z.object({ returnedAt: z.coerce.date().optional() })), (c) => {
     const db = c.get('db');
     const loanId = c.req.param('id');
+    const input = c.req.valid('json');
     const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
     if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
     if (loan.startedAt === null) {
@@ -338,12 +347,15 @@ export const loanRoutes = new Hono<AppContext>()
 
     const user = c.get('user')!;
     const now = new Date();
+    const returnedAt = input.returnedAt ?? now;
+    const dateError = returnDateError(returnedAt, loan.startedAt ?? loan.loanedAt, now);
+    if (dateError) return c.json({ error: { message: dateError } }, 400);
     // Bulk return treats everything as returned in good condition; damaged
     // items still go through the per-item flow that files a damage report.
     db.transaction((tx) => {
       for (const item of open) {
         tx.update(loanItems)
-          .set({ returnedAt: now, returnCondition: 'ok', returnNotes: null })
+          .set({ returnedAt, returnCondition: 'ok', returnNotes: null })
           .where(eq(loanItems.id, item.id))
           .run();
         tx.update(assets)
@@ -355,6 +367,7 @@ export const loanRoutes = new Hono<AppContext>()
             assetId: item.assetId,
             actorUserId: user.id,
             type: 'loan_item_returned',
+            occurredAt: returnedAt,
             payload: { loanId, itemId: item.id, condition: 'ok' },
           })
           .run();
@@ -396,13 +409,8 @@ export const loanRoutes = new Hono<AppContext>()
 
     const now = new Date();
     const returnedAt = input.returnedAt ?? now;
-    if (returnedAt.getTime() > now.getTime()) {
-      return c.json({ error: { message: 'Datum vrácení nemůže být v budoucnu' } }, 400);
-    }
-    const loanStart = loan.startedAt ?? loan.loanedAt;
-    if (returnedAt.getTime() < loanStart.getTime()) {
-      return c.json({ error: { message: 'Datum vrácení nemůže být před zapůjčením' } }, 400);
-    }
+    const dateError = returnDateError(returnedAt, loan.startedAt ?? loan.loanedAt, now);
+    if (dateError) return c.json({ error: { message: dateError } }, 400);
 
     db.transaction((tx) => {
       tx.update(loanItems)

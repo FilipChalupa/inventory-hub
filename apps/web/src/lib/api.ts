@@ -428,8 +428,11 @@ export const apiClient = {
     },
     start: (id: string) =>
       api<{ ok: true }>(`/api/loans/${id}/start`, { method: 'POST' }),
-    returnAll: (id: string) =>
-      api<{ ok: true; returned: number }>(`/api/loans/${id}/return-all`, { method: 'POST' }),
+    returnAll: (id: string, returnedAt?: Date) =>
+      api<{ ok: true; returned: number }>(`/api/loans/${id}/return-all`, {
+        method: 'POST',
+        body: { returnedAt },
+      }),
     returnItem: (loanId: string, itemId: string, input: Omit<ReturnLoanItemInput, 'loanItemId'>) =>
       api<{ ok: true }>(`/api/loans/${loanId}/items/${itemId}/return`, {
         method: 'POST',

@@ -465,6 +465,41 @@ describe('loans API', () => {
       expect(body.loan.status).toBe('fully_returned');
     });
 
+    it('return-all accepts a backdated return date', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      server.db.update(loans).set({ loanedAt: weekAgo, startedAt: weekAgo }).where(eq(loans.id, loanId)).run();
+
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {
+        returnedAt: yesterday.toISOString(),
+      });
+      expect(res.status).toBe(200);
+
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const row = server.db.select().from(loanItems).where(eq(loanItems.id, itemId)).get()!;
+      expect(row.returnedAt!.getTime()).toBe(yesterday.getTime());
+    });
+
+    it('return-all rejects a future return date', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {
+        returnedAt: tomorrow.toISOString(),
+      });
+      expect(res.status).toBe(400);
+    });
+
     it('return-all only touches still-open items and 409s when nothing is open', async () => {
       const a = await makeAsset(server, cookie, 'A');
       const b = await makeAsset(server, cookie, 'B');
