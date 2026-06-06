@@ -41,8 +41,28 @@ export const createLoanInput = z.object({
   loanedAt: z.coerce.date().nullable().optional(),
   expectedReturnAt: z.coerce.date().nullable().optional(),
   assetCodes: z.array(assetCodeSchema).min(1, 'Výpůjčka musí obsahovat alespoň jeden asset'),
-});
+}).refine(
+  (v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt,
+  { message: 'Návrat nemůže být dříve než začátek výpůjčky', path: ['expectedReturnAt'] },
+);
 export type CreateLoanInput = z.infer<typeof createLoanInput>;
+
+/**
+ * Whether two loan windows overlap. Windows are half-open `[start, end)`,
+ * so back-to-back loans (one ends exactly when the next starts) do NOT
+ * conflict. A null end means open-ended (+∞) — used when no expected
+ * return date is set.
+ */
+export function loanWindowsOverlap(
+  aStart: Date,
+  aEnd: Date | null,
+  bStart: Date,
+  bEnd: Date | null,
+): boolean {
+  const aStartsBeforeBEnds = bEnd === null || aStart.getTime() < bEnd.getTime();
+  const bStartsBeforeAEnds = aEnd === null || bStart.getTime() < aEnd.getTime();
+  return aStartsBeforeBEnds && bStartsBeforeAEnds;
+}
 
 export const returnLoanItemInput = z.object({
   loanItemId: z.string().uuid(),

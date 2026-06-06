@@ -2,7 +2,12 @@ import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
 import { z } from 'zod';
-import { createLoanInput, returnLoanItemInput, deriveLoanStatus } from '@inventory-hub/shared';
+import {
+  createLoanInput,
+  returnLoanItemInput,
+  deriveLoanStatus,
+  loanWindowsOverlap,
+} from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import {
   assetEvents,
@@ -111,22 +116,38 @@ export const loanRoutes = new Hono<AppContext>()
       );
     }
 
-    // An asset may only be part of one active or planned loan at a time.
-    // Any not-yet-returned loan item on a target asset is a conflict — this
-    // covers both currently borrowed and already reserved (planned) assets.
+    // An asset may not be committed to two loans whose time windows
+    // overlap. Each not-yet-returned loan item reserves its asset for
+    // [loanedAt, expectedReturnAt) — open-ended when no return date is set.
+    // Non-overlapping (e.g. back-to-back) reservations are allowed.
+    const newStart = startAt;
+    const newEnd = input.expectedReturnAt ?? null;
     const targetIds = targets.map((t) => t.id);
-    const conflicts = db
-      .select({ code: assets.code })
+    const existing = db
+      .select({
+        code: assets.code,
+        loanedAt: loans.loanedAt,
+        expectedReturnAt: loans.expectedReturnAt,
+      })
       .from(loanItems)
       .innerJoin(assets, eq(loanItems.assetId, assets.id))
+      .innerJoin(loans, eq(loanItems.loanId, loans.id))
       .where(and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt)))
       .all();
-    if (conflicts.length) {
-      const codesList = [...new Set(conflicts.map((x) => x.code))];
+    const conflictCodes = [
+      ...new Set(
+        existing
+          .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
+          .map((e) => e.code),
+      ),
+    ];
+    if (conflictCodes.length) {
       return c.json(
         {
           error: {
-            message: `Asset(y) jsou už ve výpůjčce nebo rezervaci: ${codesList.join(', ')}`,
+            message: `Asset(y) jsou v daném termínu už ve výpůjčce nebo rezervaci: ${conflictCodes.join(
+              ', ',
+            )}`,
           },
         },
         409,

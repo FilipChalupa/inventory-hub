@@ -127,6 +127,89 @@ describe('loans API', () => {
       expect(second.status).toBe(409);
     });
 
+    const day = 24 * 60 * 60 * 1000;
+    const inDays = (n: number) => new Date(Date.now() + n * day).toISOString();
+
+    it('allows non-overlapping reservations on the same asset', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const first = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Týden 1',
+        loanedAt: inDays(2),
+        expectedReturnAt: inDays(4),
+        assetCodes: [a],
+      });
+      expect(first.status).toBe(201);
+
+      const second = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Týden 2',
+        loanedAt: inDays(5),
+        expectedReturnAt: inDays(7),
+        assetCodes: [a],
+      });
+      expect(second.status).toBe(201);
+    });
+
+    it('allows a back-to-back reservation starting exactly when the previous ends', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'A',
+        loanedAt: inDays(2),
+        expectedReturnAt: inDays(4),
+        assetCodes: [a],
+      });
+      const res = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'B',
+        loanedAt: inDays(4),
+        expectedReturnAt: inDays(6),
+        assetCodes: [a],
+      });
+      expect(res.status).toBe(201);
+    });
+
+    it('rejects an overlapping reservation on the same asset (409)', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'A',
+        loanedAt: inDays(2),
+        expectedReturnAt: inDays(6),
+        assetCodes: [a],
+      });
+      const res = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'B',
+        loanedAt: inDays(4),
+        expectedReturnAt: inDays(5),
+        assetCodes: [a],
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it('an open-ended loan (no return date) blocks later reservations', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'A',
+        loanedAt: inDays(2),
+        assetCodes: [a],
+      });
+      const res = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'B',
+        loanedAt: inDays(5),
+        expectedReturnAt: inDays(6),
+        assetCodes: [a],
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it('rejects a loan whose return is before its start (400)', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const res = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Špatně',
+        loanedAt: inDays(5),
+        expectedReturnAt: inDays(3),
+        assetCodes: [a],
+      });
+      expect(res.status).toBe(400);
+    });
+
     it('POST /:id/start activates a planned loan and marks assets on_loan', async () => {
       const a = await makeAsset(server, cookie, 'Asset A');
       const created = await jsonPost(server, cookie, '/api/loans', {
