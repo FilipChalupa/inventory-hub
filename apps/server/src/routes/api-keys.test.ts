@@ -102,8 +102,10 @@ describe('OpenAPI', () => {
     expect(body.openapi).toMatch(/^3\./);
     expect(body.paths['/api/loans']).toBeTruthy();
     // Derived from the shared Zod createLoanInput, not hand-written.
-    expect(body.components.schemas.CreateLoan.properties).toHaveProperty('assetCodes');
-    expect(body.components.schemas.CreateLoan.properties).toHaveProperty('borrowerName');
+    const createLoan = body.components.schemas.CreateLoan;
+    expect(createLoan).toBeDefined();
+    expect(createLoan!.properties).toHaveProperty('assetCodes');
+    expect(createLoan!.properties).toHaveProperty('borrowerName');
   });
 
   it('serves a self-hosted docs page and its assets (no CDN)', async () => {
@@ -121,7 +123,11 @@ describe('OpenAPI', () => {
     const bundle = await server.authRequest('/docs/swagger-ui-bundle.js', {});
     expect(bundle.status).toBe(200);
 
-    const bad = await server.authRequest('/docs/../package.json', {});
-    expect(bad.status).not.toBe(200);
+    // Path traversal via the file param must be rejected. Encoded so URL
+    // normalization doesn't collapse `../` before it reaches the docs route
+    // (a bare `/docs/../package.json` normalizes to `/package.json` and would
+    // be swallowed by the SPA fallback instead of exercising this guard).
+    const bad = await server.authRequest('/docs/..%2f..%2fpackage.json', {});
+    expect(bad.status).toBe(404);
   });
 });

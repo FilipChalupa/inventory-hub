@@ -94,6 +94,12 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.get('/docs', (c) => c.html(DOCS_HTML));
   app.get('/docs/:file', (c) => {
     const file = c.req.param('file');
+    // Defense in depth on top of the whitelist below: a docs asset is always
+    // a bare filename, so reject anything with a path separator or traversal
+    // (e.g. the encoded `/docs/..%2f..%2fpackage.json`) before touching the FS.
+    if (file.includes('/') || file.includes('\\') || file.includes('..')) {
+      return c.notFound();
+    }
     const contentType = SWAGGER_UI_FILES[file];
     if (!contentType) return c.notFound();
     try {
