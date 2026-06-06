@@ -50,6 +50,7 @@ export function SettingsPage() {
           <div className="space-y-3">
             <Field
               label="Název organizace"
+              required
               error={formState.errors.name ? 'Název organizace je povinný' : undefined}
             >
               <Input {...register('name', { required: true })} />
@@ -187,7 +188,7 @@ function ApiKeysSection() {
         }}
       >
         <div className="flex-1 min-w-[180px]">
-          <Field label="Název klíče">
+          <Field label="Název klíče" required>
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="např. Zapier" />
           </Field>
         </div>
@@ -319,7 +320,7 @@ function InvitationsSection() {
         }}
       >
         <div className="flex-1 min-w-[200px]">
-          <Field label="E-mail">
+          <Field label="E-mail" required>
             <Input
               type="email"
               value={email}

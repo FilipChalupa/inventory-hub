@@ -98,7 +98,7 @@ export function LocationsPage() {
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
           <div className="flex-1 min-w-[200px]">
-            <Field label="Název" error={formState.errors.name?.message}>
+            <Field label="Název" required error={formState.errors.name?.message}>
               <Input
                 {...register('name', { required: 'Název je povinný' })}
                 placeholder="Kancelář 4.NP"

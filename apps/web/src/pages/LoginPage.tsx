@@ -72,7 +72,7 @@ export function LoginPage() {
               </div>
             </div>
             <form className="space-y-3" onSubmit={devLogin}>
-              <Field label="E-mail existujícího uživatele">
+              <Field label="E-mail existujícího uživatele" required>
                 <Input
                   type="email"
                   value={email}

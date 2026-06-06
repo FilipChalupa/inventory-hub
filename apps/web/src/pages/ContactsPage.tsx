@@ -52,7 +52,7 @@ export function ContactsPage() {
           className="grid grid-cols-1 sm:grid-cols-2 gap-2"
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
-          <Field label="Jméno" error={formState.errors.name?.message}>
+          <Field label="Jméno" required error={formState.errors.name?.message}>
             <Input {...register('name', { required: 'Jméno je povinné' })} placeholder="Jan Novák" />
           </Field>
           <Field label="Organizace">

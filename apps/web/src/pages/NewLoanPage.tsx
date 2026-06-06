@@ -133,7 +133,7 @@ export function NewLoanPage() {
           </Select>
         </Field>
 
-        <Field label="Jméno vypůjčujícího" error={formState.errors.borrowerName?.message}>
+        <Field label="Jméno vypůjčujícího" required error={formState.errors.borrowerName?.message}>
           <Input
             {...register('borrowerName', { required: 'Jméno je povinné' })}
             placeholder="Jan Novák"

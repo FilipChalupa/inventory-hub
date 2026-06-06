@@ -51,12 +51,12 @@ export function AssetTypesPage() {
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
           <div className="flex-1 min-w-[200px]">
-            <Field label="Název" error={formState.errors.name?.message}>
+            <Field label="Název" required error={formState.errors.name?.message}>
               <Input {...register('name', { required: 'Povinné' })} placeholder="Notebook" />
             </Field>
           </div>
           <div className="w-32">
-            <Field label="Prefix" error={formState.errors.codePrefix?.message}>
+            <Field label="Prefix" required error={formState.errors.codePrefix?.message}>
               <Input
                 {...register('codePrefix', {
                   required: 'Povinné',

@@ -590,7 +590,7 @@ function ExternalIdsCard({
           </Field>
         </div>
         <div className="flex-1 min-w-[180px]">
-          <Field label="Hodnota">
+          <Field label="Hodnota" required>
             <Input value={value} onChange={(e) => setValue(e.target.value)} className="font-mono" />
           </Field>
         </div>
@@ -732,7 +732,7 @@ function EditAssetForm({
           }
         })}
       >
-        <Field label="Název" error={formState.errors.name ? 'Název je povinný' : undefined}>
+        <Field label="Název" required error={formState.errors.name ? 'Název je povinný' : undefined}>
           <Input {...register('name', { required: true })} />
         </Field>
         <Field label="Typ">
@@ -873,11 +873,12 @@ function NewDamageForm({
       >
         <Field
           label="Kdy se to stalo"
+          required
           error={formState.errors.occurredAt ? 'Vyplň datum a čas' : undefined}
         >
           <Input type="datetime-local" {...register('occurredAt', { required: true })} />
         </Field>
-        <Field label="Popis" error={formState.errors.description ? 'Popis je povinný' : undefined}>
+        <Field label="Popis" required error={formState.errors.description ? 'Popis je povinný' : undefined}>
           <Textarea rows={3} {...register('description', { required: true })} />
         </Field>
         <Field label="Závažnost">

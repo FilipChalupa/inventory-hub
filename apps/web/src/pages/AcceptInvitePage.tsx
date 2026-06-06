@@ -51,7 +51,7 @@ export function AcceptInvitePage() {
                 if (name.trim()) accept.mutate();
               }}
             >
-              <Field label="Tvoje jméno">
+              <Field label="Tvoje jméno" required>
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jan Novák" />
               </Field>
               {accept.error && (

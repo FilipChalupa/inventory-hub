@@ -62,7 +62,7 @@ export function NewAssetPage() {
         className="space-y-4"
         onSubmit={handleSubmit((values) => create.mutate(values))}
       >
-        <Field label="Název" error={formState.errors.name?.message}>
+        <Field label="Název" required error={formState.errors.name?.message}>
           <Input
             {...register('name', { required: 'Název je povinný' })}
             placeholder="ThinkPad X1 Carbon"
