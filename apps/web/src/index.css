@@ -3,6 +3,12 @@
 @tailwind utilities;
 
 @layer base {
+  /* Always reserve the vertical scrollbar gutter so the layout width
+     doesn't shift between short pages (no scrollbar) and long ones. */
+  html {
+    overflow-y: scroll;
+  }
+
   body {
     @apply bg-slate-50 text-slate-900 dark:bg-slate-900 dark:text-slate-100;
   }
