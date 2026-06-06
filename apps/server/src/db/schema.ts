@@ -170,6 +170,9 @@ export const assets = sqliteTable(
     photoPaths: text('photo_paths', { mode: 'json' }).$type<string[]>().notNull().default([]),
     documentPaths: text('document_paths', { mode: 'json' }).$type<string[]>().notNull().default([]),
     notes: text('notes'),
+    // Last time the asset was physically confirmed present (set when scanned
+    // during an inventory). Null = never verified.
+    lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }),
     ...timestamps,
   },
   (t) => ({
@@ -247,6 +250,56 @@ export const damageReports = sqliteTable(
   },
   (t) => ({
     assetIdx: index('damage_reports_asset_idx').on(t.assetId),
+  }),
+);
+
+/**
+ * Stocktaking / physical inventory. A session defines an expected set of
+ * assets (the whole org, or a location subtree) that operators then scan
+ * through; the difference between expected and scanned surfaces what's
+ * missing or in the wrong place.
+ */
+export const inventorySessions = sqliteTable('inventory_sessions', {
+  id: id(),
+  name: text('name').notNull(),
+  // Scope: when set, only assets within this location (and its descendants)
+  // are expected; null = the whole organization.
+  locationId: text('location_id').references(() => locations.id, { onDelete: 'set null' }),
+  status: text('status', { enum: ['open', 'closed'] })
+    .notNull()
+    .default('open'),
+  note: text('note'),
+  startedByUserId: text('started_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
+  closedByUserId: text('closed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  ...timestamps,
+});
+
+/**
+ * One row per asset physically confirmed during an inventory session. The
+ * (session, asset) pair is unique so a double-scan is idempotent.
+ */
+export const inventoryScans = sqliteTable(
+  'inventory_scans',
+  {
+    id: id(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => inventorySessions.id, { onDelete: 'cascade' }),
+    assetId: text('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    scannedByUserId: text('scanned_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    scannedAt: integer('scanned_at', { mode: 'timestamp_ms' })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    sessionIdx: index('inventory_scans_session_idx').on(t.sessionId),
+    sessionAssetUnique: uniqueIndex('inventory_scans_session_asset_unique').on(
+      t.sessionId,
+      t.assetId,
+    ),
   }),
 );
 
@@ -416,6 +469,8 @@ export type AssetRow = typeof assets.$inferSelect;
 export type LoanRow = typeof loans.$inferSelect;
 export type LoanItemRow = typeof loanItems.$inferSelect;
 export type DamageReportRow = typeof damageReports.$inferSelect;
+export type InventorySessionRow = typeof inventorySessions.$inferSelect;
+export type InventoryScanRow = typeof inventoryScans.$inferSelect;
 export type OauthClientRow = typeof oauthClients.$inferSelect;
 export type OauthAuthCodeRow = typeof oauthAuthCodes.$inferSelect;
 export type OauthTokenRow = typeof oauthTokens.$inferSelect;

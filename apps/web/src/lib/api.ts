@@ -9,6 +9,9 @@ import type {
   AllowedDomain,
   UserRole,
   CustomFieldsSchema,
+  CreateInventorySessionInput,
+  InventorySessionStatus,
+  ScanResultKind,
 } from '@inventory-hub/shared';
 
 type ApiOptions = {
@@ -206,6 +209,46 @@ export type DemoSeedResult = {
     contactsCreated: number;
     loansCreated: number;
     damageReportsCreated: number;
+  };
+};
+
+export type InventorySessionRow = {
+  id: string;
+  name: string;
+  locationId: string | null;
+  status: InventorySessionStatus;
+  note: string | null;
+  startedByUserId: string | null;
+  closedAt: string | null;
+  closedByUserId: string | null;
+  createdAt: string;
+  scanCount?: number;
+};
+
+export type InventoryReportAsset = {
+  id: string;
+  code: string;
+  name: string;
+  status: AssetStatus;
+  locationId: string | null;
+  scannedAt: string | null;
+};
+
+export type InventoryReport = {
+  counts: { expected: number; found: number; missing: number; unexpected: number };
+  found: InventoryReportAsset[];
+  missing: InventoryReportAsset[];
+  unexpected: InventoryReportAsset[];
+};
+
+export type ScanResult = {
+  result: ScanResultKind;
+  asset: {
+    id: string;
+    code: string;
+    name: string;
+    status: AssetStatus;
+    locationId: string | null;
   };
 };
 
@@ -487,6 +530,25 @@ export const apiClient = {
       api<{ ok: true }>(`/api/loans/${loanId}/items/${itemId}/return`, {
         method: 'POST',
         body: input,
+      }),
+  },
+
+  inventory: {
+    list: () => api<{ items: InventorySessionRow[] }>('/api/inventory'),
+    get: (id: string) =>
+      api<{ session: InventorySessionRow; report: InventoryReport }>(`/api/inventory/${id}`),
+    create: (input: CreateInventorySessionInput) =>
+      api<{ session: InventorySessionRow }>('/api/inventory', { method: 'POST', body: input }),
+    scan: (id: string, code: string) =>
+      api<ScanResult>(`/api/inventory/${id}/scan`, { method: 'POST', body: { code } }),
+    close: (id: string) =>
+      api<{ ok: true }>(`/api/inventory/${id}/close`, { method: 'POST' }),
+    reopen: (id: string) =>
+      api<{ ok: true }>(`/api/inventory/${id}/reopen`, { method: 'POST' }),
+    markLost: (id: string, codes: string[]) =>
+      api<{ ok: true; archived: number }>(`/api/inventory/${id}/mark-lost`, {
+        method: 'POST',
+        body: { codes },
       }),
   },
 

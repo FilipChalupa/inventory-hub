@@ -19,6 +19,7 @@ import { assetTypeRoutes } from './routes/asset-types.js';
 import { locationRoutes } from './routes/locations.js';
 import { damageRoutes } from './routes/damages.js';
 import { loanRoutes } from './routes/loans.js';
+import { inventoryRoutes } from './routes/inventory.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { exportRoutes } from './routes/export.js';
 import { invitationRoutes } from './routes/invitations.js';
@@ -112,6 +113,7 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/locations', locationRoutes);
   app.route('/api/damages', damageRoutes);
   app.route('/api/loans', loanRoutes);
+  app.route('/api/inventory', inventoryRoutes);
   app.route('/api/uploads', uploadRoutes);
   app.route('/api/export', exportRoutes);
   app.route('/api/invitations', invitationRoutes);

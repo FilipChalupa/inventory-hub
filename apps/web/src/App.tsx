@@ -13,6 +13,8 @@ import { LoansPage } from './pages/LoansPage.js';
 import { LoanDetailPage } from './pages/LoanDetailPage.js';
 import { NewLoanPage } from './pages/NewLoanPage.js';
 import { LabelsPage } from './pages/LabelsPage.js';
+import { InventoryPage } from './pages/InventoryPage.js';
+import { InventorySessionPage } from './pages/InventorySessionPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 import { LoginPage } from './pages/LoginPage.js';
 import { AcceptInvitePage } from './pages/AcceptInvitePage.js';
@@ -26,6 +28,7 @@ const navItems = [
   { to: '/', label: t.nav.assets, end: true },
   { to: '/scan', label: t.nav.scan },
   { to: '/loans', label: t.nav.loans },
+  { to: '/inventory', label: t.nav.inventory },
   { to: '/labels', label: t.nav.labels },
   { to: '/asset-types', label: t.nav.types },
   { to: '/locations', label: t.nav.locations },
@@ -116,6 +119,8 @@ function Shell() {
             <Route path="/loans" element={<LoansPage />} />
             <Route path="/loans/new" element={<NewLoanPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/inventory/:id" element={<InventorySessionPage />} />
             <Route path="/labels" element={<LabelsPage />} />
             <Route path="/audit" element={<AuditLogPage />} />
             <Route path="/users" element={<UsersPage />} />

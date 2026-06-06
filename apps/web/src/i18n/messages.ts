@@ -16,6 +16,7 @@ export const cs = {
     assets: 'Assety',
     scan: 'Sken',
     loans: 'Výpůjčky',
+    inventory: 'Inventury',
     labels: 'Štítky',
     types: 'Typy',
     locations: 'Lokace',
