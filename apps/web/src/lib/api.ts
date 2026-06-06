@@ -4,6 +4,7 @@ import type {
   CreateAssetInput,
   CreateDamageReportInput,
   CreateLoanInput,
+  UpdateLoanInput,
   ReturnLoanItemInput,
   AllowedDomain,
   UserRole,
@@ -98,6 +99,15 @@ export type LoanRow = {
   createdAt: string;
   items: LoanItemRow[];
   status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
+};
+
+export type LoanForAssetRow = {
+  id: string;
+  borrowerName: string;
+  loanedAt: string;
+  startedAt: string | null;
+  expectedReturnAt: string | null;
+  status: 'planned' | 'active';
 };
 
 export type LoanAvailabilityAsset = {
@@ -418,6 +428,11 @@ export const apiClient = {
     get: (id: string) => api<{ loan: LoanRow }>(`/api/loans/${id}`),
     create: (input: CreateLoanInput) =>
       api<{ id: string }>('/api/loans', { method: 'POST', body: input }),
+    update: (id: string, input: UpdateLoanInput) =>
+      api<{ ok: true }>(`/api/loans/${id}`, { method: 'PATCH', body: input }),
+    remove: (id: string) => api<{ ok: true }>(`/api/loans/${id}`, { method: 'DELETE' }),
+    forAsset: (code: string) =>
+      api<{ items: LoanForAssetRow[] }>(`/api/loans/for-asset/${encodeURIComponent(code)}`),
     availability: (params: { from?: string; to?: string; q?: string } = {}) => {
       const qs = new URLSearchParams();
       if (params.q) qs.set('q', params.q);

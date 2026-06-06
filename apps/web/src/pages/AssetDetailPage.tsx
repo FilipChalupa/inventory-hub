@@ -56,12 +56,18 @@ export function AssetDetailPage() {
     queryFn: () => apiClient.users.list(),
     retry: false,
   });
+  const assetLoans = useQuery({
+    queryKey: ['asset-loans', code],
+    queryFn: () => apiClient.loans.forAsset(code),
+    enabled: !!code,
+  });
 
   const invalidateAll = () => {
     qc.invalidateQueries({ queryKey: ['asset', code] });
     qc.invalidateQueries({ queryKey: ['damages', code] });
     qc.invalidateQueries({ queryKey: ['events', code] });
     qc.invalidateQueries({ queryKey: ['external-ids', code] });
+    qc.invalidateQueries({ queryKey: ['asset-loans', code] });
     qc.invalidateQueries({ queryKey: ['assets'] });
   };
 
@@ -294,6 +300,38 @@ export function AssetDetailPage() {
         emphasis={isArchived}
         onChanged={invalidateAll}
       />
+
+      <Card>
+        <h2 className="font-semibold mb-2">Rezervace a výpůjčky</h2>
+        {assetLoans.data?.items.length === 0 && (
+          <p className="text-sm text-slate-500">Žádné aktivní ani plánované výpůjčky.</p>
+        )}
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+          {assetLoans.data?.items.map((loan) => (
+            <li key={loan.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <Link to={`/loans/${loan.id}`} className="hover:underline">
+                {loan.borrowerName}
+              </Link>
+              <span className="flex items-center gap-2">
+                <span className="text-xs text-slate-500">
+                  {formatDate(loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt)}
+                  {' – '}
+                  {loan.expectedReturnAt ? formatDate(loan.expectedReturnAt) : 'otevřeno'}
+                </span>
+                <span
+                  className={
+                    loan.status === 'planned'
+                      ? 'text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-800'
+                      : 'text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800'
+                  }
+                >
+                  {loan.status === 'planned' ? 'Naplánováno' : 'Vypůjčeno'}
+                </span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </Card>
 
       <Card>
         <h2 className="font-semibold mb-2">Poškození</h2>

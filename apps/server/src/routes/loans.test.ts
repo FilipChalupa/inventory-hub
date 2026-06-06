@@ -393,6 +393,129 @@ describe('loans API', () => {
     });
   });
 
+  describe('edit & cancel', () => {
+    const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
+
+    async function jsonReq(method: string, path: string, body?: unknown) {
+      return server.authRequest(path, {
+        cookie,
+        method,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body ?? {}),
+      });
+    }
+
+    it('cancels a planned loan (DELETE) and frees the reservation', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: inDays(3),
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const del = await jsonReq('DELETE', `/api/loans/${loanId}`);
+      expect(del.status).toBe(200);
+
+      // Loan gone, asset still in stock and bookable again immediately.
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      expect(detail.status).toBe(404);
+      const reuse = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Nový',
+        assetCodes: [a],
+      });
+      expect(reuse.status).toBe(201);
+    });
+
+    it('refuses to delete a started loan', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Aktivní',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const del = await jsonReq('DELETE', `/api/loans/${loanId}`);
+      expect(del.status).toBe(409);
+    });
+
+    it('edits borrower and purpose (PATCH)', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Před',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const patch = await jsonReq('PATCH', `/api/loans/${loanId}`, {
+        borrowerName: 'Po',
+        purpose: 'Konference',
+      });
+      expect(patch.status).toBe(200);
+
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      const body = (await detail.json()) as { loan: { borrowerName: string; purpose: string } };
+      expect(body.loan.borrowerName).toBe('Po');
+      expect(body.loan.purpose).toBe('Konference');
+    });
+
+    it('rejects changing the start of a started loan', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Aktivní',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const patch = await jsonReq('PATCH', `/api/loans/${loanId}`, { loanedAt: inDays(2) });
+      expect(patch.status).toBe(409);
+    });
+
+    it('rejects an edit whose new window collides with another loan', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      // Reservation 1: days 2–4.
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'R1',
+        loanedAt: inDays(2),
+        expectedReturnAt: inDays(4),
+        assetCodes: [a],
+      });
+      // Reservation 2: days 6–8 (planned), which we'll try to move onto R1.
+      const r2 = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'R2',
+        loanedAt: inDays(6),
+        expectedReturnAt: inDays(8),
+        assetCodes: [a],
+      });
+      const { id: r2Id } = (await r2.json()) as { id: string };
+
+      const patch = await jsonReq('PATCH', `/api/loans/${r2Id}`, {
+        loanedAt: inDays(3),
+        expectedReturnAt: inDays(5),
+      });
+      expect(patch.status).toBe(409);
+    });
+
+    it('for-asset lists active and planned commitments', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Aktivní',
+        expectedReturnAt: inDays(5),
+        assetCodes: [a],
+      });
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: inDays(10),
+        expectedReturnAt: inDays(12),
+        assetCodes: [a],
+      });
+
+      const res = await server.authRequest(`/api/loans/for-asset/${a}`, { cookie });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as { items: { borrowerName: string; status: string }[] };
+      expect(body.items).toHaveLength(2);
+      expect(body.items.map((i) => i.status).sort()).toEqual(['active', 'planned']);
+    });
+  });
+
   describe('return flow', () => {
     it('returning ok puts the asset back to in_stock', async () => {
       const a = await makeAsset(server, cookie, 'A');

@@ -1,9 +1,10 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createLoanInput,
+  updateLoanInput,
   returnLoanItemInput,
   deriveLoanStatus,
   loanWindowsOverlap,
@@ -147,6 +148,34 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ items });
   })
+  // Open commitments (active + planned) for one asset, ordered by start —
+  // the availability timeline shown on the asset detail page.
+  .get('/for-asset/:code', (c) => {
+    const db = c.get('db');
+    const code = c.req.param('code').toUpperCase();
+    const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+
+    const rows = db
+      .select({
+        id: loans.id,
+        borrowerName: loans.borrowerName,
+        loanedAt: loans.loanedAt,
+        startedAt: loans.startedAt,
+        expectedReturnAt: loans.expectedReturnAt,
+      })
+      .from(loanItems)
+      .innerJoin(loans, eq(loanItems.loanId, loans.id))
+      .where(and(eq(loanItems.assetId, asset.id), isNull(loanItems.returnedAt)))
+      .orderBy(asc(loans.loanedAt))
+      .all();
+
+    const items = rows.map((r) => ({
+      ...r,
+      status: r.startedAt === null ? ('planned' as const) : ('active' as const),
+    }));
+    return c.json({ items });
+  })
   .get('/:id', (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
@@ -177,6 +206,119 @@ export const loanRoutes = new Hono<AppContext>()
         status: deriveLoanStatus({ startedAt: loan.startedAt, items }),
       },
     });
+  })
+  .patch('/:id', zValidator('json', updateLoanInput), (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const input = c.req.valid('json');
+    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+
+    const planned = loan.startedAt === null;
+    if (input.loanedAt !== undefined && !planned) {
+      return c.json({ error: { message: 'U zahájené výpůjčky nelze měnit začátek' } }, 409);
+    }
+
+    // Effective window after the patch — used for re-validating overlap.
+    const newStart = input.loanedAt ?? loan.loanedAt;
+    const newEnd =
+      input.expectedReturnAt !== undefined ? input.expectedReturnAt : loan.expectedReturnAt;
+    if (newEnd && newEnd.getTime() < newStart.getTime()) {
+      return c.json({ error: { message: 'Návrat nemůže být dříve než začátek výpůjčky' } }, 400);
+    }
+
+    const windowChanged =
+      newStart.getTime() !== loan.loanedAt.getTime() ||
+      (newEnd?.getTime() ?? null) !== (loan.expectedReturnAt?.getTime() ?? null);
+
+    if (windowChanged) {
+      // Re-check overlap against OTHER loans on this loan's assets.
+      const myAssetIds = db
+        .select({ assetId: loanItems.assetId })
+        .from(loanItems)
+        .where(eq(loanItems.loanId, id))
+        .all()
+        .map((r) => r.assetId);
+      if (myAssetIds.length) {
+        const others = db
+          .select({
+            code: assets.code,
+            loanedAt: loans.loanedAt,
+            expectedReturnAt: loans.expectedReturnAt,
+          })
+          .from(loanItems)
+          .innerJoin(assets, eq(loanItems.assetId, assets.id))
+          .innerJoin(loans, eq(loanItems.loanId, loans.id))
+          .where(
+            and(
+              inArray(loanItems.assetId, myAssetIds),
+              isNull(loanItems.returnedAt),
+              ne(loanItems.loanId, id),
+            ),
+          )
+          .all();
+        const conflicts = [
+          ...new Set(
+            others
+              .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
+              .map((e) => e.code),
+          ),
+        ];
+        if (conflicts.length) {
+          return c.json(
+            {
+              error: {
+                message: `Termín koliduje s jinou výpůjčkou u: ${conflicts.join(', ')}`,
+              },
+            },
+            409,
+          );
+        }
+      }
+    }
+
+    const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (input.borrowerName !== undefined) patch.borrowerName = input.borrowerName;
+    if (input.borrowerContactId !== undefined) patch.borrowerContactId = input.borrowerContactId;
+    if (input.borrowerContact !== undefined) patch.borrowerContact = input.borrowerContact;
+    if (input.purpose !== undefined) patch.purpose = input.purpose;
+    if (input.loanedAt !== undefined) patch.loanedAt = input.loanedAt;
+    if (input.expectedReturnAt !== undefined) patch.expectedReturnAt = input.expectedReturnAt;
+
+    db.update(loans).set(patch).where(eq(loans.id, id)).run();
+    return c.json({ ok: true });
+  })
+  .delete('/:id', (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+    if (loan.startedAt !== null) {
+      return c.json(
+        { error: { message: 'Zahájenou výpůjčku nelze smazat — vrať položky.' } },
+        409,
+      );
+    }
+
+    const user = c.get('user')!;
+    const items = db.select().from(loanItems).where(eq(loanItems.loanId, id)).all();
+    db.transaction((tx) => {
+      // Log the cancellation on each reserved asset before the items are
+      // removed by the cascade delete.
+      for (const item of items) {
+        tx.insert(assetEvents)
+          .values({
+            assetId: item.assetId,
+            actorUserId: user.id,
+            type: 'loan_cancelled',
+            payload: { loanId: id, borrower: loan.borrowerName },
+          })
+          .run();
+      }
+      tx.delete(loans).where(eq(loans.id, id)).run();
+    });
+
+    return c.json({ ok: true });
   })
   .post('/', zValidator('json', createLoanInput), (c) => {
     const db = c.get('db');
@@ -225,48 +367,40 @@ export const loanRoutes = new Hono<AppContext>()
       );
     }
 
-    // An asset may not be committed to two loans whose time windows
-    // overlap. Each not-yet-returned loan item reserves its asset for
-    // [loanedAt, expectedReturnAt) — open-ended when no return date is set.
-    // Non-overlapping (e.g. back-to-back) reservations are allowed.
     const newStart = startAt;
     const newEnd = input.expectedReturnAt ?? null;
     const targetIds = targets.map((t) => t.id);
-    const existing = db
-      .select({
-        code: assets.code,
-        loanedAt: loans.loanedAt,
-        expectedReturnAt: loans.expectedReturnAt,
-      })
-      .from(loanItems)
-      .innerJoin(assets, eq(loanItems.assetId, assets.id))
-      .innerJoin(loans, eq(loanItems.loanId, loans.id))
-      .where(and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt)))
-      .all();
-    const conflictCodes = [
-      ...new Set(
-        existing
-          .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
-          .map((e) => e.code),
-      ),
-    ];
-    if (conflictCodes.length) {
-      return c.json(
-        {
-          error: {
-            message: `Asset(y) jsou v daném termínu už ve výpůjčce nebo rezervaci: ${conflictCodes.join(
-              ', ',
-            )}`,
-          },
-        },
-        409,
-      );
-    }
-
     const user = c.get('user')!;
 
     const loanId = crypto.randomUUID();
+    // The overlap check and the inserts run in one transaction so two
+    // concurrent requests can't both pass the check and double-book.
+    let conflictCodes: string[] = [];
     db.transaction((tx) => {
+      // An asset may not be committed to two loans whose time windows
+      // overlap. Each not-yet-returned loan item reserves its asset for
+      // [loanedAt, expectedReturnAt) — open-ended when no return date is
+      // set. Non-overlapping (e.g. back-to-back) reservations are allowed.
+      const existing = tx
+        .select({
+          code: assets.code,
+          loanedAt: loans.loanedAt,
+          expectedReturnAt: loans.expectedReturnAt,
+        })
+        .from(loanItems)
+        .innerJoin(assets, eq(loanItems.assetId, assets.id))
+        .innerJoin(loans, eq(loanItems.loanId, loans.id))
+        .where(and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt)))
+        .all();
+      conflictCodes = [
+        ...new Set(
+          existing
+            .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
+            .map((e) => e.code),
+        ),
+      ];
+      if (conflictCodes.length) return; // abort: nothing inserted, handled below
+
       tx.insert(loans)
         .values({
           id: loanId,
@@ -311,6 +445,19 @@ export const loanRoutes = new Hono<AppContext>()
         }
       }
     });
+
+    if (conflictCodes.length) {
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) jsou v daném termínu už ve výpůjčce nebo rezervaci: ${conflictCodes.join(
+              ', ',
+            )}`,
+          },
+        },
+        409,
+      );
+    }
 
     return c.json({ id: loanId }, 201);
   })

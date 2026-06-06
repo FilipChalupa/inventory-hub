@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { apiClient } from '../lib/api.js';
+import { apiClient, type LoanRow } from '../lib/api.js';
 import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
 import clsx from 'clsx';
 
@@ -57,6 +57,13 @@ export function LoansPage() {
       return true;
     });
   }, [list.data, status, borrower, from, to, now]);
+
+  // Planned loans get their own "upcoming" section, sorted by start date.
+  const upcoming = filtered
+    .filter((l) => l.status === 'planned')
+    .slice()
+    .sort((a, b) => new Date(a.loanedAt).getTime() - new Date(b.loanedAt).getTime());
+  const others = filtered.filter((l) => l.status !== 'planned');
 
   return (
     <section className="space-y-4">
@@ -132,46 +139,62 @@ export function LoansPage() {
         <p className="text-sm text-slate-500">Žádné výpůjčky neodpovídají filtru.</p>
       )}
 
-      <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
-        {filtered.map((loan) => {
-          const overdue =
-            loan.status !== 'fully_returned' &&
-            loan.status !== 'planned' &&
-            loan.expectedReturnAt &&
-            new Date(loan.expectedReturnAt) < now;
-          return (
-            <li key={loan.id} className="hover:bg-slate-50 dark:hover:bg-slate-700">
-              <Link to={`/loans/${loan.id}`} className="flex items-center justify-between p-3 gap-4">
-                <div>
-                  <div className="font-medium">{loan.borrowerName}</div>
-                  <div className="text-xs text-slate-500">
-                    {loan.items.length} ks ·{' '}
-                    {loan.status === 'planned'
-                      ? `začátek ${formatDate(loan.loanedAt)}`
-                      : `zapůjčeno ${formatDate(loan.startedAt ?? loan.loanedAt)}`}
-                    {loan.expectedReturnAt && ` · vrátit do ${formatDate(loan.expectedReturnAt)}`}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {overdue && (
-                    <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">
-                      overdue
-                    </span>
-                  )}
-                  <span
-                    className={clsx(
-                      'text-xs px-2 py-0.5 rounded font-medium',
-                      statusClasses[loan.status],
-                    )}
-                  >
-                    {statusLabels[loan.status]}
-                  </span>
-                </div>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
+      {upcoming.length > 0 && (
+        <div className="space-y-1">
+          <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+            Nadcházející rezervace
+          </h2>
+          <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+            {upcoming.map((loan) => (
+              <LoanRowItem key={loan.id} loan={loan} now={now} />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {others.length > 0 && (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+          {others.map((loan) => (
+            <LoanRowItem key={loan.id} loan={loan} now={now} />
+          ))}
+        </ul>
+      )}
     </section>
+  );
+}
+
+function LoanRowItem({ loan, now }: { loan: LoanRow; now: Date }) {
+  const overdue =
+    loan.status !== 'fully_returned' &&
+    loan.status !== 'planned' &&
+    loan.expectedReturnAt &&
+    new Date(loan.expectedReturnAt) < now;
+  return (
+    <li className="hover:bg-slate-50 dark:hover:bg-slate-700">
+      <Link to={`/loans/${loan.id}`} className="flex items-center justify-between p-3 gap-4">
+        <div>
+          <div className="font-medium">{loan.borrowerName}</div>
+          <div className="text-xs text-slate-500">
+            {loan.items.length} ks ·{' '}
+            {loan.status === 'planned'
+              ? `začátek ${formatDate(loan.loanedAt)}`
+              : `zapůjčeno ${formatDate(loan.startedAt ?? loan.loanedAt)}`}
+            {loan.expectedReturnAt && ` · vrátit do ${formatDate(loan.expectedReturnAt)}`}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          {overdue && (
+            <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">
+              overdue
+            </span>
+          )}
+          <span
+            className={clsx('text-xs px-2 py-0.5 rounded font-medium', statusClasses[loan.status])}
+          >
+            {statusLabels[loan.status]}
+          </span>
+        </div>
+      </Link>
+    </li>
   );
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { loans } from '../db/schema.js';
-import { runOverdueCheck } from './overdue.js';
+import { runOverdueCheck, runStartReminders } from './overdue.js';
 import { setupTestServer, type TestServer } from './test-server.js';
 
 async function jsonPost(server: TestServer, cookie: string, path: string, body: unknown) {
@@ -130,5 +130,69 @@ describe('runOverdueCheck', () => {
       method: 'POST',
     });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('runStartReminders', () => {
+  let server: TestServer;
+  let cookie: string;
+
+  beforeEach(() => {
+    server = setupTestServer();
+    cookie = server.loginAs(server.createUser({ role: 'admin', email: 'admin@example.com' }));
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  async function setupPlannedLoan(startsInHours: number) {
+    const created = await jsonPost(server, cookie, '/api/assets', {
+      name: 'Planned',
+      typeId: server.laptopTypeId,
+    });
+    const { code } = (await created.json()) as { code: string };
+    const start = new Date(Date.now() + startsInHours * 60 * 60 * 1000);
+    const loan = await jsonPost(server, cookie, '/api/loans', {
+      borrowerName: 'Eva Plánovaná',
+      borrowerContact: 'eva@example.com',
+      loanedAt: start.toISOString(),
+      assetCodes: [code],
+    });
+    return ((await loan.json()) as { id: string }).id;
+  }
+
+  it('reminds borrower and admin for loans starting within 24h, once', async () => {
+    const loanId = await setupPlannedLoan(12);
+    const send = async (e: { to: string; subject: string; text: string }) => {
+      server.sentEmails.push(e);
+    };
+
+    const result = await runStartReminders(server.db, { send }, { publicAppUrl: 'http://localhost' });
+    expect(result.found).toBe(1);
+    expect(result.notifiedBorrowers).toBe(1);
+    expect(result.notifiedAdmins).toBe(1);
+    expect(server.sentEmails.find((m) => m.to === 'eva@example.com')).toBeDefined();
+
+    const row = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+    expect(row.startReminderSentAt).not.toBeNull();
+
+    // Idempotent — a second run sends nothing.
+    const second = await runStartReminders(server.db, { send }, { publicAppUrl: 'http://localhost' });
+    expect(second.found).toBe(0);
+  });
+
+  it('does not remind loans starting more than 24h away', async () => {
+    await setupPlannedLoan(48);
+    const result = await runStartReminders(
+      server.db,
+      {
+        send: async (e) => {
+          server.sentEmails.push(e);
+        },
+      },
+      { publicAppUrl: 'http://localhost' },
+    );
+    expect(result.found).toBe(0);
   });
 });

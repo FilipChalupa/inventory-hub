@@ -8,7 +8,7 @@ import { createDb } from './db/client.js';
 import { loadEnv } from './env.js';
 import { createEmailSender } from './lib/email.js';
 import { activateDueLoans } from './lib/loanActivation.js';
-import { runOverdueCheck } from './lib/overdue.js';
+import { runOverdueCheck, runStartReminders } from './lib/overdue.js';
 
 const env = loadEnv();
 const { db, sqlite } = createDb(env.DATABASE_URL);
@@ -51,16 +51,16 @@ const server = serve(
 // then every 6 hours. Idempotent — only sends per loan once via the
 // `overdue_notified_at` column.
 const OVERDUE_INTERVAL_MS = 6 * 60 * 60 * 1000;
-const initialTimer = setTimeout(() => {
+const runLoanNotifiers = () => {
   void runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
     console.error('overdue check failed:', err),
   );
-}, 30_000);
-const overdueTimer = setInterval(() => {
-  void runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
-    console.error('overdue check failed:', err),
+  void runStartReminders(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
+    console.error('start reminder failed:', err),
   );
-}, OVERDUE_INTERVAL_MS);
+};
+const initialTimer = setTimeout(runLoanNotifiers, 30_000);
+const overdueTimer = setInterval(runLoanNotifiers, OVERDUE_INTERVAL_MS);
 
 // Planned-loan activator: flips planned loans to active once their start
 // moment passes. Runs every few minutes so the delay stays small; the

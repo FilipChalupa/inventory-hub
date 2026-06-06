@@ -1,0 +1,1 @@
+ALTER TABLE `loans` ADD `start_reminder_sent_at` integer;

@@ -57,6 +57,13 @@
       "when": 1780755213040,
       "tag": "0007_wooden_siren",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1780759122566,
+      "tag": "0008_aberrant_roulette",
+      "breakpoints": true
     }
   ]
 }

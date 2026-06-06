@@ -36,16 +36,76 @@ test.describe('loans', () => {
     await page.goto(`/loans/${loanId}`);
     await expect(page.getByRole('heading', { name: 'E2E Borrower' })).toBeVisible();
 
-    // Return the first item OK.
-    await page.getByRole('button', { name: 'Vrátit' }).first().click();
+    // Return the first item OK. `exact` so we don't hit "Vrátit vše".
+    await page.getByRole('button', { name: 'Vrátit', exact: true }).first().click();
     await page.getByRole('button', { name: /Potvrdit vrácení/ }).click();
     await expect(page.getByText(/vráceno /)).toBeVisible();
 
     // Return the second item as damaged.
-    await page.getByRole('button', { name: 'Vrátit' }).first().click();
+    await page.getByRole('button', { name: 'Vrátit', exact: true }).first().click();
     await page.locator('select').selectOption('damaged');
     await page.getByRole('button', { name: /Potvrdit vrácení/ }).click();
     await expect(page.getByText(/poškozeno/i)).toBeVisible();
+  });
+
+  test('plan a future loan, then start it from the detail page', async ({ page }) => {
+    await createAsset(page, 'Planned Item', 'LAP-93001');
+    const start = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const createRes = await page.request.post('/api/loans', {
+      headers: { 'content-type': 'application/json' },
+      data: JSON.stringify({
+        borrowerName: 'Planned Borrower',
+        loanedAt: start,
+        assetCodes: ['LAP-93001'],
+      }),
+    });
+    expect(createRes.ok()).toBeTruthy();
+    const { id: loanId } = (await createRes.json()) as { id: string };
+
+    await page.goto(`/loans/${loanId}`);
+    await expect(page.getByText('Naplánováno')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Zahájit výpůjčku' }).click();
+    await expect(page.getByRole('button', { name: 'Zahájit výpůjčku' })).toBeHidden();
+    await expect(page.getByText('Naplánováno')).toBeHidden();
+  });
+
+  test('cancel a planned reservation from the detail page', async ({ page }) => {
+    await createAsset(page, 'Cancelable Item', 'LAP-93101');
+    const start = new Date(Date.now() + 3 * 86_400_000).toISOString();
+    const createRes = await page.request.post('/api/loans', {
+      headers: { 'content-type': 'application/json' },
+      data: JSON.stringify({
+        borrowerName: 'Cancel Borrower',
+        loanedAt: start,
+        assetCodes: ['LAP-93101'],
+      }),
+    });
+    const { id: loanId } = (await createRes.json()) as { id: string };
+
+    await page.goto(`/loans/${loanId}`);
+    page.on('dialog', (dialog) => dialog.accept());
+    await page.getByRole('button', { name: 'Zrušit rezervaci' }).click();
+    await expect(page).toHaveURL(/\/loans$/);
+    await expect(page.locator('li').filter({ hasText: 'Cancel Borrower' })).toHaveCount(0);
+  });
+
+  test('return all open items at once', async ({ page }) => {
+    await createAsset(page, 'Bulk A', 'LAP-93201');
+    await createAsset(page, 'Bulk B', 'LAP-93202');
+    const createRes = await page.request.post('/api/loans', {
+      headers: { 'content-type': 'application/json' },
+      data: JSON.stringify({
+        borrowerName: 'Bulk Borrower',
+        assetCodes: ['LAP-93201', 'LAP-93202'],
+      }),
+    });
+    const { id: loanId } = (await createRes.json()) as { id: string };
+
+    await page.goto(`/loans/${loanId}`);
+    await page.getByRole('button', { name: 'Vrátit vše (2)', exact: true }).click();
+    await page.getByRole('button', { name: 'Vrátit vše (2) jako v pořádku', exact: true }).click();
+    await expect(page.getByText(/vráceno /).first()).toBeVisible();
   });
 
   test('overdue badge highlights past-due loans', async ({ page }) => {

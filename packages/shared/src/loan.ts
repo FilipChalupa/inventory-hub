@@ -64,6 +64,22 @@ export function loanWindowsOverlap(
   return aStartsBeforeBEnds && bStartsBeforeAEnds;
 }
 
+export const updateLoanInput = z
+  .object({
+    borrowerName: z.string().min(1).max(200).optional(),
+    borrowerContactId: z.string().uuid().nullable().optional(),
+    borrowerContact: z.string().max(200).nullable().optional(),
+    purpose: z.string().max(500).nullable().optional(),
+    // Only changeable while the loan is still planned.
+    loanedAt: z.coerce.date().optional(),
+    expectedReturnAt: z.coerce.date().nullable().optional(),
+  })
+  .refine(
+    (v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt,
+    { message: 'Návrat nemůže být dříve než začátek výpůjčky', path: ['expectedReturnAt'] },
+  );
+export type UpdateLoanInput = z.infer<typeof updateLoanInput>;
+
 export const returnLoanItemInput = z.object({
   loanItemId: z.string().uuid(),
   returnCondition: z.enum(loanItemConditions),

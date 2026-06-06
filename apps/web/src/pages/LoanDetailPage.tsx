@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { apiClient, type LoanItemRow } from '../lib/api.js';
+import { apiClient, type LoanItemRow, type LoanRow } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea, formatDate } from '../components/ui.js';
 
 export function LoanDetailPage() {
@@ -12,6 +12,11 @@ export function LoanDetailPage() {
     queryKey: ['loan', id],
     queryFn: () => apiClient.loans.get(id),
     enabled: !!id,
+  });
+  const [editing, setEditing] = useState(false);
+  const cancel = useMutation({
+    mutationFn: () => apiClient.loans.remove(id),
+    onSuccess: () => navigate('/loans'),
   });
 
   if (loan.isLoading) return <p className="text-slate-500">Načítám…</p>;
@@ -36,13 +41,31 @@ export function LoanDetailPage() {
               </span>
             )}
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => navigate(`/loans/new?from=${l.id}`)}
-          >
-            Založit podobnou
-          </Button>
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
+              Upravit
+            </Button>
+            <Button variant="secondary" onClick={() => navigate(`/loans/new?from=${l.id}`)}>
+              Založit podobnou
+            </Button>
+            {planned && (
+              <Button
+                variant="danger"
+                disabled={cancel.isPending}
+                onClick={() => {
+                  if (window.confirm('Zrušit tuto rezervaci? Akci nelze vrátit.')) {
+                    cancel.mutate();
+                  }
+                }}
+              >
+                {cancel.isPending ? 'Ruším…' : 'Zrušit rezervaci'}
+              </Button>
+            )}
+          </div>
         </div>
+        {cancel.error && (
+          <p className="text-sm text-red-600 mt-1">{(cancel.error as Error).message}</p>
+        )}
         {l.borrowerContact && <p className="text-sm text-slate-600">{l.borrowerContact}</p>}
         {l.purpose && <p className="text-sm mt-2">Účel: {l.purpose}</p>}
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm mt-2">
@@ -51,6 +74,17 @@ export function LoanDetailPage() {
           <dt className="text-slate-500">Vrátit do</dt>
           <dd>{l.expectedReturnAt ? formatDate(l.expectedReturnAt) : '—'}</dd>
         </dl>
+        {editing && (
+          <EditLoanForm
+            loan={l}
+            planned={planned}
+            onSaved={() => {
+              setEditing(false);
+              qc.invalidateQueries({ queryKey: ['loan', id] });
+            }}
+            onCancel={() => setEditing(false)}
+          />
+        )}
         {planned && (
           <StartLoanBar
             loanId={l.id}
@@ -134,6 +168,77 @@ function ReturnAllButton({
         </p>
       )}
     </div>
+  );
+}
+
+function toDateInput(iso: string | null): string {
+  return iso ? new Date(iso).toISOString().slice(0, 10) : '';
+}
+
+function EditLoanForm({
+  loan,
+  planned,
+  onSaved,
+  onCancel,
+}: {
+  loan: LoanRow;
+  planned: boolean;
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const [borrowerName, setBorrowerName] = useState(loan.borrowerName);
+  const [borrowerContact, setBorrowerContact] = useState(loan.borrowerContact ?? '');
+  const [purpose, setPurpose] = useState(loan.purpose ?? '');
+  const [loanedAt, setLoanedAt] = useState(toDateInput(loan.loanedAt));
+  const [expectedReturnAt, setExpectedReturnAt] = useState(toDateInput(loan.expectedReturnAt));
+
+  const save = useMutation({
+    mutationFn: () =>
+      apiClient.loans.update(loan.id, {
+        borrowerName,
+        borrowerContact: borrowerContact || null,
+        purpose: purpose || null,
+        ...(planned ? { loanedAt: loanedAt ? new Date(loanedAt) : undefined } : {}),
+        expectedReturnAt: expectedReturnAt ? new Date(expectedReturnAt) : null,
+      }),
+    onSuccess: onSaved,
+  });
+
+  return (
+    <Card className="mt-3">
+      <div className="space-y-3">
+        <Field label="Jméno vypůjčujícího">
+          <Input value={borrowerName} onChange={(e) => setBorrowerName(e.target.value)} />
+        </Field>
+        <Field label="Kontakt (e-mail / telefon)">
+          <Input value={borrowerContact} onChange={(e) => setBorrowerContact(e.target.value)} />
+        </Field>
+        <Field label="Účel">
+          <Textarea rows={2} value={purpose} onChange={(e) => setPurpose(e.target.value)} />
+        </Field>
+        {planned && (
+          <Field label="Začátek výpůjčky">
+            <Input type="date" value={loanedAt} onChange={(e) => setLoanedAt(e.target.value)} />
+          </Field>
+        )}
+        <Field label="Vrátit do">
+          <Input
+            type="date"
+            value={expectedReturnAt}
+            onChange={(e) => setExpectedReturnAt(e.target.value)}
+          />
+        </Field>
+        <div className="flex gap-2">
+          <Button onClick={() => save.mutate()} disabled={save.isPending || !borrowerName.trim()}>
+            {save.isPending ? 'Ukládám…' : 'Uložit'}
+          </Button>
+          <Button variant="ghost" onClick={onCancel}>
+            Zrušit
+          </Button>
+        </div>
+        {save.error && <p className="text-sm text-red-600">{(save.error as Error).message}</p>}
+      </div>
+    </Card>
   );
 }
 

@@ -260,6 +260,9 @@ export const loans = sqliteTable(
     startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     expectedReturnAt: integer('expected_return_at', { mode: 'timestamp_ms' }),
     overdueNotifiedAt: integer('overdue_notified_at', { mode: 'timestamp_ms' }),
+    // Set once the "your reservation starts soon" reminder has been sent,
+    // so the reminder runner stays idempotent.
+    startReminderSentAt: integer('start_reminder_sent_at', { mode: 'timestamp_ms' }),
     createdByUserId: text('created_by_user_id')
       .notNull()
       .references(() => users.id),
