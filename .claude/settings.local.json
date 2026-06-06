@@ -87,7 +87,9 @@
       "Bash(npx prettier *)",
       "Bash(grep -n \"MCP\\\\|PUBLIC_APP_URL\\\\|| \\\\`\" docs/SELF_HOSTING.md)",
       "Bash(sed -n '1,60p' apps/server/src/middleware/auth.js)",
-      "Bash(sed -n '1,70p' apps/server/src/middleware/auth.ts)"
+      "Bash(sed -n '1,70p' apps/server/src/middleware/auth.ts)",
+      "Bash(node -e \"const s=require\\('swagger-ui-dist'\\); console.log\\(typeof s.getAbsoluteFSPath, s.getAbsoluteFSPath && s.getAbsoluteFSPath\\(\\)\\)\")",
+      "Bash(grep -E \"swagger-ui\\(\\\\.css|-bundle\\\\.js|-standalone-preset\\\\.js\\)$\")"
     ],
     "additionalDirectories": [
       "/tmp"

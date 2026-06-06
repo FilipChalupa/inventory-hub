@@ -1,10 +1,30 @@
 /**
- * Hand-authored OpenAPI 3.1 description of the integration-facing REST API.
+ * OpenAPI 3 description of the integration-facing REST API.
  *
- * It is curated (the main resources integrators use), not auto-derived from
- * every route — keep it in sync when those endpoints change. Served at
- * `/openapi.json`; `/docs` renders it with Scalar.
+ * Request/response schemas are derived from the shared Zod schemas via
+ * `zod-to-json-schema`, so they can't drift from validation. The path list
+ * is curated (the main resources integrators use). Served at `/openapi.json`;
+ * `/docs` renders it with a self-hosted Swagger UI (no external CDN).
  */
+import swaggerUiDist from 'swagger-ui-dist';
+import { zodToJsonSchema } from 'zod-to-json-schema';
+import type { ZodTypeAny } from 'zod';
+import {
+  assetSchema,
+  createAssetInput,
+  loanSchema,
+  createLoanInput,
+  updateLoanInput,
+  addLoanItemsInput,
+  returnLoanItemInput,
+  createApiKeyInput,
+} from '@inventory-hub/shared';
+
+/** Directory of the bundled Swagger UI static assets. */
+export const SWAGGER_UI_DIR = swaggerUiDist.getAbsoluteFSPath();
+
+const j = (schema: ZodTypeAny) =>
+  zodToJsonSchema(schema, { target: 'openApi3', $refStrategy: 'none' });
 
 const bearer = [{ bearerAuth: [] }];
 
@@ -22,7 +42,7 @@ const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 
 export function openApiDocument() {
   return {
-    openapi: '3.1.0',
+    openapi: '3.0.3',
     info: {
       title: 'Inventory Hub API',
       version: '1.0.0',
@@ -46,94 +66,15 @@ export function openApiDocument() {
           type: 'object',
           properties: { error: { type: 'object', properties: { message: { type: 'string' } } } },
         },
-        Asset: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            code: { type: 'string' },
-            name: { type: 'string' },
-            status: {
-              type: 'string',
-              enum: ['in_stock', 'assigned', 'on_loan', 'in_repair', 'damaged', 'sold', 'lost', 'retired'],
-            },
-            typeId: { type: ['string', 'null'] },
-            locationId: { type: ['string', 'null'] },
-            archivedAt: { type: ['string', 'null'], format: 'date-time' },
-          },
-        },
-        CreateAsset: {
-          type: 'object',
-          required: ['name'],
-          properties: {
-            name: { type: 'string' },
-            code: { type: 'string', description: 'Optional; auto-generated from the type prefix if omitted.' },
-            typeId: { type: ['string', 'null'] },
-            locationId: { type: ['string', 'null'] },
-            notes: { type: ['string', 'null'] },
-          },
-        },
-        Loan: {
-          type: 'object',
-          properties: {
-            id: { type: 'string' },
-            borrowerName: { type: 'string' },
-            borrowerContact: { type: ['string', 'null'] },
-            purpose: { type: ['string', 'null'] },
-            loanedAt: { type: 'string', format: 'date-time' },
-            startedAt: { type: ['string', 'null'], format: 'date-time' },
-            expectedReturnAt: { type: ['string', 'null'], format: 'date-time' },
-            status: { type: 'string', enum: ['planned', 'open', 'partially_returned', 'fully_returned'] },
-            items: { type: 'array', items: { type: 'object' } },
-          },
-        },
-        CreateLoan: {
-          type: 'object',
-          required: ['borrowerName', 'assetCodes'],
-          properties: {
-            borrowerName: { type: 'string' },
-            borrowerContact: { type: ['string', 'null'] },
-            purpose: { type: ['string', 'null'] },
-            loanedAt: {
-              type: ['string', 'null'],
-              format: 'date-time',
-              description: 'Future value => planned loan (assets reserved until it starts).',
-            },
-            expectedReturnAt: { type: ['string', 'null'], format: 'date-time' },
-            assetCodes: { type: 'array', items: { type: 'string' }, minItems: 1 },
-          },
-        },
-        UpdateLoan: {
-          type: 'object',
-          properties: {
-            borrowerName: { type: 'string' },
-            borrowerContact: { type: ['string', 'null'] },
-            purpose: { type: ['string', 'null'] },
-            loanedAt: { type: 'string', format: 'date-time', description: 'Only for planned loans.' },
-            expectedReturnAt: { type: ['string', 'null'], format: 'date-time' },
-          },
-        },
-        AddLoanItems: {
-          type: 'object',
-          required: ['assetCodes'],
-          properties: { assetCodes: { type: 'array', items: { type: 'string' }, minItems: 1 } },
-        },
-        ReturnLoanItem: {
-          type: 'object',
-          required: ['returnCondition'],
-          properties: {
-            returnCondition: { type: 'string', enum: ['ok', 'damaged'] },
-            returnNotes: { type: ['string', 'null'] },
-            returnedAt: { type: 'string', format: 'date-time', description: 'Optional backdate; defaults to now.' },
-          },
-        },
-        CreateApiKey: {
-          type: 'object',
-          required: ['name'],
-          properties: {
-            name: { type: 'string' },
-            expiresAt: { type: ['string', 'null'], format: 'date-time' },
-          },
-        },
+        Asset: j(assetSchema),
+        CreateAsset: j(createAssetInput),
+        Loan: j(loanSchema),
+        CreateLoan: j(createLoanInput),
+        UpdateLoan: j(updateLoanInput),
+        AddLoanItems: j(addLoanItemsInput),
+        // The route omits loanItemId (it's in the URL path).
+        ReturnLoanItem: j(returnLoanItemInput.omit({ loanItemId: true })),
+        CreateApiKey: j(createApiKeyInput),
       },
     },
     paths: {
@@ -157,7 +98,12 @@ export function openApiDocument() {
         post: {
           summary: 'Create an asset',
           requestBody: jsonBody(ref('CreateAsset')),
-          responses: { 201: ok('Created', { type: 'object', properties: { code: { type: 'string' }, id: { type: 'string' } } }) },
+          responses: {
+            201: ok('Created', {
+              type: 'object',
+              properties: { code: { type: 'string' }, id: { type: 'string' } },
+            }),
+          },
         },
       },
       '/api/assets/{code}': {
@@ -222,7 +168,10 @@ export function openApiDocument() {
         get: {
           summary: 'Get a loan',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-          responses: { 200: ok('Loan', { type: 'object', properties: { loan: ref('Loan') } }), 404: ok('Not found', ref('Error')) },
+          responses: {
+            200: ok('Loan', { type: 'object', properties: { loan: ref('Loan') } }),
+            404: ok('Not found', ref('Error')),
+          },
         },
         patch: {
           summary: 'Edit a loan',
@@ -254,7 +203,13 @@ export function openApiDocument() {
         post: {
           summary: 'Return all open items as OK',
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
-          requestBody: { content: { 'application/json': { schema: { type: 'object', properties: { returnedAt: { type: 'string', format: 'date-time' } } } } } },
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: { type: 'object', properties: { returnedAt: { type: 'string', format: 'date-time' } } },
+              },
+            },
+          },
           responses: { 200: ok('Returned', { type: 'object', properties: { returned: { type: 'integer' } } }) },
         },
       },
@@ -295,7 +250,12 @@ export function openApiDocument() {
         post: {
           summary: 'Create an API key (admin) — token returned once',
           requestBody: jsonBody(ref('CreateApiKey')),
-          responses: { 201: ok('Created', { type: 'object', properties: { id: { type: 'string' }, token: { type: 'string' }, prefix: { type: 'string' } } }) },
+          responses: {
+            201: ok('Created', {
+              type: 'object',
+              properties: { id: { type: 'string' }, token: { type: 'string' }, prefix: { type: 'string' } },
+            }),
+          },
         },
       },
       '/api/api-keys/{id}': {
@@ -309,15 +269,33 @@ export function openApiDocument() {
   };
 }
 
+/** Self-hosted Swagger UI page (assets served from {@link SWAGGER_UI_DIR}). */
 export const DOCS_HTML = `<!doctype html>
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Inventory Hub API</title>
+    <link rel="stylesheet" href="/docs/swagger-ui.css" />
   </head>
   <body>
-    <script id="api-reference" data-url="/openapi.json"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"></script>
+    <div id="swagger-ui"></div>
+    <script src="/docs/swagger-ui-bundle.js"></script>
+    <script src="/docs/swagger-ui-standalone-preset.js"></script>
+    <script>
+      window.ui = SwaggerUIBundle({
+        url: '/openapi.json',
+        dom_id: '#swagger-ui',
+        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+        layout: 'StandaloneLayout',
+      });
+    </script>
   </body>
 </html>`;
+
+/** Content types for the Swagger UI static files we serve under /docs/. */
+export const SWAGGER_UI_FILES: Record<string, string> = {
+  'swagger-ui.css': 'text/css; charset=utf-8',
+  'swagger-ui-bundle.js': 'application/javascript; charset=utf-8',
+  'swagger-ui-standalone-preset.js': 'application/javascript; charset=utf-8',
+};

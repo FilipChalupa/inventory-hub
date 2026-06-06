@@ -28,7 +28,13 @@ import { apiKeyRoutes } from './routes/api-keys.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
 import { isMcpCsrfExempt, mountMcp } from './mcp/http.js';
-import { openApiDocument, DOCS_HTML } from './lib/openapi.js';
+import {
+  openApiDocument,
+  DOCS_HTML,
+  SWAGGER_UI_DIR,
+  SWAGGER_UI_FILES,
+} from './lib/openapi.js';
+import { join } from 'node:path';
 // TODO: Dočasné – odebrat import a registraci demoRoutes před finálním releasem.
 import { demoRoutes } from './routes/demo.js';
 
@@ -81,9 +87,21 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/health', healthRoutes);
   app.route('/auth', authRoutes);
 
-  // Public, machine-readable API description for integrators + a docs UI.
+  // Public, machine-readable API description for integrators + a self-hosted
+  // Swagger UI (no external CDN).
   app.get('/openapi.json', (c) => c.json(openApiDocument()));
   app.get('/docs', (c) => c.html(DOCS_HTML));
+  app.get('/docs/:file', (c) => {
+    const file = c.req.param('file');
+    const contentType = SWAGGER_UI_FILES[file];
+    if (!contentType) return c.notFound();
+    try {
+      const body = readFileSync(join(SWAGGER_UI_DIR, file), 'utf8');
+      return c.body(body, 200, { 'content-type': contentType, 'cache-control': 'public, max-age=86400' });
+    } catch {
+      return c.notFound();
+    }
+  });
 
   // All /api/* routes require an authenticated session. Org PUT additionally
   // requires admin role — handled inside the org router.

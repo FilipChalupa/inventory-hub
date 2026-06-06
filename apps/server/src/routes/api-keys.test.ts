@@ -91,15 +91,37 @@ describe('OpenAPI', () => {
   });
   afterEach(() => server.close());
 
-  it('serves a public spec and docs page', async () => {
+  it('serves a public spec with Zod-derived schemas', async () => {
     const spec = await server.authRequest('/openapi.json', {});
     expect(spec.status).toBe(200);
-    const body = (await spec.json()) as { openapi: string; paths: Record<string, unknown> };
+    const body = (await spec.json()) as {
+      openapi: string;
+      paths: Record<string, unknown>;
+      components: { schemas: Record<string, { properties?: Record<string, unknown> }> };
+    };
     expect(body.openapi).toMatch(/^3\./);
     expect(body.paths['/api/loans']).toBeTruthy();
+    // Derived from the shared Zod createLoanInput, not hand-written.
+    expect(body.components.schemas.CreateLoan.properties).toHaveProperty('assetCodes');
+    expect(body.components.schemas.CreateLoan.properties).toHaveProperty('borrowerName');
+  });
 
+  it('serves a self-hosted docs page and its assets (no CDN)', async () => {
     const docs = await server.authRequest('/docs', {});
     expect(docs.status).toBe(200);
     expect(docs.headers.get('content-type')).toMatch(/text\/html/);
+    const html = await docs.text();
+    expect(html).toContain('/docs/swagger-ui-bundle.js');
+    expect(html).not.toContain('cdn.jsdelivr');
+
+    const css = await server.authRequest('/docs/swagger-ui.css', {});
+    expect(css.status).toBe(200);
+    expect(css.headers.get('content-type')).toMatch(/text\/css/);
+
+    const bundle = await server.authRequest('/docs/swagger-ui-bundle.js', {});
+    expect(bundle.status).toBe(200);
+
+    const bad = await server.authRequest('/docs/../package.json', {});
+    expect(bad.status).not.toBe(200);
   });
 });
