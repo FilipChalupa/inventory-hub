@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
@@ -15,21 +15,22 @@ export function SettingsPage() {
     defaultValues: { name: '', codePrefix: '' },
   });
 
+  const [domains, setDomains] = useState<AllowedDomain[]>([]);
+
+  // Populate the form ONCE from the server. A later background refetch
+  // (e.g. on window focus) must not overwrite the admin's in-progress edits.
+  const initialized = useRef(false);
   useEffect(() => {
+    if (initialized.current) return;
     if (org.data?.initialized && org.data.settings) {
       reset({
         name: org.data.settings.name,
         codePrefix: org.data.settings.codePrefix ?? '',
       });
+      setDomains(org.data.settings.allowedDomains);
+      initialized.current = true;
     }
   }, [org.data, reset]);
-
-  const [domains, setDomains] = useState<AllowedDomain[]>([]);
-  useEffect(() => {
-    if (org.data?.initialized && org.data.settings) {
-      setDomains(org.data.settings.allowedDomains);
-    }
-  }, [org.data]);
 
   const save = useMutation({
     mutationFn: (values: SettingsForm) =>
@@ -86,6 +87,9 @@ export function SettingsPage() {
         </Card>
 
         {save.error && <p className="text-sm text-red-600">{(save.error as Error).message}</p>}
+        {save.isSuccess && !save.isPending && (
+          <p className="text-sm text-emerald-600">Nastavení uloženo.</p>
+        )}
 
         <Button type="submit" disabled={save.isPending}>
           {save.isPending ? 'Ukládám…' : 'Uložit nastavení'}
@@ -398,6 +402,13 @@ function AllowedDomainsEditor({
   const [domain, setDomain] = useState('');
   const [role, setRole] = useState<UserRole>('member');
 
+  const add = () => {
+    if (!domain) return;
+    if (value.some((d) => d.domain === domain)) return;
+    onChange([...value, { domain, defaultRole: role }]);
+    setDomain('');
+  };
+
   return (
     <div className="space-y-3">
       <ul className="divide-y rounded border">
@@ -425,6 +436,14 @@ function AllowedDomainsEditor({
             <Input
               value={domain}
               onChange={(e) => setDomain(e.target.value.toLowerCase())}
+              onKeyDown={(e) => {
+                // Enter here should add the domain, not submit the whole
+                // settings form (this editor lives inside that form).
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  add();
+                }
+              }}
               placeholder="acme.com"
               className="font-mono"
             />
@@ -440,16 +459,7 @@ function AllowedDomainsEditor({
             </Select>
           </Field>
         </div>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            if (!domain) return;
-            if (value.some((d) => d.domain === domain)) return;
-            onChange([...value, { domain, defaultRole: role }]);
-            setDomain('');
-          }}
-        >
+        <Button type="button" variant="secondary" onClick={add}>
           Přidat
         </Button>
       </div>
