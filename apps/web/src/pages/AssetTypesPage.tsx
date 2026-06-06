@@ -51,7 +51,7 @@ export function AssetTypesPage() {
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
           <div className="flex-1 min-w-[200px]">
-            <Field label="Název">
+            <Field label="Název" error={formState.errors.name?.message}>
               <Input {...register('name', { required: 'Povinné' })} placeholder="Notebook" />
             </Field>
           </div>

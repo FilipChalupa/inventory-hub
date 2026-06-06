@@ -28,7 +28,7 @@ export function LocationsPage() {
     queryFn: () => apiClient.locations.list(),
   });
 
-  const { register, handleSubmit, reset } = useForm<{ name: string; parentId: string }>({
+  const { register, handleSubmit, reset, formState } = useForm<{ name: string; parentId: string }>({
     defaultValues: { name: '', parentId: '' },
   });
 
@@ -98,8 +98,11 @@ export function LocationsPage() {
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
           <div className="flex-1 min-w-[200px]">
-            <Field label="Název">
-              <Input {...register('name', { required: true })} placeholder="Kancelář 4.NP" />
+            <Field label="Název" error={formState.errors.name?.message}>
+              <Input
+                {...register('name', { required: 'Název je povinný' })}
+                placeholder="Kancelář 4.NP"
+              />
             </Field>
           </div>
           <div className="flex-1 min-w-[200px]">

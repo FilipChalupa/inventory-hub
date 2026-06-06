@@ -712,15 +712,27 @@ function EditAssetForm({
   }) => Promise<void>;
   onCancel: () => void;
 }) {
-  const { register, handleSubmit } = useForm({ defaultValues: initial });
+  const { register, handleSubmit, formState } = useForm({ defaultValues: initial });
   const [customFieldValues, setCustomFieldValues] = useState(initial.customFields);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
   return (
     <Card>
       <form
         className="space-y-3"
-        onSubmit={handleSubmit((v) => onSubmit({ ...v, customFields: customFieldValues }))}
+        onSubmit={handleSubmit(async (v) => {
+          setSubmitError(null);
+          setSaving(true);
+          try {
+            await onSubmit({ ...v, customFields: customFieldValues });
+          } catch (err) {
+            setSubmitError((err as Error).message);
+          } finally {
+            setSaving(false);
+          }
+        })}
       >
-        <Field label="Název">
+        <Field label="Název" error={formState.errors.name ? 'Název je povinný' : undefined}>
           <Input {...register('name', { required: true })} />
         </Field>
         <Field label="Typ">
@@ -746,8 +758,11 @@ function EditAssetForm({
             />
           </div>
         )}
+        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
         <div className="flex gap-2">
-          <Button type="submit">Uložit</Button>
+          <Button type="submit" disabled={saving}>
+            {saving ? 'Ukládám…' : 'Uložit'}
+          </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
             Zrušit
           </Button>
@@ -793,7 +808,7 @@ function NewDamageForm({
   onCancel: () => void;
 }) {
   const today = new Date().toISOString().slice(0, 16);
-  const { register, handleSubmit } = useForm<{
+  const { register, handleSubmit, formState } = useForm<{
     occurredAt: string;
     description: string;
     severity: DamageSeverity;
@@ -803,6 +818,8 @@ function NewDamageForm({
   const [photos, setPhotos] = useState<{ path: string; previewUrl: string }[]>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function handleFiles(files: FileList | null) {
     if (!files || files.length === 0) return;
@@ -838,18 +855,29 @@ function NewDamageForm({
     <Card>
       <form
         className="space-y-3"
-        onSubmit={handleSubmit((v) =>
-          onSubmit({
-            ...v,
-            occurredAt: new Date(v.occurredAt),
-            photoPaths: photos.map((p) => p.path),
-          }),
-        )}
+        onSubmit={handleSubmit(async (v) => {
+          setSubmitError(null);
+          setSaving(true);
+          try {
+            await onSubmit({
+              ...v,
+              occurredAt: new Date(v.occurredAt),
+              photoPaths: photos.map((p) => p.path),
+            });
+          } catch (err) {
+            setSubmitError((err as Error).message);
+          } finally {
+            setSaving(false);
+          }
+        })}
       >
-        <Field label="Kdy se to stalo">
+        <Field
+          label="Kdy se to stalo"
+          error={formState.errors.occurredAt ? 'Vyplň datum a čas' : undefined}
+        >
           <Input type="datetime-local" {...register('occurredAt', { required: true })} />
         </Field>
-        <Field label="Popis">
+        <Field label="Popis" error={formState.errors.description ? 'Popis je povinný' : undefined}>
           <Textarea rows={3} {...register('description', { required: true })} />
         </Field>
         <Field label="Závažnost">
@@ -890,9 +918,10 @@ function NewDamageForm({
         )}
         {uploading && <p className="text-xs text-slate-500">Nahrávám fotky…</p>}
         {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
+        {submitError && <p className="text-sm text-red-600">{submitError}</p>}
         <div className="flex gap-2">
-          <Button type="submit" disabled={uploading}>
-            Zaznamenat
+          <Button type="submit" disabled={uploading || saving}>
+            {saving ? 'Ukládám…' : 'Zaznamenat'}
           </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
             Zrušit
