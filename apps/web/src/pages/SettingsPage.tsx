@@ -11,7 +11,7 @@ export function SettingsPage() {
   const qc = useQueryClient();
   const org = useQuery({ queryKey: ['org'], queryFn: () => apiClient.org.get() });
 
-  const { register, handleSubmit, reset } = useForm<SettingsForm>({
+  const { register, handleSubmit, reset, formState } = useForm<SettingsForm>({
     defaultValues: { name: '', codePrefix: '' },
   });
 
@@ -48,12 +48,25 @@ export function SettingsPage() {
       <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
         <Card>
           <div className="space-y-3">
-            <Field label="Název organizace">
+            <Field
+              label="Název organizace"
+              error={formState.errors.name ? 'Název organizace je povinný' : undefined}
+            >
               <Input {...register('name', { required: true })} />
             </Field>
-            <Field label="Prefix kódu assetů (volitelné, např. ACME)">
+            <Field
+              label="Prefix kódu assetů (volitelné, např. ACME)"
+              error={
+                formState.errors.codePrefix
+                  ? 'Prefix musí mít 2–6 znaků (A–Z, 0–9)'
+                  : undefined
+              }
+            >
               <Input
-                {...register('codePrefix')}
+                {...register('codePrefix', {
+                  validate: (v) =>
+                    !v.trim() || /^[A-Za-z0-9]{2,6}$/.test(v.trim()) || 'invalid',
+                })}
                 placeholder="ACME"
                 className="font-mono w-32"
                 maxLength={6}
