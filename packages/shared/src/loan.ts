@@ -68,6 +68,9 @@ export const returnLoanItemInput = z.object({
   loanItemId: z.string().uuid(),
   returnCondition: z.enum(loanItemConditions),
   returnNotes: z.string().max(1000).nullable().optional(),
+  // When omitted the return is recorded as "now". A past date lets you
+  // backdate a return that physically happened earlier.
+  returnedAt: z.coerce.date().optional(),
 });
 export type ReturnLoanItemInput = z.infer<typeof returnLoanItemInput>;
 

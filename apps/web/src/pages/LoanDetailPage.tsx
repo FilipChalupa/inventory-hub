@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, type LoanItemRow } from '../lib/api.js';
-import { Button, Card, Field, Select, Textarea, formatDate } from '../components/ui.js';
+import { Button, Card, Field, Input, Select, Textarea, formatDate } from '../components/ui.js';
 
 export function LoanDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -154,10 +154,15 @@ function LoanItemRowComp({
   const [open, setOpen] = useState(false);
   const [condition, setCondition] = useState<'ok' | 'damaged'>('ok');
   const [notes, setNotes] = useState('');
+  const [returnedAt, setReturnedAt] = useState(() => new Date().toISOString().slice(0, 10));
 
   const mutate = useMutation({
     mutationFn: () =>
-      apiClient.loans.returnItem(loanId, item.id, { returnCondition: condition, returnNotes: notes || null }),
+      apiClient.loans.returnItem(loanId, item.id, {
+        returnCondition: condition,
+        returnNotes: notes || null,
+        returnedAt: returnedAt ? new Date(returnedAt) : undefined,
+      }),
     onSuccess: () => {
       setOpen(false);
       setNotes('');
@@ -188,6 +193,14 @@ function LoanItemRowComp({
 
       {open && (
         <div className="mt-3 space-y-2">
+          <Field label="Datum vrácení">
+            <Input
+              type="date"
+              value={returnedAt}
+              max={new Date().toISOString().slice(0, 10)}
+              onChange={(e) => setReturnedAt(e.target.value)}
+            />
+          </Field>
           <Field label="Stav při vrácení">
             <Select value={condition} onChange={(e) => setCondition(e.target.value as 'ok' | 'damaged')}>
               <option value="ok">V pořádku</option>

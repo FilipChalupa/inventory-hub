@@ -389,13 +389,25 @@ export const loanRoutes = new Hono<AppContext>()
     const asset = db.select().from(assets).where(eq(assets.id, item.assetId)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
 
+    const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+
     const user = c.get('user')!;
 
     const now = new Date();
+    const returnedAt = input.returnedAt ?? now;
+    if (returnedAt.getTime() > now.getTime()) {
+      return c.json({ error: { message: 'Datum vrácení nemůže být v budoucnu' } }, 400);
+    }
+    const loanStart = loan.startedAt ?? loan.loanedAt;
+    if (returnedAt.getTime() < loanStart.getTime()) {
+      return c.json({ error: { message: 'Datum vrácení nemůže být před zapůjčením' } }, 400);
+    }
+
     db.transaction((tx) => {
       tx.update(loanItems)
         .set({
-          returnedAt: now,
+          returnedAt,
           returnCondition: input.returnCondition,
           returnNotes: input.returnNotes ?? null,
         })
@@ -417,7 +429,7 @@ export const loanRoutes = new Hono<AppContext>()
           .values({
             id: damageId,
             assetId: asset.id,
-            occurredAt: now,
+            occurredAt: returnedAt,
             reportedByUserId: user.id,
             description: input.returnNotes ?? 'Poškození zjištěno při vrácení výpůjčky.',
             severity: 'minor',
@@ -428,6 +440,7 @@ export const loanRoutes = new Hono<AppContext>()
             assetId: asset.id,
             actorUserId: user.id,
             type: 'damage_reported',
+            occurredAt: returnedAt,
             payload: { source: 'loan_return', loanId, damageReportId: damageId },
           })
           .run();
@@ -438,6 +451,7 @@ export const loanRoutes = new Hono<AppContext>()
           assetId: asset.id,
           actorUserId: user.id,
           type: 'loan_item_returned',
+          occurredAt: returnedAt,
           payload: { loanId, itemId, condition: input.returnCondition },
         })
         .run();

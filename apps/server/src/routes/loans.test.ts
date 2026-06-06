@@ -501,6 +501,64 @@ describe('loans API', () => {
       expect(again.status).toBe(409);
     });
 
+    it('records a custom (backdated) return date', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+
+      // Pretend the loan started a week ago so a backdated return is valid.
+      const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      server.db.update(loans).set({ loanedAt: weekAgo, startedAt: weekAgo }).where(eq(loans.id, loanId)).run();
+
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
+        returnCondition: 'ok',
+        returnedAt: yesterday.toISOString(),
+      });
+      expect(res.status).toBe(200);
+
+      const row = server.db.select().from(loanItems).where(eq(loanItems.id, itemId)).get()!;
+      expect(row.returnedAt!.getTime()).toBe(yesterday.getTime());
+    });
+
+    it('rejects a return date in the future', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+
+      const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
+        returnCondition: 'ok',
+        returnedAt: tomorrow.toISOString(),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects a return date before the loan started', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+
+      const longAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
+        returnCondition: 'ok',
+        returnedAt: longAgo.toISOString(),
+      });
+      expect(res.status).toBe(400);
+    });
+
     it('refuses to return the same item twice', async () => {
       const a = await makeAsset(server, cookie, 'A');
       const created = await jsonPost(server, cookie, '/api/loans', {
