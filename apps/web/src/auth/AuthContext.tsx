@@ -11,6 +11,32 @@ type AuthValue = {
 
 const AuthContext = createContext<AuthValue | undefined>(undefined);
 
+/**
+ * Drops every cached `/api/*` response from the service-worker Cache Storage.
+ * The SW caches API GETs stale-while-revalidate; without this a logout would
+ * leave the previous user's data sitting in the cache, ready to flash on the
+ * next login before the network refresh lands.
+ */
+async function purgeApiCache(): Promise<void> {
+  if (typeof caches === 'undefined') return;
+  try {
+    const names = await caches.keys();
+    await Promise.all(
+      names.map(async (name) => {
+        const cache = await caches.open(name);
+        const requests = await cache.keys();
+        await Promise.all(
+          requests
+            .filter((r) => new URL(r.url).pathname.startsWith('/api/'))
+            .map((r) => cache.delete(r)),
+        );
+      }),
+    );
+  } catch {
+    // Best-effort; never block logout on cache cleanup.
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useQuery({
@@ -25,6 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: me.isLoading,
     logout: async () => {
       await apiClient.auth.logout();
+      await purgeApiCache();
       await qc.invalidateQueries();
       qc.removeQueries({ queryKey: ['auth', 'me'] });
       window.location.assign('/login');

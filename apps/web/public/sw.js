@@ -17,7 +17,7 @@
  *    offline writes. The UI surfaces a banner so the operator knows.
  */
 
-const CACHE_NAME = 'inv-hub-v2';
+const CACHE_NAME = 'inv-hub-v3';
 const SHELL = ['/', '/index.html'];
 
 self.addEventListener('install', (event) => {
