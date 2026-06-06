@@ -24,9 +24,11 @@ import { exportRoutes } from './routes/export.js';
 import { invitationRoutes } from './routes/invitations.js';
 import { userRoutes } from './routes/users.js';
 import { contactRoutes } from './routes/contacts.js';
+import { apiKeyRoutes } from './routes/api-keys.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
 import { isMcpCsrfExempt, mountMcp } from './mcp/http.js';
+import { openApiDocument, DOCS_HTML } from './lib/openapi.js';
 // TODO: Dočasné – odebrat import a registraci demoRoutes před finálním releasem.
 import { demoRoutes } from './routes/demo.js';
 
@@ -52,7 +54,15 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   // OAuth-AS endpoints (called by MCP clients/backends, not browsers).
   app.use('*', async (c, next) => {
     const path = new URL(c.req.url).pathname;
-    if (path === '/health' || path.startsWith('/auth/google/') || isMcpCsrfExempt(path)) {
+    // Bearer (API key / OAuth) requests don't ride on cookies, so CSRF —
+    // an Origin-based defense for browser cookie auth — doesn't apply.
+    const isBearer = c.req.header('authorization')?.startsWith('Bearer ');
+    if (
+      path === '/health' ||
+      path.startsWith('/auth/google/') ||
+      isMcpCsrfExempt(path) ||
+      isBearer
+    ) {
       return next();
     }
     return csrf({ origin: deps.env.PUBLIC_APP_URL })(c, next);
@@ -71,6 +81,10 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/health', healthRoutes);
   app.route('/auth', authRoutes);
 
+  // Public, machine-readable API description for integrators + a docs UI.
+  app.get('/openapi.json', (c) => c.json(openApiDocument()));
+  app.get('/docs', (c) => c.html(DOCS_HTML));
+
   // All /api/* routes require an authenticated session. Org PUT additionally
   // requires admin role — handled inside the org router.
   app.use('/api/*', requireAuth());
@@ -85,6 +99,7 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/invitations', invitationRoutes);
   app.route('/api/users', userRoutes);
   app.route('/api/contacts', contactRoutes);
+  app.route('/api/api-keys', apiKeyRoutes);
   // TODO: Dočasné – odebrat před finálním releasem.
   app.route('/api/demo', demoRoutes);
 

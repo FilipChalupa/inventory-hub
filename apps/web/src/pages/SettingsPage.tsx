@@ -113,9 +113,108 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      <ApiKeysSection />
+
       {/* TODO: Dočasné – tuto sekci odebrat před finálním nasazením. */}
       <DemoDataSection />
     </section>
+  );
+}
+
+function ApiKeysSection() {
+  const qc = useQueryClient();
+  const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.apiKeys.list() });
+  const [name, setName] = useState('');
+  const [created, setCreated] = useState<{ name: string; token: string } | null>(null);
+
+  const create = useMutation({
+    mutationFn: () => apiClient.apiKeys.create({ name: name.trim() }),
+    onSuccess: (res) => {
+      setCreated({ name: res.name, token: res.token });
+      setName('');
+      qc.invalidateQueries({ queryKey: ['api-keys'] });
+    },
+  });
+  const remove = useMutation({
+    mutationFn: (id: string) => apiClient.apiKeys.remove(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['api-keys'] }),
+  });
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold">API klíče</h2>
+        <a href="/docs" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+          dokumentace API →
+        </a>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        Pro integrace a skripty. Klíč se posílá jako{' '}
+        <span className="font-mono">Authorization: Bearer …</span> a má práva admina, který ho
+        vytvořil. Token uvidíš jen jednou.
+      </p>
+
+      {created && (
+        <div className="mb-3 rounded border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
+          <p className="text-sm font-medium mb-1">Nový klíč „{created.name}" — zkopíruj teď:</p>
+          <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
+            {created.token}
+          </code>
+          <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
+            Mám zkopírováno
+          </Button>
+        </div>
+      )}
+
+      <form
+        className="flex flex-wrap items-end gap-2 mb-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (name.trim()) create.mutate();
+        }}
+      >
+        <div className="flex-1 min-w-[180px]">
+          <Field label="Název klíče">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="např. Zapier" />
+          </Field>
+        </div>
+        <Button type="submit" disabled={create.isPending || !name.trim()}>
+          {create.isPending ? 'Vytvářím…' : 'Vytvořit klíč'}
+        </Button>
+      </form>
+      {create.error && <p className="text-sm text-red-600 mb-2">{(create.error as Error).message}</p>}
+
+      {keys.data?.items.length === 0 ? (
+        <p className="text-sm text-slate-500">Zatím žádné klíče.</p>
+      ) : (
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+          {keys.data?.items.map((k) => (
+            <li key={k.id} className="flex items-center justify-between gap-3 py-2 text-sm">
+              <div>
+                <span className="font-medium">{k.name}</span>{' '}
+                <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>
+                <div className="text-xs text-slate-500">
+                  {k.lastUsedAt ? `naposledy ${formatDate(k.lastUsedAt)}` : 'nepoužitý'}
+                  {k.expiresAt && ` · platí do ${formatDate(k.expiresAt)}`}
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                className="text-red-600 text-xs"
+                disabled={remove.isPending}
+                onClick={() => {
+                  if (window.confirm(`Zrušit klíč „${k.name}"? Přestane okamžitě fungovat.`)) {
+                    remove.mutate(k.id);
+                  }
+                }}
+              >
+                Zrušit
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }
 

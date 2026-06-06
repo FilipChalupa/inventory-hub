@@ -101,6 +101,15 @@ export type LoanRow = {
   status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 };
 
+export type ApiKeyRow = {
+  id: string;
+  name: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+};
+
 export type LoanEventRow = {
   id: string;
   type: string;
@@ -479,6 +488,16 @@ export const apiClient = {
         method: 'POST',
         body: input,
       }),
+  },
+
+  apiKeys: {
+    list: () => api<{ items: ApiKeyRow[] }>('/api/api-keys'),
+    create: (input: { name: string; expiresAt?: Date | null }) =>
+      api<{ id: string; name: string; prefix: string; token: string }>('/api/api-keys', {
+        method: 'POST',
+        body: input,
+      }),
+    remove: (id: string) => api<{ ok: true }>(`/api/api-keys/${id}`, { method: 'DELETE' }),
   },
 
   // TODO: Dočasné – odebrat po skončení potřeby demo seedování.

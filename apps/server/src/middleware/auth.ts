@@ -1,8 +1,10 @@
 import { createMiddleware } from 'hono/factory';
 import { getCookie } from 'hono/cookie';
+import { eq } from 'drizzle-orm';
 import type { AppContext } from '../app.js';
-import type { UserRow } from '../db/schema.js';
+import { apiKeys, users, type UserRow } from '../db/schema.js';
 import { SESSION_COOKIE, loadSession } from '../lib/sessions.js';
+import { hashApiKey } from '../lib/apiKeys.js';
 
 export const authLoader = createMiddleware<AppContext>(async (c, next) => {
   const db = c.get('db');
@@ -10,7 +12,34 @@ export const authLoader = createMiddleware<AppContext>(async (c, next) => {
   const session = loadSession(db, token);
   if (session) {
     c.set('user', session.user);
+    return next();
   }
+
+  // No browser session — fall back to an API key (Authorization: Bearer …)
+  // for programmatic / integration access. The key acts as the user that
+  // created it. (MCP bearer tokens won't match a key hash, so /mcp keeps
+  // using its own authorization.)
+  const authz = c.req.header('authorization');
+  if (authz?.startsWith('Bearer ')) {
+    const presented = authz.slice('Bearer '.length).trim();
+    const key = db
+      .select()
+      .from(apiKeys)
+      .where(eq(apiKeys.tokenHash, hashApiKey(presented)))
+      .get();
+    const now = new Date();
+    if (key && (!key.expiresAt || key.expiresAt > now)) {
+      const user = db.select().from(users).where(eq(users.id, key.userId)).get();
+      if (user && !user.disabledAt) {
+        c.set('user', user);
+        // Throttled last-used stamp so we don't write on every request.
+        if (!key.lastUsedAt || now.getTime() - key.lastUsedAt.getTime() > 60_000) {
+          db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, key.id)).run();
+        }
+      }
+    }
+  }
+
   await next();
 });
 

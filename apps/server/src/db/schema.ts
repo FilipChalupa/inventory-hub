@@ -64,6 +64,31 @@ export const sessions = sqliteTable(
   }),
 );
 
+/**
+ * API keys for programmatic / integration access to the REST API. The raw
+ * token is shown once at creation; only its sha256 hash is stored. A key
+ * authenticates as `userId` (the admin who created it) with that user's role.
+ */
+export const apiKeys = sqliteTable(
+  'api_keys',
+  {
+    id: id(),
+    name: text('name').notNull(),
+    prefix: text('prefix').notNull(),
+    tokenHash: text('token_hash').notNull(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+    ...timestamps,
+  },
+  (t) => ({
+    tokenHashUnique: uniqueIndex('api_keys_token_hash_unique').on(t.tokenHash),
+    userIdx: index('api_keys_user_idx').on(t.userId),
+  }),
+);
+
 export const invitations = sqliteTable(
   'invitations',
   {

@@ -85,7 +85,9 @@
       "Bash(node -p \"Object.keys\\(require\\('./package.json'\\).exports\\).join\\('\\\\n'\\)\")",
       "Bash(node -e \"const e=require\\('./package.json'\\).exports; console.log\\(JSON.stringify\\(e['./*'],null,2\\)\\); console.log\\('--- server ---'\\); console.log\\(JSON.stringify\\(e['./server'],null,2\\)\\);\")",
       "Bash(npx prettier *)",
-      "Bash(grep -n \"MCP\\\\|PUBLIC_APP_URL\\\\|| \\\\`\" docs/SELF_HOSTING.md)"
+      "Bash(grep -n \"MCP\\\\|PUBLIC_APP_URL\\\\|| \\\\`\" docs/SELF_HOSTING.md)",
+      "Bash(sed -n '1,60p' apps/server/src/middleware/auth.js)",
+      "Bash(sed -n '1,70p' apps/server/src/middleware/auth.ts)"
     ],
     "additionalDirectories": [
       "/tmp"
