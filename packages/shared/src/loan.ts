@@ -21,6 +21,7 @@ export const loanSchema = z.object({
   borrowerContact: z.string().max(200).nullable(),
   purpose: z.string().max(500).nullable(),
   loanedAt: z.coerce.date(),
+  startedAt: z.coerce.date().nullable(),
   expectedReturnAt: z.coerce.date().nullable(),
   createdByUserId: z.string().uuid(),
   createdAt: z.coerce.date(),
@@ -34,6 +35,10 @@ export const createLoanInput = z.object({
   borrowerContactId: z.string().uuid().nullable().optional(),
   borrowerContact: z.string().max(200).nullable().optional(),
   purpose: z.string().max(500).nullable().optional(),
+  // When set to a future moment the loan is created as "planned": the
+  // assets are reserved (one active/planned loan per asset) but stay in
+  // stock until the loan is started. Omitted/past => starts immediately.
+  loanedAt: z.coerce.date().nullable().optional(),
   expectedReturnAt: z.coerce.date().nullable().optional(),
   assetCodes: z.array(assetCodeSchema).min(1, 'Výpůjčka musí obsahovat alespoň jeden asset'),
 });
@@ -46,19 +51,28 @@ export const returnLoanItemInput = z.object({
 });
 export type ReturnLoanItemInput = z.infer<typeof returnLoanItemInput>;
 
-export type LoanStatus = 'open' | 'partially_returned' | 'fully_returned';
+export type LoanStatus = 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 
-export function deriveLoanStatus(items: Pick<LoanItem, 'returnedAt'>[]): LoanStatus {
-  const total = items.length;
+export function deriveLoanStatus(
+  loan: { startedAt: Date | null; items: Pick<LoanItem, 'returnedAt'>[] },
+): LoanStatus {
+  // A loan that has not been started yet is still just a reservation.
+  if (loan.startedAt === null) return 'planned';
+  const total = loan.items.length;
   if (total === 0) return 'open';
-  const returned = items.filter((i) => i.returnedAt !== null).length;
+  const returned = loan.items.filter((i) => i.returnedAt !== null).length;
   if (returned === 0) return 'open';
   if (returned === total) return 'fully_returned';
   return 'partially_returned';
 }
 
-export function isOverdue(loan: Pick<Loan, 'expectedReturnAt' | 'items'>, now: Date = new Date()): boolean {
+export function isOverdue(
+  loan: Pick<Loan, 'startedAt' | 'expectedReturnAt' | 'items'>,
+  now: Date = new Date(),
+): boolean {
+  // Planned (not yet started) loans can never be overdue.
+  if (loan.startedAt === null) return false;
   if (!loan.expectedReturnAt) return false;
-  if (deriveLoanStatus(loan.items) === 'fully_returned') return false;
+  if (deriveLoanStatus(loan) === 'fully_returned') return false;
   return now > loan.expectedReturnAt;
 }

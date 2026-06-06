@@ -7,6 +7,7 @@ import { createApp } from './app.js';
 import { createDb } from './db/client.js';
 import { loadEnv } from './env.js';
 import { createEmailSender } from './lib/email.js';
+import { activateDueLoans } from './lib/loanActivation.js';
 import { runOverdueCheck } from './lib/overdue.js';
 
 const env = loadEnv();
@@ -61,10 +62,26 @@ const overdueTimer = setInterval(() => {
   );
 }, OVERDUE_INTERVAL_MS);
 
+// Planned-loan activator: flips planned loans to active once their start
+// moment passes. Runs every few minutes so the delay stays small; the
+// manual "start" button covers the gap in between.
+const ACTIVATION_INTERVAL_MS = 5 * 60 * 1000;
+const runActivation = () => {
+  try {
+    const { activated } = activateDueLoans(db);
+    if (activated > 0) console.log(`Aktivováno naplánovaných výpůjček: ${activated}`);
+  } catch (err) {
+    console.error('loan activation failed:', err);
+  }
+};
+runActivation();
+const activationTimer = setInterval(runActivation, ACTIVATION_INTERVAL_MS);
+
 const shutdown = () => {
   console.log('Vypínám…');
   clearTimeout(initialTimer);
   clearInterval(overdueTimer);
+  clearInterval(activationTimer);
   server.close(() => {
     sqlite.close();
     process.exit(0);

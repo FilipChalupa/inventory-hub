@@ -74,7 +74,10 @@
       "Bash(grep -E \"\\\\.sql$\")",
       "Bash(git check-ignore *)",
       "Bash(echo \"---ignored? exit $?---\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(grep -n \"loan_started\\\\|loan_item_returned\\\\|damage_reported\\\\|assetEvents = \\\\|type', {\" apps/server/src/db/schema.ts)",
+      "Bash(sed -n '/export const assetEvents/,/^\\);/p' apps/server/src/db/schema.ts)",
+      "Bash(echo \"=== EXIT $? ===\")"
     ]
   }
 }

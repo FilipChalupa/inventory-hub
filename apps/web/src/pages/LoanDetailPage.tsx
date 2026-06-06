@@ -19,6 +19,7 @@ export function LoanDetailPage() {
   if (!loan.data) return null;
 
   const l = loan.data.loan;
+  const planned = l.status === 'planned';
   return (
     <article className="space-y-4">
       <Link to="/loans" className="text-sm text-slate-500 hover:underline">
@@ -26,7 +27,14 @@ export function LoanDetailPage() {
       </Link>
       <header>
         <div className="flex items-start justify-between gap-4">
-          <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
+            {planned && (
+              <span className="text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-800 font-medium">
+                Naplánováno
+              </span>
+            )}
+          </div>
           <Button
             variant="secondary"
             onClick={() => navigate(`/loans/new?from=${l.id}`)}
@@ -37,11 +45,17 @@ export function LoanDetailPage() {
         {l.borrowerContact && <p className="text-sm text-slate-600">{l.borrowerContact}</p>}
         {l.purpose && <p className="text-sm mt-2">Účel: {l.purpose}</p>}
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm mt-2">
-          <dt className="text-slate-500">Zapůjčeno</dt>
-          <dd>{formatDate(l.loanedAt)}</dd>
+          <dt className="text-slate-500">{planned ? 'Plánovaný začátek' : 'Zapůjčeno'}</dt>
+          <dd>{formatDate(planned ? l.loanedAt : l.startedAt ?? l.loanedAt)}</dd>
           <dt className="text-slate-500">Vrátit do</dt>
           <dd>{l.expectedReturnAt ? formatDate(l.expectedReturnAt) : '—'}</dd>
         </dl>
+        {planned && (
+          <StartLoanBar
+            loanId={l.id}
+            onStarted={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
+          />
+        )}
       </header>
 
       <Card>
@@ -58,6 +72,26 @@ export function LoanDetailPage() {
         </ul>
       </Card>
     </article>
+  );
+}
+
+function StartLoanBar({ loanId, onStarted }: { loanId: string; onStarted: () => void }) {
+  const start = useMutation({
+    mutationFn: () => apiClient.loans.start(loanId),
+    onSuccess: onStarted,
+  });
+  return (
+    <div className="mt-3 flex items-center gap-3 rounded border border-violet-200 bg-violet-50 p-3">
+      <p className="text-sm text-violet-900 flex-1">
+        Výpůjčka je naplánovaná. Spustí se sama v termínu, nebo ji můžeš zahájit teď.
+      </p>
+      <Button onClick={() => start.mutate()} disabled={start.isPending}>
+        {start.isPending ? 'Zahajuji…' : 'Zahájit výpůjčku'}
+      </Button>
+      {start.error && (
+        <p className="text-sm text-red-600">{(start.error as Error).message}</p>
+      )}
+    </div>
   );
 }
 

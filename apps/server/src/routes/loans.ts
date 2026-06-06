@@ -11,6 +11,7 @@ import {
   loanItems,
   loans,
 } from '../db/schema.js';
+import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
 import { requireAuth } from '../middleware/auth.js';
 
@@ -42,7 +43,7 @@ export const loanRoutes = new Hono<AppContext>()
       return {
         ...loan,
         items: loanItemsForLoan,
-        status: deriveLoanStatus(loanItemsForLoan.map((i) => ({ returnedAt: i.returnedAt }))),
+        status: deriveLoanStatus({ startedAt: loan.startedAt, items: loanItemsForLoan }),
       };
     });
 
@@ -75,7 +76,7 @@ export const loanRoutes = new Hono<AppContext>()
       loan: {
         ...loan,
         items,
-        status: deriveLoanStatus(items.map((i) => ({ returnedAt: i.returnedAt }))),
+        status: deriveLoanStatus({ startedAt: loan.startedAt, items }),
       },
     });
   })
@@ -83,7 +84,13 @@ export const loanRoutes = new Hono<AppContext>()
     const db = c.get('db');
     const input = c.req.valid('json');
 
-    // Resolve asset codes -> ids and verify they are not already on loan
+    // A future start moment makes this a planned loan: the assets are
+    // reserved but stay in stock until the loan is actually started.
+    const now = new Date();
+    const startAt = input.loanedAt ?? now;
+    const planned = startAt.getTime() > now.getTime();
+
+    // Resolve asset codes -> ids.
     const codes = input.assetCodes.map((c) => c.toUpperCase());
     const targets = db.select().from(assets).where(inArray(assets.code, codes)).all();
     if (targets.length !== codes.length) {
@@ -91,16 +98,35 @@ export const loanRoutes = new Hono<AppContext>()
       const missing = codes.filter((c) => !found.has(c));
       return c.json({ error: { message: `Asset(y) nenalezen(y): ${missing.join(', ')}` } }, 400);
     }
-    const blocked = targets.filter(
-      (t) => t.status === 'on_loan' || t.archivedAt !== null,
-    );
-    if (blocked.length) {
+
+    const archived = targets.filter((t) => t.archivedAt !== null);
+    if (archived.length) {
       return c.json(
         {
           error: {
-            message: `Asset(y) nelze půjčit (vypůjčené nebo archivované): ${blocked
-              .map((b) => b.code)
-              .join(', ')}`,
+            message: `Asset(y) jsou archivované: ${archived.map((b) => b.code).join(', ')}`,
+          },
+        },
+        409,
+      );
+    }
+
+    // An asset may only be part of one active or planned loan at a time.
+    // Any not-yet-returned loan item on a target asset is a conflict — this
+    // covers both currently borrowed and already reserved (planned) assets.
+    const targetIds = targets.map((t) => t.id);
+    const conflicts = db
+      .select({ code: assets.code })
+      .from(loanItems)
+      .innerJoin(assets, eq(loanItems.assetId, assets.id))
+      .where(and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt)))
+      .all();
+    if (conflicts.length) {
+      const codesList = [...new Set(conflicts.map((x) => x.code))];
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) jsou už ve výpůjčce nebo rezervaci: ${codesList.join(', ')}`,
           },
         },
         409,
@@ -119,6 +145,8 @@ export const loanRoutes = new Hono<AppContext>()
           borrowerContactId: input.borrowerContactId ?? null,
           borrowerContact: input.borrowerContact ?? null,
           purpose: input.purpose ?? null,
+          loanedAt: startAt,
+          startedAt: planned ? null : now,
           expectedReturnAt: input.expectedReturnAt ?? null,
           createdByUserId: user.id,
         })
@@ -127,22 +155,46 @@ export const loanRoutes = new Hono<AppContext>()
       for (const t of targets) {
         const itemId = crypto.randomUUID();
         tx.insert(loanItems).values({ id: itemId, loanId, assetId: t.id }).run();
-        tx.update(assets)
-          .set({ status: 'on_loan', updatedAt: new Date() })
-          .where(eq(assets.id, t.id))
-          .run();
-        tx.insert(assetEvents)
-          .values({
-            assetId: t.id,
-            actorUserId: user.id,
-            type: 'loan_started',
-            payload: { loanId, borrower: input.borrowerName },
-          })
-          .run();
+        if (planned) {
+          // Reserve only — asset stays in stock until the loan starts.
+          tx.insert(assetEvents)
+            .values({
+              assetId: t.id,
+              actorUserId: user.id,
+              type: 'loan_planned',
+              payload: { loanId, borrower: input.borrowerName, startAt: startAt.toISOString() },
+            })
+            .run();
+        } else {
+          tx.update(assets)
+            .set({ status: 'on_loan', updatedAt: now })
+            .where(eq(assets.id, t.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: t.id,
+              actorUserId: user.id,
+              type: 'loan_started',
+              payload: { loanId, borrower: input.borrowerName },
+            })
+            .run();
+        }
       }
     });
 
     return c.json({ id: loanId }, 201);
+  })
+  .post('/:id/start', (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+    if (loan.startedAt !== null) {
+      return c.json({ error: { message: 'Výpůjčka už byla zahájena' } }, 409);
+    }
+    const user = c.get('user')!;
+    activateLoan(db, id, user.id, new Date());
+    return c.json({ ok: true });
   })
   .post('/notify-overdue', requireAuth('admin'), async (c) => {
     const db = c.get('db');
@@ -226,5 +278,3 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ ok: true });
   });
-
-void isNull;

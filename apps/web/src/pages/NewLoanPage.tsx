@@ -9,6 +9,7 @@ type FormValues = {
   borrowerName: string;
   borrowerContact: string;
   purpose: string;
+  loanedAt: string;
   expectedReturnAt: string;
 };
 
@@ -47,7 +48,13 @@ export function NewLoanPage() {
   });
 
   const { register, handleSubmit, formState, setValue, watch } = useForm<FormValues>({
-    defaultValues: { borrowerName: '', borrowerContact: '', purpose: '', expectedReturnAt: '' },
+    defaultValues: {
+      borrowerName: '',
+      borrowerContact: '',
+      purpose: '',
+      loanedAt: '',
+      expectedReturnAt: '',
+    },
   });
 
   useEffect(() => {
@@ -81,6 +88,7 @@ export function NewLoanPage() {
         borrowerContactId: contactId || null,
         borrowerContact: v.borrowerContact || null,
         purpose: v.purpose || null,
+        loanedAt: v.loanedAt ? new Date(v.loanedAt) : null,
         expectedReturnAt: v.expectedReturnAt ? new Date(v.expectedReturnAt) : null,
         assetCodes: selectedCodes,
       }),
@@ -133,6 +141,14 @@ export function NewLoanPage() {
 
         <Field label="Účel (volitelné)">
           <Textarea rows={2} {...register('purpose')} />
+        </Field>
+
+        <Field label="Začátek výpůjčky (volitelné)">
+          <Input type="date" {...register('loanedAt')} />
+          <p className="text-xs text-slate-500 mt-1">
+            Necháš-li prázdné, výpůjčka začne hned. Budoucí datum ji naplánuje – assety se
+            rezervují a vypůjčí se až v termínu (nebo ručně).
+          </p>
         </Field>
 
         <Field label="Předpokládaný návrat">

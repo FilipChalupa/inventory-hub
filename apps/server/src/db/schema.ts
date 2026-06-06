@@ -255,6 +255,9 @@ export const loans = sqliteTable(
     loanedAt: integer('loaned_at', { mode: 'timestamp_ms' })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
+    // When null the loan is still planned (assets reserved but in stock);
+    // set to the activation moment once the loan actually starts.
+    startedAt: integer('started_at', { mode: 'timestamp_ms' }),
     expectedReturnAt: integer('expected_return_at', { mode: 'timestamp_ms' }),
     overdueNotifiedAt: integer('overdue_notified_at', { mode: 'timestamp_ms' }),
     createdByUserId: text('created_by_user_id')

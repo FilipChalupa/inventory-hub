@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { assets, damageReports, loanItems } from '../db/schema.js';
+import { assets, damageReports, loanItems, loans } from '../db/schema.js';
+import { activateDueLoans } from '../lib/loanActivation.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
 async function jsonPost(server: TestServer, cookie: string, path: string, body: unknown) {
@@ -85,6 +86,111 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       expect(res.status).toBe(409);
+    });
+  });
+
+  describe('planned loans', () => {
+    const future = () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    const past = () => new Date(Date.now() - 60 * 1000).toISOString();
+
+    it('a future start date reserves assets without marking them on_loan', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: future(),
+        assetCodes: [a],
+      });
+      expect(created.status).toBe(201);
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const row = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(row.status).toBe('in_stock');
+
+      const list = await server.authRequest('/api/loans', { cookie });
+      const body = (await list.json()) as { items: { id: string; status: string }[] };
+      expect(body.items.find((l) => l.id === loanId)!.status).toBe('planned');
+    });
+
+    it('a reserved asset cannot be booked again (409)', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const first = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: future(),
+        assetCodes: [a],
+      });
+      expect(first.status).toBe(201);
+
+      const second = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Kolize',
+        assetCodes: [a],
+      });
+      expect(second.status).toBe(409);
+    });
+
+    it('POST /:id/start activates a planned loan and marks assets on_loan', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: future(),
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const start = await jsonPost(server, cookie, `/api/loans/${loanId}/start`, {});
+      expect(start.status).toBe(200);
+
+      const row = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(row.status).toBe('on_loan');
+
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      const body = (await detail.json()) as { loan: { status: string } };
+      expect(body.loan.status).toBe('open');
+
+      // starting again is rejected
+      const again = await jsonPost(server, cookie, `/api/loans/${loanId}/start`, {});
+      expect(again.status).toBe(409);
+    });
+
+    it('activateDueLoans activates planned loans whose start moment has passed', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: future(),
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      // Pretend the planned start has now arrived.
+      server.db
+        .update(loans)
+        .set({ loanedAt: new Date(Date.now() - 1000) })
+        .where(eq(loans.id, loanId))
+        .run();
+
+      const { activated } = activateDueLoans(server.db);
+      expect(activated).toBe(1);
+
+      const row = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(row.status).toBe('on_loan');
+      const loanRow = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+      expect(loanRow.startedAt).not.toBeNull();
+    });
+
+    it('a past start date creates the loan as already active', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Hned',
+        loanedAt: past(),
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const row = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(row.status).toBe('on_loan');
+
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      const body = (await detail.json()) as { loan: { status: string } };
+      expect(body.loan.status).toBe('open');
     });
   });
 

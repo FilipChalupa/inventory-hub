@@ -6,12 +6,14 @@ import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
 import clsx from 'clsx';
 
 const statusLabels = {
+  planned: 'Naplánováno',
   open: 'Otevřená',
   partially_returned: 'Část vráceno',
   fully_returned: 'Vráceno',
 } as const;
 
 const statusClasses = {
+  planned: 'bg-violet-100 text-violet-800',
   open: 'bg-amber-100 text-amber-800',
   partially_returned: 'bg-blue-100 text-blue-800',
   fully_returned: 'bg-emerald-100 text-emerald-800',
@@ -33,6 +35,7 @@ export function LoansPage() {
       if (status === 'overdue') {
         const isOverdue =
           loan.status !== 'fully_returned' &&
+          loan.status !== 'planned' &&
           loan.expectedReturnAt &&
           new Date(loan.expectedReturnAt) < now;
         if (!isOverdue) return false;
@@ -79,6 +82,7 @@ export function LoansPage() {
             <label className="text-xs text-slate-500 block mb-0.5">Status</label>
             <Select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
               <option value="">Všechny</option>
+              <option value="planned">Naplánováno</option>
               <option value="open">Otevřené</option>
               <option value="partially_returned">Část vráceno</option>
               <option value="fully_returned">Vráceno</option>
@@ -132,6 +136,7 @@ export function LoansPage() {
         {filtered.map((loan) => {
           const overdue =
             loan.status !== 'fully_returned' &&
+            loan.status !== 'planned' &&
             loan.expectedReturnAt &&
             new Date(loan.expectedReturnAt) < now;
           return (
@@ -140,7 +145,10 @@ export function LoansPage() {
                 <div>
                   <div className="font-medium">{loan.borrowerName}</div>
                   <div className="text-xs text-slate-500">
-                    {loan.items.length} ks · zapůjčeno {formatDate(loan.loanedAt)}
+                    {loan.items.length} ks ·{' '}
+                    {loan.status === 'planned'
+                      ? `začátek ${formatDate(loan.loanedAt)}`
+                      : `zapůjčeno ${formatDate(loan.startedAt ?? loan.loanedAt)}`}
                     {loan.expectedReturnAt && ` · vrátit do ${formatDate(loan.expectedReturnAt)}`}
                   </div>
                 </div>

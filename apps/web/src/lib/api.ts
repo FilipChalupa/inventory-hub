@@ -92,11 +92,12 @@ export type LoanRow = {
   borrowerContact: string | null;
   purpose: string | null;
   loanedAt: string;
+  startedAt: string | null;
   expectedReturnAt: string | null;
   createdByUserId: string;
   createdAt: string;
   items: LoanItemRow[];
-  status: 'open' | 'partially_returned' | 'fully_returned';
+  status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 };
 
 export type ContactRow = {
@@ -408,6 +409,8 @@ export const apiClient = {
     get: (id: string) => api<{ loan: LoanRow }>(`/api/loans/${id}`),
     create: (input: CreateLoanInput) =>
       api<{ id: string }>('/api/loans', { method: 'POST', body: input }),
+    start: (id: string) =>
+      api<{ ok: true }>(`/api/loans/${id}/start`, { method: 'POST' }),
     returnItem: (loanId: string, itemId: string, input: Omit<ReturnLoanItemInput, 'loanItemId'>) =>
       api<{ ok: true }>(`/api/loans/${loanId}/items/${itemId}/return`, {
         method: 'POST',
