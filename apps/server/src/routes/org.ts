@@ -12,10 +12,15 @@ const SINGLETON_ID = 'singleton';
 export const orgRoutes = new Hono<AppContext>()
   .get('/', (c) => {
     const db = c.get('db');
+    // Public web app base URL — the root for human-facing deep links
+    // (e.g. `${appUrl}/a/<code>`, `${appUrl}/loans/<id>`). Surfaced here so
+    // API/MCP clients can build clickable links without guessing the host.
+    const appUrl = c.get('env').PUBLIC_APP_URL.replace(/\/$/, '');
     const row = db.select().from(orgSettings).where(eq(orgSettings.id, SINGLETON_ID)).get();
-    if (!row) return c.json({ initialized: false }, 200);
+    if (!row) return c.json({ initialized: false, appUrl }, 200);
     return c.json({
       initialized: true,
+      appUrl,
       settings: {
         name: row.name,
         codePrefix: row.codePrefix,

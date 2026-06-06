@@ -224,6 +224,64 @@ describe('MCP full flow', () => {
     expect(JSON.stringify(call.result.content)).toContain('read-only');
   });
 
+  it('exposes the app base URL via get_org_settings for building links', async () => {
+    const { token } = await obtainToken('read');
+    const sid = await initSession(token);
+    const res = await mcp(
+      token,
+      { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'get_org_settings', arguments: {} } },
+      sid,
+    );
+    const call = await readJsonRpc(res);
+    const body = JSON.parse(call.result.content[0].text);
+    expect(body.appUrl).toBe('http://localhost:5173');
+  });
+
+  it('enriches asset and loan responses with a deep-link url', async () => {
+    const { token } = await obtainToken('read-write');
+    const sid = await initSession(token);
+
+    const createAsset = await mcp(
+      token,
+      {
+        jsonrpc: '2.0',
+        id: 11,
+        method: 'tools/call',
+        params: { name: 'create_asset', arguments: { name: 'Linkable', typeId: server.laptopTypeId } },
+      },
+      sid,
+    );
+    const code = JSON.parse((await readJsonRpc(createAsset)).result.content[0].text).code as string;
+
+    const getAsset = await mcp(
+      token,
+      { jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'get_asset', arguments: { code } } },
+      sid,
+    );
+    const asset = JSON.parse((await readJsonRpc(getAsset)).result.content[0].text).asset;
+    expect(asset.url).toBe(`http://localhost:5173/a/${code}`);
+
+    const createLoan = await mcp(
+      token,
+      {
+        jsonrpc: '2.0',
+        id: 13,
+        method: 'tools/call',
+        params: { name: 'create_loan', arguments: { borrowerName: 'Jan', assetCodes: [code] } },
+      },
+      sid,
+    );
+    const loanId = JSON.parse((await readJsonRpc(createLoan)).result.content[0].text).id as string;
+
+    const getLoan = await mcp(
+      token,
+      { jsonrpc: '2.0', id: 14, method: 'tools/call', params: { name: 'get_loan', arguments: { id: loanId } } },
+      sid,
+    );
+    const loan = JSON.parse((await readJsonRpc(getLoan)).result.content[0].text).loan;
+    expect(loan.url).toBe(`http://localhost:5173/loans/${loanId}`);
+  });
+
   it('enforces role downstream (member cannot list users)', async () => {
     const { client_id } = await registerClient();
     const member = server.createUser({ role: 'member' });

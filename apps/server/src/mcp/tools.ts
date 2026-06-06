@@ -32,6 +32,12 @@ export type McpTool = {
   /** Raw Zod shape registered as the tool's input schema. */
   inputShape: z.ZodRawShape;
   build: (args: Record<string, any>) => ToolRequest;
+  /**
+   * Optional post-processor applied to a successful response body before it is
+   * returned to the MCP client. Used to inject human-facing deep-link `url`
+   * fields (the app's public base URL isn't known to the routers themselves).
+   */
+  enrich?: (body: unknown, appUrl: string) => unknown;
 };
 
 /**
@@ -61,8 +67,37 @@ function tool(
   description: string,
   inputShape: z.ZodRawShape,
   build: (args: Record<string, any>) => ToolRequest,
+  enrich?: (body: unknown, appUrl: string) => unknown,
 ): McpTool {
-  return { name, access, description, inputShape, build };
+  return { name, access, description, inputShape, build, enrich };
+}
+
+const stripSlash = (u: string) => u.replace(/\/$/, '');
+const assetUrl = (appUrl: string, code: string) => `${stripSlash(appUrl)}/a/${code}`;
+const loanUrl = (appUrl: string, id: string) => `${stripSlash(appUrl)}/loans/${id}`;
+
+/** Adds a deep-link `url` to an asset response (`{ asset }` or `{ items }`). */
+function enrichAssets(body: unknown, appUrl: string): unknown {
+  const b = body as { asset?: { code?: string; url?: string }; items?: { code?: string; url?: string }[] };
+  if (b && typeof b === 'object') {
+    if (b.asset?.code) b.asset.url = assetUrl(appUrl, b.asset.code);
+    if (Array.isArray(b.items)) {
+      for (const it of b.items) if (it?.code) it.url = assetUrl(appUrl, it.code);
+    }
+  }
+  return body;
+}
+
+/** Adds a deep-link `url` to a loan response (`{ loan }` or `{ items }`). */
+function enrichLoans(body: unknown, appUrl: string): unknown {
+  const b = body as { loan?: { id?: string; url?: string }; items?: { id?: string; url?: string }[] };
+  if (b && typeof b === 'object') {
+    if (b.loan?.id) b.loan.url = loanUrl(appUrl, b.loan.id);
+    if (Array.isArray(b.items)) {
+      for (const it of b.items) if (it?.id) it.url = loanUrl(appUrl, it.id);
+    }
+  }
+  return body;
 }
 
 export const MCP_TOOLS: McpTool[] = [
@@ -79,13 +114,15 @@ export const MCP_TOOLS: McpTool[] = [
       includeArchived: z.boolean().optional(),
     },
     (a) => ({ method: 'GET', path: `/api/assets${qs(a)}` }),
+    enrichAssets,
   ),
   tool(
     'get_asset',
     'read',
-    'Get a single asset by its code, including custom fields and status.',
+    'Get a single asset by its code, including custom fields, status and a `url` deep link to its detail page.',
     { code: z.string() },
     (a) => ({ method: 'GET', path: `/api/assets/${encodeURIComponent(a.code)}` }),
+    enrichAssets,
   ),
   tool(
     'get_asset_events',
@@ -160,20 +197,22 @@ export const MCP_TOOLS: McpTool[] = [
   tool(
     'list_loans',
     'read',
-    'List/search loans by borrower name.',
+    'List/search loans by borrower name. Each loan includes a `url` deep link.',
     {
       q: z.string().optional(),
       limit: z.number().int().positive().optional(),
       offset: z.number().int().nonnegative().optional(),
     },
     (a) => ({ method: 'GET', path: `/api/loans${qs(a)}` }),
+    enrichLoans,
   ),
   tool(
     'get_loan',
     'read',
-    'Get a loan by id, including its items and status.',
+    'Get a loan by id, including its items, status and a `url` deep link to its detail page.',
     { id: z.string() },
     (a) => ({ method: 'GET', path: `/api/loans/${encodeURIComponent(a.id)}` }),
+    enrichLoans,
   ),
   tool(
     'check_availability',
@@ -387,10 +426,13 @@ export const MCP_TOOLS: McpTool[] = [
   ),
 
   // ---- org / users / invitations (admin-gated downstream) ------------------
-  tool('get_org_settings', 'read', 'Read organization settings.', {}, () => ({
-    method: 'GET',
-    path: '/api/org',
-  })),
+  tool(
+    'get_org_settings',
+    'read',
+    'Read organization settings. Returns `appUrl`, the public web base URL for building human-facing links such as `${appUrl}/a/<code>` (asset) and `${appUrl}/loans/<id>` (loan).',
+    {},
+    () => ({ method: 'GET', path: '/api/org' }),
+  ),
   tool(
     'update_org_settings',
     'write',

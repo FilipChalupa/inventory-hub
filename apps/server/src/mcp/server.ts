@@ -33,6 +33,7 @@ async function runTool(
   t: McpTool,
   args: Record<string, unknown>,
   authInfo: AuthInfo | undefined,
+  appUrl: string,
 ): Promise<ToolResult> {
   const principal = authInfo?.extra?.principal as McpPrincipal | undefined;
   if (!principal) {
@@ -51,10 +52,11 @@ async function runTool(
   const result = await runWithPrincipal(principal, () =>
     callApi(app, spec.method, spec.path, spec.body),
   );
-  return textResult(result.body, !result.ok);
+  const body = result.ok && t.enrich ? t.enrich(result.body, appUrl) : result.body;
+  return textResult(body, !result.ok);
 }
 
-function buildServer(app: McpDispatchApp): McpServer {
+function buildServer(app: McpDispatchApp, appUrl: string): McpServer {
   const server = new McpServer(SERVER_INFO);
   for (const t of MCP_TOOLS) {
     server.registerTool(
@@ -65,7 +67,7 @@ function buildServer(app: McpDispatchApp): McpServer {
         annotations: { readOnlyHint: t.access === 'read' },
       },
       async (args: Record<string, unknown>, extra: { authInfo?: AuthInfo }) =>
-        runTool(app, t, args, extra?.authInfo),
+        runTool(app, t, args, extra?.authInfo, appUrl),
     );
   }
   return server;
@@ -88,6 +90,7 @@ type Session = {
  */
 export function createMcpRuntime(deps: { db: Db; env: Env; emailSender: EmailSender }): McpRuntime {
   const dispatchApp = createMcpDispatchApp(deps);
+  const appUrl = deps.env.PUBLIC_APP_URL.replace(/\/$/, '');
   const sessions = new Map<string, Session>();
 
   return {
@@ -111,7 +114,7 @@ export function createMcpRuntime(deps: { db: Db; env: Env; emailSender: EmailSen
           sessions.delete(id);
         },
       });
-      const server = buildServer(dispatchApp);
+      const server = buildServer(dispatchApp, appUrl);
       session.transport = transport;
       session.server = server;
       await server.connect(transport);
