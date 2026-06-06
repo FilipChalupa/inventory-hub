@@ -259,6 +259,41 @@ describe('loans API', () => {
       expect(loanRow.startedAt).not.toBeNull();
     });
 
+    it('availability offers a borrowed asset for a window after its expected return', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      // Active loan returning in ~3 days.
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Teď',
+        expectedReturnAt: inDays(3),
+        assetCodes: [a],
+      });
+
+      // Right now the asset is out → not available for an immediate window.
+      const nowList = await server.authRequest('/api/loans/availability', { cookie });
+      const nowBody = (await nowList.json()) as { items: { code: string }[] };
+      expect(nowBody.items.some((x) => x.code === a)).toBe(false);
+
+      // A window starting after the return is available — even though the
+      // asset is currently on_loan.
+      const laterList = await server.authRequest(
+        `/api/loans/availability?from=${encodeURIComponent(inDays(5))}`,
+        { cookie },
+      );
+      const laterBody = (await laterList.json()) as { items: { code: string; status: string }[] };
+      const offered = laterBody.items.find((x) => x.code === a);
+      expect(offered).toBeTruthy();
+      expect(offered!.status).toBe('on_loan');
+
+      // And it can actually be reserved for that window.
+      const reserve = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Příště',
+        loanedAt: inDays(5),
+        expectedReturnAt: inDays(7),
+        assetCodes: [a],
+      });
+      expect(reserve.status).toBe(201);
+    });
+
     it('a past start date creates the loan as already active', async () => {
       const a = await makeAsset(server, cookie, 'Asset A');
       const created = await jsonPost(server, cookie, '/api/loans', {

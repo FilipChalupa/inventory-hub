@@ -100,6 +100,13 @@ export type LoanRow = {
   status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 };
 
+export type LoanAvailabilityAsset = {
+  id: string;
+  code: string;
+  name: string;
+  status: AssetStatus;
+};
+
 export type ContactRow = {
   id: string;
   name: string;
@@ -409,6 +416,14 @@ export const apiClient = {
     get: (id: string) => api<{ loan: LoanRow }>(`/api/loans/${id}`),
     create: (input: CreateLoanInput) =>
       api<{ id: string }>('/api/loans', { method: 'POST', body: input }),
+    availability: (params: { from?: string; to?: string; q?: string } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q) qs.set('q', params.q);
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      const suffix = qs.toString() ? `?${qs}` : '';
+      return api<{ items: LoanAvailabilityAsset[] }>(`/api/loans/availability${suffix}`);
+    },
     start: (id: string) =>
       api<{ ok: true }>(`/api/loans/${id}/start`, { method: 'POST' }),
     returnItem: (loanId: string, itemId: string, input: Omit<ReturnLoanItemInput, 'loanItemId'>) =>

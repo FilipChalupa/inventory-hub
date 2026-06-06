@@ -22,12 +22,28 @@ export function NewLoanPage() {
   const [contactId, setContactId] = useState<string>('');
   const [prefilled, setPrefilled] = useState(false);
 
+  const { register, handleSubmit, formState, setValue, watch } = useForm<FormValues>({
+    defaultValues: {
+      borrowerName: '',
+      borrowerContact: '',
+      purpose: '',
+      loanedAt: '',
+      expectedReturnAt: '',
+    },
+  });
+
+  // The available assets depend on the chosen loan window: a currently
+  // borrowed item is offered when it is free again within [from, to).
+  const loanedAtValue = watch('loanedAt');
+  const expectedReturnValue = watch('expectedReturnAt');
+
   const assets = useQuery({
-    queryKey: ['assets', { q: search, status: 'in_stock' as const }],
+    queryKey: ['loan-availability', { q: search, from: loanedAtValue, to: expectedReturnValue }],
     queryFn: () =>
-      apiClient.assets.list({
+      apiClient.loans.availability({
         q: search || undefined,
-        status: 'in_stock',
+        from: loanedAtValue || undefined,
+        to: expectedReturnValue || undefined,
       }),
   });
 
@@ -45,16 +61,6 @@ export function NewLoanPage() {
     queryKey: ['loan', fromLoanId],
     queryFn: () => apiClient.loans.get(fromLoanId as string),
     enabled: !!fromLoanId,
-  });
-
-  const { register, handleSubmit, formState, setValue, watch } = useForm<FormValues>({
-    defaultValues: {
-      borrowerName: '',
-      borrowerContact: '',
-      purpose: '',
-      loanedAt: '',
-      expectedReturnAt: '',
-    },
   });
 
   useEffect(() => {
@@ -94,8 +100,6 @@ export function NewLoanPage() {
       }),
     onSuccess: (res) => navigate(`/loans/${res.id}`),
   });
-
-  void watch; // keep watch imported even though we only use setValue here
 
   const selectedSet = useMemo(() => new Set(selectedCodes), [selectedCodes]);
 
@@ -158,7 +162,8 @@ export function NewLoanPage() {
         <Card>
           <h2 className="font-semibold mb-2">Položky výpůjčky</h2>
           <p className="text-xs text-slate-500 mb-2">
-            Vybírej z assetů ve stavu „Skladem“. Vybráno: {selectedCodes.length}
+            Nabízíme assety volné ve zvoleném termínu – včetně právě půjčených, které se do
+            začátku stihnou vrátit. Vybráno: {selectedCodes.length}
           </p>
           <Input
             type="search"
@@ -185,7 +190,12 @@ export function NewLoanPage() {
                     }
                   />
                   <span className="font-mono text-xs text-slate-500 w-28">{a.code}</span>
-                  <span>{a.name}</span>
+                  <span className="flex-1">{a.name}</span>
+                  {a.status === 'on_loan' && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                      teď půjčeno
+                    </span>
+                  )}
                 </li>
               );
             })}

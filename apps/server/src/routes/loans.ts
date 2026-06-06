@@ -20,6 +20,11 @@ import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
 import { requireAuth } from '../middleware/auth.js';
 
+// An asset can be put on a loan only from these states. `on_loan` is
+// allowed because a future window may start after the asset is returned;
+// the time-overlap check decides whether it actually fits.
+const LOANABLE_STATUSES = ['in_stock', 'on_loan'] as const;
+
 export const loanRoutes = new Hono<AppContext>()
   .get('/', (c) => {
     const db = c.get('db');
@@ -53,6 +58,60 @@ export const loanRoutes = new Hono<AppContext>()
     });
 
     return c.json({ items: result });
+  })
+  // Assets that can be committed to a loan in a given time window. Includes
+  // currently borrowed assets when they are free again in [from, to) — so a
+  // popular item can be reserved ahead of its return.
+  .get('/availability', (c) => {
+    const db = c.get('db');
+    const q = c.req.query('q')?.trim().toLowerCase();
+    const fromRaw = c.req.query('from');
+    const toRaw = c.req.query('to');
+    const from = fromRaw ? new Date(fromRaw) : new Date();
+    const to = toRaw ? new Date(toRaw) : null;
+
+    let candidates = db
+      .select({ id: assets.id, code: assets.code, name: assets.name, status: assets.status })
+      .from(assets)
+      .where(and(isNull(assets.archivedAt), inArray(assets.status, LOANABLE_STATUSES)))
+      .orderBy(asc(assets.code))
+      .all();
+
+    if (q) {
+      candidates = candidates.filter(
+        (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
+      );
+    }
+
+    const ids = candidates.map((a) => a.id);
+    const committed = ids.length
+      ? db
+          .select({
+            assetId: loanItems.assetId,
+            loanedAt: loans.loanedAt,
+            expectedReturnAt: loans.expectedReturnAt,
+          })
+          .from(loanItems)
+          .innerJoin(loans, eq(loanItems.loanId, loans.id))
+          .where(and(inArray(loanItems.assetId, ids), isNull(loanItems.returnedAt)))
+          .all()
+      : [];
+
+    const windowsByAsset = new Map<string, { loanedAt: Date; expectedReturnAt: Date | null }[]>();
+    for (const w of committed) {
+      const list = windowsByAsset.get(w.assetId) ?? [];
+      list.push({ loanedAt: w.loanedAt, expectedReturnAt: w.expectedReturnAt });
+      windowsByAsset.set(w.assetId, list);
+    }
+
+    const items = candidates.filter((a) => {
+      const windows = windowsByAsset.get(a.id) ?? [];
+      return !windows.some((w) =>
+        loanWindowsOverlap(from, to, w.loanedAt, w.expectedReturnAt),
+      );
+    });
+
+    return c.json({ items });
   })
   .get('/:id', (c) => {
     const db = c.get('db');
@@ -110,6 +169,22 @@ export const loanRoutes = new Hono<AppContext>()
         {
           error: {
             message: `Asset(y) jsou archivované: ${archived.map((b) => b.code).join(', ')}`,
+          },
+        },
+        409,
+      );
+    }
+
+    const notLoanable = targets.filter(
+      (t) => !(LOANABLE_STATUSES as readonly string[]).includes(t.status),
+    );
+    if (notLoanable.length) {
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) nelze v tomto stavu půjčit: ${notLoanable
+              .map((b) => `${b.code} (${b.status})`)
+              .join(', ')}`,
           },
         },
         409,
