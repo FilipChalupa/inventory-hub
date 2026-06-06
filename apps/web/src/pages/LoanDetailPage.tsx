@@ -20,6 +20,7 @@ export function LoanDetailPage() {
 
   const l = loan.data.loan;
   const planned = l.status === 'planned';
+  const openCount = l.items.filter((i) => !i.returnedAt).length;
   return (
     <article className="space-y-4">
       <Link to="/loans" className="text-sm text-slate-500 hover:underline">
@@ -59,7 +60,16 @@ export function LoanDetailPage() {
       </header>
 
       <Card>
-        <h2 className="font-semibold mb-2">Položky</h2>
+        <div className="flex items-center justify-between mb-2">
+          <h2 className="font-semibold">Položky</h2>
+          {!planned && openCount > 0 && (
+            <ReturnAllButton
+              loanId={l.id}
+              count={openCount}
+              onDone={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
+            />
+          )}
+        </div>
         <ul className="divide-y">
           {l.items.map((item) => (
             <LoanItemRowComp
@@ -72,6 +82,43 @@ export function LoanDetailPage() {
         </ul>
       </Card>
     </article>
+  );
+}
+
+function ReturnAllButton({
+  loanId,
+  count,
+  onDone,
+}: {
+  loanId: string;
+  count: number;
+  onDone: () => void;
+}) {
+  const returnAll = useMutation({
+    mutationFn: () => apiClient.loans.returnAll(loanId),
+    onSuccess: onDone,
+  });
+  return (
+    <div className="flex items-center gap-2">
+      {returnAll.error && (
+        <span className="text-sm text-red-600">{(returnAll.error as Error).message}</span>
+      )}
+      <Button
+        variant="secondary"
+        disabled={returnAll.isPending}
+        onClick={() => {
+          if (
+            window.confirm(
+              `Vrátit všech ${count} nevrácených položek jako v pořádku? Poškozené řeš jednotlivě.`,
+            )
+          ) {
+            returnAll.mutate();
+          }
+        }}
+      >
+        {returnAll.isPending ? 'Vracím…' : `Vrátit vše (${count})`}
+      </Button>
+    </div>
   );
 }
 

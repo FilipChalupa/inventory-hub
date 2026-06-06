@@ -440,6 +440,67 @@ describe('loans API', () => {
       expect(reports[0]!.severity).toBe('minor');
     });
 
+    it('return-all returns every open item and puts assets back in_stock', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a, b],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {});
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { returned: number }).returned).toBe(2);
+
+      expect(server.db.select().from(assets).where(eq(assets.code, a)).get()!.status).toBe(
+        'in_stock',
+      );
+      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe(
+        'in_stock',
+      );
+
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      const body = (await detail.json()) as { loan: { status: string } };
+      expect(body.loan.status).toBe('fully_returned');
+    });
+
+    it('return-all only touches still-open items and 409s when nothing is open', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a, b],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      // Return one item up front as damaged.
+      const firstItem = server.db
+        .select()
+        .from(loanItems)
+        .where(eq(loanItems.loanId, loanId))
+        .all()[0]!;
+      await jsonPost(server, cookie, `/api/loans/${loanId}/items/${firstItem.id}/return`, {
+        returnCondition: 'damaged',
+      });
+
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {});
+      expect(res.status).toBe(200);
+      expect(((await res.json()) as { returned: number }).returned).toBe(1);
+
+      // The already-damaged item keeps its condition.
+      const stillDamaged = server.db
+        .select()
+        .from(loanItems)
+        .where(eq(loanItems.id, firstItem.id))
+        .get()!;
+      expect(stillDamaged.returnCondition).toBe('damaged');
+
+      // Nothing open now → 409.
+      const again = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {});
+      expect(again.status).toBe(409);
+    });
+
     it('refuses to return the same item twice', async () => {
       const a = await makeAsset(server, cookie, 'A');
       const created = await jsonPost(server, cookie, '/api/loans', {

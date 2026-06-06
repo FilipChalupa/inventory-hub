@@ -318,6 +318,51 @@ export const loanRoutes = new Hono<AppContext>()
     activateLoan(db, id, user.id, new Date());
     return c.json({ ok: true });
   })
+  .post('/:id/return-all', (c) => {
+    const db = c.get('db');
+    const loanId = c.req.param('id');
+    const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+    if (loan.startedAt === null) {
+      return c.json({ error: { message: 'Výpůjčka ještě nezačala' } }, 409);
+    }
+
+    const open = db
+      .select()
+      .from(loanItems)
+      .where(and(eq(loanItems.loanId, loanId), isNull(loanItems.returnedAt)))
+      .all();
+    if (open.length === 0) {
+      return c.json({ error: { message: 'Žádné nevrácené položky' } }, 409);
+    }
+
+    const user = c.get('user')!;
+    const now = new Date();
+    // Bulk return treats everything as returned in good condition; damaged
+    // items still go through the per-item flow that files a damage report.
+    db.transaction((tx) => {
+      for (const item of open) {
+        tx.update(loanItems)
+          .set({ returnedAt: now, returnCondition: 'ok', returnNotes: null })
+          .where(eq(loanItems.id, item.id))
+          .run();
+        tx.update(assets)
+          .set({ status: 'in_stock', updatedAt: now })
+          .where(eq(assets.id, item.assetId))
+          .run();
+        tx.insert(assetEvents)
+          .values({
+            assetId: item.assetId,
+            actorUserId: user.id,
+            type: 'loan_item_returned',
+            payload: { loanId, itemId: item.id, condition: 'ok' },
+          })
+          .run();
+      }
+    });
+
+    return c.json({ ok: true, returned: open.length });
+  })
   .post('/notify-overdue', requireAuth('admin'), async (c) => {
     const db = c.get('db');
     const env = c.get('env');
