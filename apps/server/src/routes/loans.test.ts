@@ -341,6 +341,25 @@ describe('loans API', () => {
     });
   });
 
+  describe('GET /api/loans pagination & search', () => {
+    it('paginates with limit/offset, reports total, and filters by borrower', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      await jsonPost(server, cookie, '/api/loans', { borrowerName: 'Alice', assetCodes: [a] });
+      await jsonPost(server, cookie, '/api/loans', { borrowerName: 'Bob', assetCodes: [b] });
+
+      const page = await server.authRequest('/api/loans?limit=1', { cookie });
+      const body = (await page.json()) as { items: unknown[]; total: number };
+      expect(body.total).toBe(2);
+      expect(body.items).toHaveLength(1);
+
+      const search = await server.authRequest('/api/loans?q=ali', { cookie });
+      const sbody = (await search.json()) as { items: { borrowerName: string }[]; total: number };
+      expect(sbody.total).toBe(1);
+      expect(sbody.items[0]!.borrowerName).toBe('Alice');
+    });
+  });
+
   describe('GET /api/loans', () => {
     it('reports derived loan status (open / partially_returned / fully_returned)', async () => {
       const a = await makeAsset(server, cookie, 'A');
@@ -589,6 +608,67 @@ describe('loans API', () => {
       const item = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!;
       const res = await jsonReq('DELETE', `/api/loans/${loanId}/items/${item.id}`);
       expect(res.status).toBe(409);
+    });
+
+    it('resets the overdue flag when the return date changes', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      server.db.update(loans).set({ overdueNotifiedAt: new Date() }).where(eq(loans.id, loanId)).run();
+
+      await jsonReq('PATCH', `/api/loans/${loanId}`, { expectedReturnAt: inDays(5) });
+
+      const row = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+      expect(row.overdueNotifiedAt).toBeNull();
+    });
+
+    it('resets the start-reminder flag when a planned start changes', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        loanedAt: inDays(3),
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      server.db
+        .update(loans)
+        .set({ startReminderSentAt: new Date() })
+        .where(eq(loans.id, loanId))
+        .run();
+
+      await jsonReq('PATCH', `/api/loans/${loanId}`, { loanedAt: inDays(5) });
+
+      const row = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+      expect(row.startReminderSentAt).toBeNull();
+    });
+
+    it('exposes a per-loan activity log including the edit diff', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Před',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      await jsonReq('PATCH', `/api/loans/${loanId}`, { borrowerName: 'Po' });
+
+      const res = await server.authRequest(`/api/loans/${loanId}/events`, { cookie });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        items: {
+          type: string;
+          actorName: string | null;
+          payload: { changes?: Record<string, { from: unknown; to: unknown }> };
+        }[];
+      };
+      const types = body.items.map((i) => i.type);
+      expect(types).toContain('loan_started');
+      expect(types).toContain('loan_updated');
+      const upd = body.items.find((i) => i.type === 'loan_updated')!;
+      expect(upd.payload.changes!.borrowerName).toEqual({ from: 'Před', to: 'Po' });
+      expect(upd.actorName).toBeTruthy();
     });
 
     it('for-asset lists active and planned commitments', async () => {

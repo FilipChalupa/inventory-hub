@@ -43,6 +43,9 @@ kompletní historii pohybů, poškození a výpůjček.
 - RFID / Bluetooth tagy.
 - API pro integrace.
 - Billing & subscription tiers.
+- **Role u mutací výpůjček (nice to have)** — teď může výpůjčky zakládat,
+  editovat, mazat i z nich odebírat položky kterýkoli přihlášený uživatel
+  (`requireAuth()` v `app.ts`). Zvážit omezení mazání/úprav jen na admina.
 
 ## 5. Unikátní identifikátor assetu
 

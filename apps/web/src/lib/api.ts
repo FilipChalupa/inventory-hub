@@ -101,6 +101,16 @@ export type LoanRow = {
   status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 };
 
+export type LoanEventRow = {
+  id: string;
+  type: string;
+  occurredAt: string;
+  actorUserId: string | null;
+  actorName: string | null;
+  assetCode: string | null;
+  payload: Record<string, unknown>;
+};
+
 export type LoanForAssetRow = {
   id: string;
   borrowerName: string;
@@ -424,7 +434,16 @@ export const apiClient = {
   },
 
   loans: {
-    list: () => api<{ items: LoanRow[] }>('/api/loans'),
+    list: (params: { q?: string; limit?: number; offset?: number } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.q) qs.set('q', params.q);
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
+      const suffix = qs.toString() ? `?${qs}` : '';
+      return api<{ items: LoanRow[]; total: number }>(`/api/loans${suffix}`);
+    },
+    events: (id: string) =>
+      api<{ items: LoanEventRow[] }>(`/api/loans/${id}/events`),
     get: (id: string) => api<{ loan: LoanRow }>(`/api/loans/${id}`),
     create: (input: CreateLoanInput) =>
       api<{ id: string }>('/api/loans', { method: 'POST', body: input }),

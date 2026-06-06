@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, desc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createLoanInput,
@@ -17,6 +17,7 @@ import {
   damageReports,
   loanItems,
   loans,
+  users,
 } from '../db/schema.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
@@ -49,18 +50,36 @@ function returnDateError(returnedAt: Date, loanStart: Date, now: Date): string |
 export const loanRoutes = new Hono<AppContext>()
   .get('/', (c) => {
     const db = c.get('db');
+    const q = c.req.query('q')?.trim();
+    const limit = Math.min(Number(c.req.query('limit') ?? '100') || 100, 200);
+    const offset = Math.max(Number(c.req.query('offset') ?? '0') || 0, 0);
+
+    const where = q
+      ? sql`lower(${loans.borrowerName}) like ${'%' + q.toLowerCase() + '%'}`
+      : undefined;
+
+    const total = db
+      .select({ n: sql<number>`count(*)` })
+      .from(loans)
+      .where(where)
+      .get()!.n;
+
     const rows = db
       .select()
       .from(loans)
+      .where(where)
       .orderBy(desc(loans.loanedAt))
-      .limit(200)
+      .limit(limit)
+      .offset(offset)
       .all();
 
-    const items = db
-      .select()
-      .from(loanItems)
-      .where(inArray(loanItems.loanId, rows.map((l) => l.id)))
-      .all();
+    const items = rows.length
+      ? db
+          .select()
+          .from(loanItems)
+          .where(inArray(loanItems.loanId, rows.map((l) => l.id)))
+          .all()
+      : [];
 
     const itemsByLoan = new Map<string, typeof items>();
     for (const it of items) {
@@ -78,7 +97,7 @@ export const loanRoutes = new Hono<AppContext>()
       };
     });
 
-    return c.json({ items: result });
+    return c.json({ items: result, total });
   })
   // All live (non-archived) assets annotated with whether they can be
   // committed to a loan in the given window. Unavailable assets are still
@@ -208,6 +227,33 @@ export const loanRoutes = new Hono<AppContext>()
       },
     });
   })
+  // Activity log for one loan, pulled from the per-asset event stream by the
+  // loanId stored in each event's payload (newest first).
+  .get('/:id/events', (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const loan = db.select({ id: loans.id }).from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+
+    const rows = db
+      .select({
+        id: assetEvents.id,
+        type: assetEvents.type,
+        occurredAt: assetEvents.occurredAt,
+        actorUserId: assetEvents.actorUserId,
+        actorName: users.name,
+        assetCode: assets.code,
+        payload: assetEvents.payload,
+      })
+      .from(assetEvents)
+      .leftJoin(assets, eq(assetEvents.assetId, assets.id))
+      .leftJoin(users, eq(assetEvents.actorUserId, users.id))
+      .where(sql`json_extract(${assetEvents.payload}, '$.loanId') = ${id}`)
+      .orderBy(desc(assetEvents.occurredAt))
+      .all();
+
+    return c.json({ items: rows });
+  })
   .patch('/:id', zValidator('json', updateLoanInput), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
@@ -287,6 +333,7 @@ export const loanRoutes = new Hono<AppContext>()
     if (input.expectedReturnAt !== undefined) patch.expectedReturnAt = input.expectedReturnAt;
 
     // Build a diff of what actually changed, for the audit trail.
+    // (also drives the notification-flag reset below)
     const fmt = (d: Date | null) => (d ? d.toISOString() : null);
     const changes: Record<string, { from: unknown; to: unknown }> = {};
     if (input.borrowerName !== undefined && input.borrowerName !== loan.borrowerName)
@@ -310,6 +357,12 @@ export const loanRoutes = new Hono<AppContext>()
       (input.expectedReturnAt?.getTime() ?? null) !== (loan.expectedReturnAt?.getTime() ?? null)
     )
       changes.expectedReturnAt = { from: fmt(loan.expectedReturnAt), to: fmt(input.expectedReturnAt) };
+
+    // Changing the deadline re-arms the overdue notifier; changing a planned
+    // start re-arms the "starts soon" reminder. Otherwise a stale flag would
+    // suppress the next legitimate notification.
+    if (changes.expectedReturnAt) patch.overdueNotifiedAt = null;
+    if (changes.loanedAt) patch.startReminderSentAt = null;
 
     const user = c.get('user')!;
     const assetIds = db

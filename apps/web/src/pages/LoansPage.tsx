@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient, type LoanRow } from '../lib/api.js';
@@ -22,12 +22,22 @@ const statusClasses = {
 type StatusFilter = '' | keyof typeof statusLabels | 'overdue';
 
 export function LoansPage() {
-  const list = useQuery({ queryKey: ['loans'], queryFn: () => apiClient.loans.list() });
   const now = new Date();
   const [status, setStatus] = useState<StatusFilter>('');
   const [borrower, setBorrower] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [limit, setLimit] = useState(100);
+
+  // Borrower search and paging are server-side (so the list isn't silently
+  // capped); status/date/overdue refine the loaded page client-side.
+  const list = useQuery({
+    queryKey: ['loans', { q: borrower, limit }],
+    queryFn: () => apiClient.loans.list({ q: borrower || undefined, limit }),
+    placeholderData: keepPreviousData,
+  });
+  const total = list.data?.total ?? 0;
+  const loadedCount = list.data?.items.length ?? 0;
 
   const filtered = useMemo(() => {
     if (!list.data) return [];
@@ -42,9 +52,6 @@ export function LoansPage() {
       } else if (status && loan.status !== status) {
         return false;
       }
-      if (borrower && !loan.borrowerName.toLowerCase().includes(borrower.toLowerCase())) {
-        return false;
-      }
       if (from) {
         const fromDate = new Date(from);
         if (new Date(loan.loanedAt) < fromDate) return false;
@@ -56,7 +63,7 @@ export function LoansPage() {
       }
       return true;
     });
-  }, [list.data, status, borrower, from, to, now]);
+  }, [list.data, status, from, to, now]);
 
   // Planned loans get their own "upcoming" section, sorted by start date.
   const upcoming = filtered
@@ -74,7 +81,7 @@ export function LoansPage() {
         </Link>
       </div>
 
-      {list.data && list.data.items.length > 0 && (
+      {(loadedCount > 0 || borrower || status || from || to) && (
         <div className="flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[160px]">
             <label className="text-xs text-slate-500 block mb-0.5">Borrower</label>
@@ -121,7 +128,7 @@ export function LoansPage() {
         </div>
       )}
 
-      {list.data?.items.length === 0 && (
+      {loadedCount === 0 && !borrower && (
         <Card>
           <h2 className="font-semibold mb-1">Zatím žádné výpůjčky</h2>
           <p className="text-slate-600 text-sm mb-3">
@@ -135,7 +142,7 @@ export function LoansPage() {
         </Card>
       )}
 
-      {list.data && list.data.items.length > 0 && filtered.length === 0 && (
+      {((loadedCount > 0 && filtered.length === 0) || (loadedCount === 0 && !!borrower)) && (
         <p className="text-sm text-slate-500">Žádné výpůjčky neodpovídají filtru.</p>
       )}
 
@@ -158,6 +165,21 @@ export function LoansPage() {
             <LoanRowItem key={loan.id} loan={loan} now={now} />
           ))}
         </ul>
+      )}
+
+      {loadedCount < total && (
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            disabled={list.isFetching}
+            onClick={() => setLimit((l) => l + 100)}
+          >
+            {list.isFetching ? 'Načítám…' : 'Načíst další'}
+          </Button>
+          <span className="text-xs text-slate-500">
+            zobrazeno {loadedCount} z {total}
+          </span>
+        </div>
       )}
     </section>
   );

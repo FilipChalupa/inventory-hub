@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { apiClient, type LoanItemRow, type LoanRow } from '../lib/api.js';
+import { apiClient, type LoanEventRow, type LoanItemRow, type LoanRow } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea, formatDate } from '../components/ui.js';
 
 export function LoanDetailPage() {
@@ -13,7 +13,16 @@ export function LoanDetailPage() {
     queryFn: () => apiClient.loans.get(id),
     enabled: !!id,
   });
+  const loanEvents = useQuery({
+    queryKey: ['loan-events', id],
+    queryFn: () => apiClient.loans.events(id),
+    enabled: !!id,
+  });
   const [editing, setEditing] = useState(false);
+  const refresh = () => {
+    qc.invalidateQueries({ queryKey: ['loan', id] });
+    qc.invalidateQueries({ queryKey: ['loan-events', id] });
+  };
   const cancel = useMutation({
     mutationFn: () => apiClient.loans.remove(id),
     onSuccess: () => navigate('/loans'),
@@ -80,28 +89,19 @@ export function LoanDetailPage() {
             planned={planned}
             onSaved={() => {
               setEditing(false);
-              qc.invalidateQueries({ queryKey: ['loan', id] });
+              refresh();
             }}
             onCancel={() => setEditing(false)}
           />
         )}
-        {planned && (
-          <StartLoanBar
-            loanId={l.id}
-            onStarted={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
-          />
-        )}
+        {planned && <StartLoanBar loanId={l.id} onStarted={refresh} />}
       </header>
 
       <Card>
         <div className="flex items-center justify-between mb-2">
           <h2 className="font-semibold">Položky</h2>
           {!planned && openCount > 0 && (
-            <ReturnAllButton
-              loanId={l.id}
-              count={openCount}
-              onDone={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
-            />
+            <ReturnAllButton loanId={l.id} count={openCount} onDone={refresh} />
           )}
         </div>
         <ul className="divide-y">
@@ -111,7 +111,7 @@ export function LoanDetailPage() {
               item={item}
               loanId={l.id}
               canRemove={l.items.length > 1}
-              onChanged={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
+              onChanged={refresh}
             />
           ))}
         </ul>
@@ -124,10 +124,12 @@ export function LoanDetailPage() {
               .filter((i) => !i.returnedAt)
               .map((i) => i.assetCode)
               .filter((x): x is string => Boolean(x))}
-            onAdded={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
+            onAdded={refresh}
           />
         )}
       </Card>
+
+      <LoanHistoryCard events={loanEvents.data?.items ?? []} />
     </article>
   );
 }
@@ -496,5 +498,73 @@ function LoanItemRowComp({
         </div>
       )}
     </li>
+  );
+}
+
+const LOAN_EVENT_LABELS: Record<string, string> = {
+  loan_planned: 'Rezervace vytvořena',
+  loan_started: 'Zahájeno / vypůjčeno',
+  loan_item_returned: 'Položka vrácena',
+  loan_item_added: 'Položka přidána',
+  loan_item_removed: 'Položka odebrána',
+  loan_updated: 'Upraveno',
+  loan_cancelled: 'Rezervace zrušena',
+  damage_reported: 'Nahlášeno poškození',
+};
+
+const LOAN_FIELD_LABELS: Record<string, string> = {
+  borrowerName: 'Jméno',
+  borrowerContact: 'Kontakt',
+  borrowerContactId: 'Kontakt (vazba)',
+  purpose: 'Účel',
+  loanedAt: 'Začátek',
+  expectedReturnAt: 'Návrat',
+};
+
+function fmtEventValue(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v)) return formatDate(v);
+  return String(v);
+}
+
+function LoanHistoryCard({ events }: { events: LoanEventRow[] }) {
+  return (
+    <Card>
+      <h2 className="font-semibold mb-2">Historie</h2>
+      {events.length === 0 && <p className="text-sm text-slate-500">Zatím žádné záznamy.</p>}
+      <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+        {events.map((e) => {
+          const changes =
+            e.type === 'loan_updated'
+              ? (e.payload?.changes as Record<string, { from: unknown; to: unknown }> | undefined)
+              : undefined;
+          return (
+            <li key={e.id} className="py-2 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <span>
+                  {LOAN_EVENT_LABELS[e.type] ?? e.type}
+                  {e.assetCode && (
+                    <span className="font-mono text-xs text-slate-500"> · {e.assetCode}</span>
+                  )}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {e.actorName ?? 'systém'} · {new Date(e.occurredAt).toLocaleString('cs-CZ')}
+                </span>
+              </div>
+              {changes && (
+                <ul className="mt-1 ml-3 list-inside list-disc text-xs text-slate-500">
+                  {Object.entries(changes).map(([field, ch]) => (
+                    <li key={field}>
+                      {LOAN_FIELD_LABELS[field] ?? field}: {fmtEventValue(ch.from)} →{' '}
+                      {fmtEventValue(ch.to)}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
