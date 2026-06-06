@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui.js';
 
@@ -14,9 +14,12 @@ type FormValues = {
 
 export function NewLoanPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const fromLoanId = searchParams.get('from');
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
   const [search, setSearch] = useState('');
   const [contactId, setContactId] = useState<string>('');
+  const [prefilled, setPrefilled] = useState(false);
 
   const assets = useQuery({
     queryKey: ['assets', { q: search, status: 'in_stock' as const }],
@@ -32,9 +35,33 @@ export function NewLoanPage() {
     queryFn: () => apiClient.contacts.list(),
   });
 
+  // When "?from=<loanId>" is present we clone an existing loan: borrower,
+  // contact and purpose are copied so a frequently repeating loan can be
+  // recreated in a couple of clicks. The return date is intentionally left
+  // blank (the old one is in the past) and the same items are pre-selected
+  // when they are available again.
+  const sourceLoan = useQuery({
+    queryKey: ['loan', fromLoanId],
+    queryFn: () => apiClient.loans.get(fromLoanId as string),
+    enabled: !!fromLoanId,
+  });
+
   const { register, handleSubmit, formState, setValue, watch } = useForm<FormValues>({
     defaultValues: { borrowerName: '', borrowerContact: '', purpose: '', expectedReturnAt: '' },
   });
+
+  useEffect(() => {
+    if (prefilled || !fromLoanId) return;
+    const l = sourceLoan.data?.loan;
+    if (!l) return;
+    setValue('borrowerName', l.borrowerName);
+    setValue('borrowerContact', l.borrowerContact ?? '');
+    setValue('purpose', l.purpose ?? '');
+    if (l.borrowerContactId) setContactId(l.borrowerContactId);
+    const codes = l.items.map((i) => i.assetCode).filter((c): c is string => Boolean(c));
+    if (codes.length) setSelectedCodes(codes);
+    setPrefilled(true);
+  }, [fromLoanId, sourceLoan.data, prefilled, setValue]);
 
   // When the user picks a contact, autofill the name + contact fields so
   // the loan still has a free-text snapshot of the borrower's name in
@@ -69,7 +96,16 @@ export function NewLoanPage() {
       <Link to="/loans" className="text-sm text-slate-500 hover:underline">
         ← zpět na výpůjčky
       </Link>
-      <h1 className="text-2xl font-bold">Nová výpůjčka</h1>
+      <h1 className="text-2xl font-bold">
+        {fromLoanId ? 'Nová podobná výpůjčka' : 'Nová výpůjčka'}
+      </h1>
+
+      {fromLoanId && prefilled && (
+        <p className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+          Předvyplněno podle dřívější výpůjčky. Zkontroluj položky – předvybrané assety se zobrazí
+          jen pokud jsou znovu skladem.
+        </p>
+      )}
 
       <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
         <Field label="Vybrat existující kontakt (volitelné)">

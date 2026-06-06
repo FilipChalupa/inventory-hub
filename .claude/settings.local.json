@@ -70,7 +70,11 @@
       "Bash(bc)",
       "Bash(curl -s -b /tmp/ck.txt \"http://127.0.0.1:3095/api/assets?limit=100\" -H 'Origin: http://localhost:3001')",
       "Bash(curl -s -b /tmp/ck.txt \"http://127.0.0.1:3095/api/loans\" -H 'Origin: http://localhost:3001' -w \" [HTTP %{http_code}]\" -o /tmp/loans.json)",
-      "Bash(curl -s -b /tmp/ck.txt -X POST http://127.0.0.1:3095/api/demo/seed -H 'Origin: http://localhost:3001' -w \" [HTTP %{http_code}]\\\\n\")"
+      "Bash(curl -s -b /tmp/ck.txt -X POST http://127.0.0.1:3095/api/demo/seed -H 'Origin: http://localhost:3001' -w \" [HTTP %{http_code}]\\\\n\")",
+      "Bash(grep -E \"\\\\.sql$\")",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"---ignored? exit $?---\")",
+      "Bash(git rm *)"
     ]
   }
 }

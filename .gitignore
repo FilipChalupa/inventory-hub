@@ -25,3 +25,4 @@ test-results/
 # misc
 .cache/
 .turbo/
+*.tsbuildinfo

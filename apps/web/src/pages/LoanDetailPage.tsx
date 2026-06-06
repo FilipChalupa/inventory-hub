@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, type LoanItemRow } from '../lib/api.js';
 import { Button, Card, Field, Select, Textarea, formatDate } from '../components/ui.js';
 
 export function LoanDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const loan = useQuery({
     queryKey: ['loan', id],
@@ -24,7 +25,15 @@ export function LoanDetailPage() {
         ← zpět
       </Link>
       <header>
-        <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
+        <div className="flex items-start justify-between gap-4">
+          <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/loans/new?from=${l.id}`)}
+          >
+            Založit podobnou
+          </Button>
+        </div>
         {l.borrowerContact && <p className="text-sm text-slate-600">{l.borrowerContact}</p>}
         {l.purpose && <p className="text-sm mt-2">Účel: {l.purpose}</p>}
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm mt-2">
