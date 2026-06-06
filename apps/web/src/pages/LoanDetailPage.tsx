@@ -345,7 +345,7 @@ function AddLoanItems({
           return (
             <li
               key={a.code}
-              className={`flex items-center gap-3 p-2 ${disabled ? 'opacity-50' : 'hover:bg-slate-50'}`}
+              className={`flex items-center gap-3 p-2 ${disabled ? 'opacity-50' : 'hover:bg-slate-50 dark:hover:bg-slate-700'}`}
             >
               <input
                 type="checkbox"

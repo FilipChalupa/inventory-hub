@@ -50,11 +50,27 @@ export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLText
   return <textarea className={clsx(formControl, className)} {...rest} />;
 }
 
-export function Field({ label, children, error }: { label: string; children: ReactNode; error?: string }) {
+export function Field({
+  label,
+  children,
+  error,
+  required,
+}: {
+  label: string;
+  children: ReactNode;
+  error?: string;
+  required?: boolean;
+}) {
   return (
     <label className="block">
       <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
         {label}
+        {required && (
+          <span className="text-red-600" aria-hidden="true" title="Povinné">
+            {' '}
+            *
+          </span>
+        )}
       </span>
       {children}
       {error && <span className="block text-xs text-red-600 mt-1">{error}</span>}

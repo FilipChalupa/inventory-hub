@@ -114,7 +114,7 @@ export function NewLoanPage() {
       </h1>
 
       {fromLoanId && prefilled && (
-        <p className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+        <p className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
           Předvyplněno podle dřívější výpůjčky. Zkontroluj položky – předvybrané assety se zobrazí
           jen pokud jsou znovu skladem.
         </p>
@@ -188,7 +188,7 @@ export function NewLoanPage() {
                   key={a.code}
                   className={clsx(
                     'flex items-center gap-3 p-2',
-                    disabled ? 'opacity-50' : 'hover:bg-slate-50',
+                    disabled ? 'opacity-50' : 'hover:bg-slate-50 dark:hover:bg-slate-700',
                   )}
                 >
                   <input

@@ -47,7 +47,7 @@ export function CustomFieldsSchemaEditor({
           <li className="text-xs text-slate-500">Žádné vlastní pole.</li>
         )}
         {value.map((f, idx) => (
-          <li key={f.key} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end p-2 border rounded bg-slate-50">
+          <li key={f.key} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end p-2 border rounded bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
             <Field label="Klíč">
               <Input value={f.key} disabled className="font-mono text-xs bg-slate-100" />
             </Field>
