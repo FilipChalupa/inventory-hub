@@ -20,8 +20,12 @@
   .print\:hidden {
     display: none !important;
   }
+  /* Force readable black-on-white when printing, even if the OS is in dark
+     mode (the `prefers-color-scheme: dark` media query still matches during
+     print, so `dark:` text colors would otherwise stay light). */
   body {
     background: white !important;
+    color: #0f172a !important;
   }
   main > div {
     max-width: none !important;

@@ -101,25 +101,25 @@ export function SettingsPage() {
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/export/assets.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             Assety
           </a>
           <a
             href="/api/export/loans.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             Výpůjčky
           </a>
           <a
             href="/api/export/damages.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             Poškození
           </a>
           <a
             href="/api/export/contacts.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white px-3 py-1.5 text-sm hover:bg-slate-50"
+            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             Kontakty
           </a>

@@ -38,7 +38,7 @@ export function LoginPage() {
 
         <a
           href={apiClient.auth.googleStartUrl}
-          className="flex items-center justify-center gap-2 w-full rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-50"
+          className="flex items-center justify-center gap-2 w-full rounded border border-slate-300 bg-white text-slate-900 px-4 py-2 text-sm font-medium hover:bg-slate-50"
         >
           <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
             <path
@@ -65,10 +65,10 @@ export function LoginPage() {
           <>
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200"></div>
+                <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-2 text-slate-500">dev mode</span>
+                <span className="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">dev mode</span>
               </div>
             </div>
             <form className="space-y-3" onSubmit={devLogin}>

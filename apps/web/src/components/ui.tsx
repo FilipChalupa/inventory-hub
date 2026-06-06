@@ -17,10 +17,14 @@ const buttonVariants: Record<ButtonVariant, string> = {
 export function Button({
   variant = 'primary',
   className,
+  // Default to "button" so action buttons placed inside a <form> don't
+  // accidentally submit it. Submit buttons set type="submit" explicitly.
+  type = 'button',
   ...rest
 }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
     <button
+      type={type}
       className={clsx(
         'inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium transition-colors',
         buttonVariants[variant],

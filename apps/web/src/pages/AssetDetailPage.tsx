@@ -674,7 +674,7 @@ function AssetPhotosCard({
               <button
                 type="button"
                 onClick={() => removePhoto(p)}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-xs leading-none border opacity-0 group-hover:opacity-100"
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-slate-700 text-xs leading-none border opacity-0 group-hover:opacity-100"
                 aria-label="Odebrat"
               >
                 ×
@@ -907,7 +907,7 @@ function NewDamageForm({
                 <button
                   type="button"
                   onClick={() => setPhotos((prev) => prev.filter((_, i) => i !== idx))}
-                  className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 text-xs leading-none border"
+                  className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 text-slate-700 text-xs leading-none border"
                   aria-label="Odebrat"
                 >
                   ×

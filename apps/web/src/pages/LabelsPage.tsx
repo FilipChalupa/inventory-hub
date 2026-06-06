@@ -78,11 +78,11 @@ export function LabelsPage() {
             placeholder="Filtr…"
             className="mb-2"
           />
-          <ul className="max-h-64 overflow-y-auto divide-y rounded border text-sm">
+          <ul className="max-h-64 overflow-y-auto divide-y rounded border text-sm dark:divide-slate-700 dark:border-slate-700">
             {filtered.map((a) => {
               const selected = codes.includes(a.code);
               return (
-                <li key={a.code} className="flex items-center gap-2 p-1.5 hover:bg-slate-50">
+                <li key={a.code} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 dark:hover:bg-slate-700">
                   <input
                     type="checkbox"
                     checked={selected}
@@ -111,7 +111,11 @@ export function LabelsPage() {
             {labels.data.items.map((l) => (
               <div
                 key={l.code}
-                className="border rounded p-3 flex items-center gap-3 break-inside-avoid bg-white"
+                // Labels are physical stickers: force black-on-white in every
+                // theme + in print. Without an explicit text color the children
+                // inherit the body's `dark:text-slate-100`, which prints light
+                // text on the white label (unreadable).
+                className="border border-slate-300 rounded p-3 flex items-center gap-3 break-inside-avoid bg-white text-slate-900"
               >
                 <img
                   src={apiClient.assets.qrUrl(l.code)}
