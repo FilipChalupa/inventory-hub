@@ -210,9 +210,9 @@ function EditLoanForm({
   const save = useMutation({
     mutationFn: () =>
       apiClient.loans.update(loan.id, {
-        borrowerName,
-        borrowerContact: borrowerContact || null,
-        purpose: purpose || null,
+        borrowerName: borrowerName.trim(),
+        borrowerContact: borrowerContact.trim() || null,
+        purpose: purpose.trim() || null,
         ...(planned ? { loanedAt: loanedAt ? new Date(loanedAt) : undefined } : {}),
         expectedReturnAt: expectedReturnAt ? new Date(expectedReturnAt) : null,
       }),

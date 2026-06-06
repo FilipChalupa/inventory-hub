@@ -11,7 +11,7 @@ export const damageReportSchema = z.object({
   occurredAt: z.coerce.date(),
   reportedAt: z.coerce.date(),
   reportedByUserId: z.string().uuid(),
-  description: z.string().min(1).max(2000),
+  description: z.string().trim().min(1).max(2000),
   severity: z.enum(damageSeverities),
   photoPaths: z.array(z.string()).max(MAX_DAMAGE_PHOTOS).default([]),
   resolvedAt: z.coerce.date().nullable(),

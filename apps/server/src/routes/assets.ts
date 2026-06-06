@@ -61,16 +61,16 @@ const listQuery = z.object({
 });
 
 const updateInput = z.object({
-  name: z.string().min(1).max(200).optional(),
+  name: z.string().trim().min(1).max(200).optional(),
   typeId: z.string().uuid().nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
-  notes: z.string().max(2000).nullable().optional(),
+  notes: z.string().trim().max(2000).nullable().optional(),
   customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
 const archiveInput = z.object({
   status: z.enum(TERMINAL_ASSET_STATUSES),
-  note: z.string().max(500).optional(),
+  note: z.string().trim().max(500).optional(),
 });
 
 function isTerminalStatus(s: AssetStatus): boolean {

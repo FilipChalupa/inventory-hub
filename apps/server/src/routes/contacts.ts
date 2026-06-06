@@ -6,11 +6,11 @@ import type { AppContext } from '../app.js';
 import { contacts, loans } from '../db/schema.js';
 
 const createInput = z.object({
-  name: z.string().min(1).max(200),
-  email: z.string().email().max(200).nullable().optional(),
-  phone: z.string().max(40).nullable().optional(),
-  organization: z.string().max(200).nullable().optional(),
-  note: z.string().max(2000).nullable().optional(),
+  name: z.string().trim().min(1).max(200),
+  email: z.string().trim().email().max(200).nullable().optional(),
+  phone: z.string().trim().max(40).nullable().optional(),
+  organization: z.string().trim().max(200).nullable().optional(),
+  note: z.string().trim().max(2000).nullable().optional(),
 });
 
 const updateInput = createInput.partial();

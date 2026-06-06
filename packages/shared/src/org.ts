@@ -3,6 +3,7 @@ import { USER_ROLES } from './user.js';
 
 export const orgCodePrefix = z
   .string()
+  .trim()
   .min(2)
   .max(6)
   .regex(/^[A-Z0-9]+$/, 'Prefix musí obsahovat pouze A–Z a 0–9')
@@ -10,6 +11,7 @@ export const orgCodePrefix = z
 
 const lowercaseDomain = z
   .string()
+  .trim()
   .toLowerCase()
   .pipe(
     z
@@ -27,7 +29,7 @@ export const allowedDomainSchema = z.object({
 export type AllowedDomain = z.infer<typeof allowedDomainSchema>;
 
 export const orgSettingsSchema = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   codePrefix: orgCodePrefix,
   allowedDomains: z.array(allowedDomainSchema).default([]),
 });

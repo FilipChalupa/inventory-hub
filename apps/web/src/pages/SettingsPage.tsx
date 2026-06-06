@@ -133,6 +133,8 @@ export function SettingsPage() {
 
       <ApiKeysSection />
 
+      <McpConnectionSection />
+
       {/* TODO: Dočasné – tuto sekci odebrat před finálním nasazením. */}
       <DemoDataSection />
     </section>
@@ -233,6 +235,84 @@ function ApiKeysSection() {
         </ul>
       )}
     </Card>
+  );
+}
+
+function McpConnectionSection() {
+  const info = useQuery({ queryKey: ['mcp-info'], queryFn: () => apiClient.org.mcpInfo() });
+  const url = info.data?.url ?? '';
+  const command = `claude mcp add --transport http inventory-hub ${url}`;
+  const googleConfigured = info.data?.googleConfigured ?? false;
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="font-semibold">Připojení AI asistenta (MCP)</h2>
+        <a href="/docs" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+          dokumentace API →
+        </a>
+      </div>
+      <p className="text-xs text-slate-500 mb-3">
+        Inventory Hub umí svá data zpřístupnit AI asistentům (Claude Desktop/Code,
+        claude.ai) přes Model Context Protocol. Připojení se nastavuje v MCP klientovi,
+        ne tady — níže je hotový příkaz k vložení.
+      </p>
+
+      {info.isLoading && <p className="text-sm text-slate-500">Načítám…</p>}
+
+      {!info.isLoading && !googleConfigured && (
+        <p className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-200">
+          ⚠ Přihlášení k MCP jede přes Google OAuth, který teď není nakonfigurovaný
+          (<span className="font-mono">GOOGLE_CLIENT_ID</span> /{' '}
+          <span className="font-mono">SECRET</span> /{' '}
+          <span className="font-mono">REDIRECT_URL</span>). Konektor zatím nepůjde
+          autorizovat — viz README → „Remote MCP server".
+        </p>
+      )}
+
+      {!info.isLoading && (
+        <div className="space-y-3">
+          <CopyField label="URL konektoru" text={url} />
+          <CopyField label="Příkaz pro Claude Code" text={command} />
+        </div>
+      )}
+
+      <p className="text-xs text-slate-500 mt-3">
+        Při prvním použití klient otevře prohlížeč k přihlášení. Pak zvolíš{' '}
+        <strong>read-write</strong> (zdědí tvoji roli a oprávnění) nebo{' '}
+        <strong>read-only</strong> (jen čtení). Nástroje kopírují REST API — assety,
+        výpůjčky, kontakty, poškození, lokace, typy a (pro adminy) správu organizace.
+      </p>
+    </Card>
+  );
+}
+
+function CopyField({ label, text }: { label: string; text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div>
+      <div className="text-xs text-slate-500 mb-1">{label}</div>
+      <div className="flex items-stretch gap-2">
+        <code className="flex-1 break-all rounded border border-slate-200 bg-white p-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
+          {text}
+        </code>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            navigator.clipboard
+              ?.writeText(text)
+              .then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              })
+              .catch(() => undefined);
+          }}
+        >
+          {copied ? 'Zkopírováno' : 'Kopírovat'}
+        </Button>
+      </div>
+    </div>
   );
 }
 

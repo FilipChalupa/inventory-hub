@@ -5,6 +5,7 @@ import { orgSettingsSchema } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { orgSettings } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { getMcpResourceUrl } from '../env.js';
 
 const SINGLETON_ID = 'singleton';
 
@@ -21,6 +22,16 @@ export const orgRoutes = new Hono<AppContext>()
         allowedDomains: row.allowedDomains,
       },
     });
+  })
+  // Connection details for the remote MCP server, surfaced in Settings so an
+  // admin can wire up an AI assistant without digging through env/README.
+  // `googleConfigured` gates the human OAuth login the MCP flow relies on.
+  .get('/mcp-info', (c) => {
+    const env = c.get('env');
+    const googleConfigured = Boolean(
+      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.GOOGLE_REDIRECT_URL,
+    );
+    return c.json({ url: getMcpResourceUrl(env), googleConfigured });
   })
   .put('/', requireAuth('admin'), zValidator('json', orgSettingsSchema), (c) => {
     const db = c.get('db');

@@ -30,11 +30,11 @@ export const loanSchema = z.object({
 export type Loan = z.infer<typeof loanSchema>;
 
 export const createLoanInput = z.object({
-  borrowerName: z.string().min(1).max(200),
+  borrowerName: z.string().trim().min(1).max(200),
   borrowerUserId: z.string().uuid().nullable().optional(),
   borrowerContactId: z.string().uuid().nullable().optional(),
-  borrowerContact: z.string().max(200).nullable().optional(),
-  purpose: z.string().max(500).nullable().optional(),
+  borrowerContact: z.string().trim().max(200).nullable().optional(),
+  purpose: z.string().trim().max(500).nullable().optional(),
   // When set to a future moment the loan is created as "planned": the
   // assets are reserved (one active/planned loan per asset) but stay in
   // stock until the loan is started. Omitted/past => starts immediately.
@@ -66,10 +66,10 @@ export function loanWindowsOverlap(
 
 export const updateLoanInput = z
   .object({
-    borrowerName: z.string().min(1).max(200).optional(),
+    borrowerName: z.string().trim().min(1).max(200).optional(),
     borrowerContactId: z.string().uuid().nullable().optional(),
-    borrowerContact: z.string().max(200).nullable().optional(),
-    purpose: z.string().max(500).nullable().optional(),
+    borrowerContact: z.string().trim().max(200).nullable().optional(),
+    purpose: z.string().trim().max(500).nullable().optional(),
     // Only changeable while the loan is still planned.
     loanedAt: z.coerce.date().optional(),
     expectedReturnAt: z.coerce.date().nullable().optional(),
@@ -88,7 +88,7 @@ export type AddLoanItemsInput = z.infer<typeof addLoanItemsInput>;
 export const returnLoanItemInput = z.object({
   loanItemId: z.string().uuid(),
   returnCondition: z.enum(loanItemConditions),
-  returnNotes: z.string().max(1000).nullable().optional(),
+  returnNotes: z.string().trim().max(1000).nullable().optional(),
   // When omitted the return is recorded as "now". A past date lets you
   // backdate a return that physically happened earlier.
   returnedAt: z.coerce.date().optional(),

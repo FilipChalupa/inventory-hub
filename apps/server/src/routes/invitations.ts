@@ -9,7 +9,7 @@ import { requireAuth } from '../middleware/auth.js';
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 const createInput = z.object({
-  email: z.string().email(),
+  email: z.string().trim().email(),
   role: z.enum(USER_ROLES),
 });
 

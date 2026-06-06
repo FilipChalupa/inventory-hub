@@ -91,10 +91,10 @@ export function NewLoanPage() {
   const create = useMutation({
     mutationFn: (v: FormValues) =>
       apiClient.loans.create({
-        borrowerName: v.borrowerName,
+        borrowerName: v.borrowerName.trim(),
         borrowerContactId: contactId || null,
-        borrowerContact: v.borrowerContact || null,
-        purpose: v.purpose || null,
+        borrowerContact: v.borrowerContact.trim() || null,
+        purpose: v.purpose.trim() || null,
         loanedAt: v.loanedAt ? new Date(v.loanedAt) : null,
         expectedReturnAt: v.expectedReturnAt ? new Date(v.expectedReturnAt) : null,
         assetCodes: selectedCodes,

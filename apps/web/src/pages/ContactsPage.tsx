@@ -19,11 +19,11 @@ export function ContactsPage() {
   const create = useMutation({
     mutationFn: (input: ContactInput) =>
       apiClient.contacts.create({
-        name: input.name,
-        email: input.email || null,
-        phone: input.phone || null,
-        organization: input.organization || null,
-        note: input.note || null,
+        name: input.name.trim(),
+        email: input.email?.trim() || null,
+        phone: input.phone?.trim() || null,
+        organization: input.organization?.trim() || null,
+        note: input.note?.trim() || null,
       }),
     onSuccess: async () => {
       reset();

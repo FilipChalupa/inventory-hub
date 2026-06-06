@@ -333,6 +333,7 @@ export const apiClient = {
       }>('/api/org'),
     put: (input: { name: string; codePrefix: string | null; allowedDomains: AllowedDomain[] }) =>
       api<{ ok: true }>('/api/org', { method: 'PUT', body: input }),
+    mcpInfo: () => api<{ url: string; googleConfigured: boolean }>('/api/org/mcp-info'),
   },
 
   assets: {

@@ -9,12 +9,13 @@ import { parseCsv } from '../lib/csv.js';
 
 const codePrefix = z
   .string()
+  .trim()
   .min(1)
   .max(6)
   .regex(/^[A-Z0-9]+$/, 'Pouze A–Z a 0–9');
 
 const createInput = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   codePrefix,
   customFieldsSchema: customFieldsSchemaSchema.optional(),
 });

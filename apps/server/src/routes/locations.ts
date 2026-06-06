@@ -8,7 +8,7 @@ import { locations } from '../db/schema.js';
 import { parseCsv } from '../lib/csv.js';
 
 const createInput = z.object({
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   parentId: z.string().uuid().nullable().optional(),
 });
 

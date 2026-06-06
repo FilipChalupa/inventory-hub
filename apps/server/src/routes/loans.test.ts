@@ -55,6 +55,25 @@ describe('loans API', () => {
       expect(bRow.status).toBe('on_loan');
     });
 
+    it('trims the borrower name and rejects a whitespace-only one', async () => {
+      const a = await makeAsset(server, cookie, 'Asset A');
+      const padded = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: '  Jan Novák  ',
+        assetCodes: [a],
+      });
+      expect(padded.status).toBe(201);
+      const { id } = (await padded.json()) as { id: string };
+      const row = server.db.select().from(loans).where(eq(loans.id, id)).get()!;
+      expect(row.borrowerName).toBe('Jan Novák');
+
+      const b = await makeAsset(server, cookie, 'Asset B');
+      const blank = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: '   ',
+        assetCodes: [b],
+      });
+      expect(blank.status).toBe(400);
+    });
+
     it('rejects when an asset code does not exist', async () => {
       const res = await jsonPost(server, cookie, '/api/loans', {
         borrowerName: 'X',

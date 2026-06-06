@@ -16,6 +16,7 @@ export const TERMINAL_ASSET_STATUSES = ['damaged', 'sold', 'lost', 'retired'] as
 
 export const assetCodeSchema = z
   .string()
+  .trim()
   .min(3)
   .max(40)
   .regex(/^[A-Z0-9]+(-[A-Z0-9]+)+$/, 'Kód musí být ve formátu PREFIX-SEKCE-CISLO (jen A–Z, 0–9, -)');
@@ -38,7 +39,7 @@ export type Asset = z.infer<typeof assetSchema>;
 
 export const createAssetInput = z.object({
   code: assetCodeSchema.optional(),
-  name: z.string().min(1).max(200),
+  name: z.string().trim().min(1).max(200),
   typeId: z.string().uuid().nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
   customFields: z.record(z.string(), z.unknown()).optional(),

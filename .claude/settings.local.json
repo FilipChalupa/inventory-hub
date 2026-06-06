@@ -91,7 +91,11 @@
       "Bash(node -e \"const s=require\\('swagger-ui-dist'\\); console.log\\(typeof s.getAbsoluteFSPath, s.getAbsoluteFSPath && s.getAbsoluteFSPath\\(\\)\\)\")",
       "Bash(grep -E \"swagger-ui\\(\\\\.css|-bundle\\\\.js|-standalone-preset\\\\.js\\)$\")",
       "Bash(sed -n '1,200p' components/ui.tsx)",
-      "Bash(sed -n '1,200p' components/ui.ts)"
+      "Bash(sed -n '1,200p' components/ui.ts)",
+      "Bash(sed -n '15,55p' packages/shared/src/asset.ts)",
+      "Bash(sed -n '31,95p' packages/shared/src/loan.ts)",
+      "Bash(sed -n '8,16p' contacts.ts)",
+      "Bash(sed -n '16,21p' asset-types.ts)"
     ],
     "additionalDirectories": [
       "/tmp"
