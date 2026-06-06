@@ -19,6 +19,8 @@ const TEST_ENV_BASE: Env = {
   PUBLIC_APP_URL: 'http://localhost:5173',
   UPLOAD_DIR: './data/uploads',
   UPLOAD_MAX_BYTES: 5_242_880,
+  MCP_ACCESS_TOKEN_TTL: 3600,
+  MCP_REFRESH_TOKEN_TTL: 60 * 60 * 24 * 30,
 };
 
 function freshTestEnv(): Env {

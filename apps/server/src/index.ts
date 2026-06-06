@@ -9,6 +9,7 @@ import { loadEnv } from './env.js';
 import { createEmailSender } from './lib/email.js';
 import { activateDueLoans } from './lib/loanActivation.js';
 import { runOverdueCheck, runStartReminders } from './lib/overdue.js';
+import { pruneExpiredOauth } from './mcp/oauth-store.js';
 
 const env = loadEnv();
 const { db, sqlite } = createDb(env.DATABASE_URL);
@@ -18,10 +19,7 @@ const emailSender = createEmailSender(env);
 // production (dist/index.js) layouts so the same code works in both.
 function findMigrationsFolder(): string {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [
-    resolve(here, '../src/db/migrations'),
-    resolve(here, './db/migrations'),
-  ];
+  const candidates = [resolve(here, '../src/db/migrations'), resolve(here, './db/migrations')];
   for (const c of candidates) if (existsSync(c)) return c;
   throw new Error(`Migrations folder not found. Tried: ${candidates.join(', ')}`);
 }
@@ -72,6 +70,13 @@ const runActivation = () => {
     if (activated > 0) console.log(`Aktivováno naplánovaných výpůjček: ${activated}`);
   } catch (err) {
     console.error('loan activation failed:', err);
+  }
+  // Drop expired MCP authorization codes (expired tokens are rejected lazily
+  // at verify time, but codes accumulate otherwise).
+  try {
+    pruneExpiredOauth(db);
+  } catch (err) {
+    console.error('oauth prune failed:', err);
   }
 };
 runActivation();

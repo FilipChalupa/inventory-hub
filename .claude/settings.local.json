@@ -79,7 +79,16 @@
       "Bash(sed -n '/export const assetEvents/,/^\\);/p' apps/server/src/db/schema.ts)",
       "Bash(echo \"=== EXIT $? ===\")",
       "Bash(sed -n '1,70p' apps/server/src/routes/assets.ts)",
-      "Bash(sed -n '1,50p' apps/server/src/lib/sessions.ts)"
+      "Bash(sed -n '1,50p' apps/server/src/lib/sessions.ts)",
+      "Bash(npm view *)",
+      "Bash(node -p \"require\\('./package.json'\\).version\")",
+      "Bash(node -p \"Object.keys\\(require\\('./package.json'\\).exports\\).join\\('\\\\n'\\)\")",
+      "Bash(node -e \"const e=require\\('./package.json'\\).exports; console.log\\(JSON.stringify\\(e['./*'],null,2\\)\\); console.log\\('--- server ---'\\); console.log\\(JSON.stringify\\(e['./server'],null,2\\)\\);\")",
+      "Bash(npx prettier *)",
+      "Bash(grep -n \"MCP\\\\|PUBLIC_APP_URL\\\\|| \\\\`\" docs/SELF_HOSTING.md)"
+    ],
+    "additionalDirectories": [
+      "/tmp"
     ]
   }
 }

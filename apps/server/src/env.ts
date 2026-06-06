@@ -15,6 +15,18 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().optional(),
+  // Canonical RFC 8707 resource identifier for the MCP server (the URL MCP
+  // clients connect to, including the /mcp path). Tokens are audience-bound
+  // to this value. Defaults to PUBLIC_APP_URL + '/mcp' when unset.
+  MCP_BASE_URL: z.string().url().optional(),
+  // Access/refresh token lifetimes (seconds). Access tokens are short-lived;
+  // refresh tokens are rotated on use.
+  MCP_ACCESS_TOKEN_TTL: z.coerce.number().int().positive().default(3600),
+  MCP_REFRESH_TOKEN_TTL: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(60 * 60 * 24 * 30),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -31,4 +43,23 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): Env {
 
 export function getDbFilePath(databaseUrl: string): string {
   return databaseUrl.replace(/^file:/, '');
+}
+
+/**
+ * The canonical MCP resource URL (RFC 8707) — the `/mcp` endpoint clients
+ * connect to and the audience tokens are bound to. Normalized without a
+ * trailing slash, per the MCP authorization spec.
+ */
+export function getMcpResourceUrl(env: Env): string {
+  const raw = env.MCP_BASE_URL ?? `${env.PUBLIC_APP_URL.replace(/\/$/, '')}/mcp`;
+  return raw.replace(/\/$/, '');
+}
+
+/**
+ * The origin (scheme://host[:port]) that hosts the OAuth authorization-server
+ * and resource-metadata endpoints. Derived from the MCP resource URL so the
+ * well-known documents and the protected resource share an origin.
+ */
+export function getMcpIssuer(env: Env): string {
+  return new URL(getMcpResourceUrl(env)).origin;
 }

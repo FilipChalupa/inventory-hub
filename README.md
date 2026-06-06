@@ -48,6 +48,26 @@ production (`NODE_ENV=production`).
    invitation. Matching is strict-exact: `acme.com` does not cover
    `eng.acme.com`.
 
+### Remote MCP server
+
+The server can expose its data to AI assistants (Claude Desktop/Code, claude.ai
+connectors) over the [Model Context Protocol](https://modelcontextprotocol.io)
+at `/mcp`, secured with OAuth 2.1 per the MCP authorization spec. It acts as both
+the authorization server and the resource server, reusing the existing Google
+login to authenticate the human.
+
+1. Configure Google OAuth (above) and set `MCP_BASE_URL` to your public
+   `https://<domain>/mcp` (defaults to `PUBLIC_APP_URL` + `/mcp`).
+2. Add the connector in your MCP client, e.g.
+   `claude mcp add --transport http inventory-hub https://<domain>/mcp`.
+3. On first use the client opens the browser through `/authorize`; after Google
+   login you pick **read-write** (inherits your role) or **read-only**, and the
+   client receives audience-bound access + refresh tokens.
+
+Tools mirror the REST API (assets, loans, contacts, damages, locations, asset
+types, and admin-gated org/users/invitations). Role checks are enforced exactly
+as in the web app; read-only connections are blocked from write tools.
+
 ## Docker (production / self-hosting)
 
 ```bash

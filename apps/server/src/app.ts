@@ -26,6 +26,7 @@ import { userRoutes } from './routes/users.js';
 import { contactRoutes } from './routes/contacts.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
+import { isMcpCsrfExempt, mountMcp } from './mcp/http.js';
 // TODO: Dočasné – odebrat import a registraci demoRoutes před finálním releasem.
 import { demoRoutes } from './routes/demo.js';
 
@@ -46,11 +47,12 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.use('*', cors({ origin: deps.env.PUBLIC_APP_URL, credentials: true }));
   // CSRF: rejects state-changing requests whose Origin/Sec-Fetch-Site
   // doesn't match our public URL. Cookies are SameSite=Lax which already
-  // blocks most CSRF, this is belt-and-suspenders. Skipped for /health
-  // and the OAuth callback (cross-origin redirect from Google).
+  // blocks most CSRF, this is belt-and-suspenders. Skipped for /health,
+  // the OAuth callback (cross-origin redirect from Google), and the MCP /
+  // OAuth-AS endpoints (called by MCP clients/backends, not browsers).
   app.use('*', async (c, next) => {
     const path = new URL(c.req.url).pathname;
-    if (path === '/health' || path.startsWith('/auth/google/')) {
+    if (path === '/health' || path.startsWith('/auth/google/') || isMcpCsrfExempt(path)) {
       return next();
     }
     return csrf({ origin: deps.env.PUBLIC_APP_URL })(c, next);
@@ -85,6 +87,12 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/contacts', contactRoutes);
   // TODO: Dočasné – odebrat před finálním releasem.
   app.route('/api/demo', demoRoutes);
+
+  // Remote MCP server: OAuth 2.1 authorization-server + resource-server
+  // endpoints (well-known metadata, /register, /authorize, /token) and the
+  // bearer-protected /mcp transport. Mounted before the SPA fallback so its
+  // GET routes (/authorize, /.well-known/*) take precedence.
+  mountMcp(app, { db: deps.db, env: deps.env, emailSender });
 
   // Serve the built SPA when the dist directory is present (production
   // image, single-container deploy). In dev the dist doesn't exist and we

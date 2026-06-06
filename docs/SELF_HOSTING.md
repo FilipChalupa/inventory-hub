@@ -46,6 +46,9 @@ otherwise the app rejects requests (see `*`).
 | `GOOGLE_CLIENT_SECRET` | no | – | Google OAuth secret. |
 | `GOOGLE_REDIRECT_URL` | no | – | `https://your-domain/auth/google/callback`. |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | no | – | Sending email (invitations, notifications). Without them, emails are just logged to the console. |
+| `MCP_BASE_URL` | no | `PUBLIC_APP_URL` + `/mcp` | Canonical URL of the remote MCP server (the `/mcp` endpoint). Access tokens are audience-bound to it. Must be HTTPS in production. Requires Google OAuth. |
+| `MCP_ACCESS_TOKEN_TTL` | no | `3600` | MCP access-token lifetime in seconds. |
+| `MCP_REFRESH_TOKEN_TTL` | no | `2592000` | MCP refresh-token lifetime in seconds (rotated on use). |
 
 \* `PUBLIC_APP_URL` is technically not needed to start the process, but without
 the correct value the app won't work behind your own domain — login and all

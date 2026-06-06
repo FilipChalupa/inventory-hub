@@ -100,56 +100,68 @@ export const authRoutes = new Hono<AppContext>()
     '/google/callback',
     rateLimit({ bucket: 'oauth-callback', windowMs: 60_000, max: 30 }),
     async (c) => {
-    const env = c.get('env');
-    const db = c.get('db');
-    const cfg = googleConfig(env);
-    const fail = (status: 400 | 403 | 503, message: string) =>
-      c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL }), status);
-    if (!cfg) return fail(503, 'Přihlášení přes Google není nakonfigurováno.');
+      const env = c.get('env');
+      const db = c.get('db');
+      const cfg = googleConfig(env);
+      const fail = (status: 400 | 403 | 503, message: string) =>
+        c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL }), status);
+      if (!cfg) return fail(503, 'Přihlášení přes Google není nakonfigurováno.');
 
-    // Google redirects here with ?error=... when the user cancels or denies.
-    const oauthError = c.req.query('error');
-    if (oauthError) {
-      return fail(
-        400,
-        oauthError === 'access_denied'
-          ? 'Přihlášení přes Google bylo zrušeno.'
-          : 'Přihlášení přes Google se nezdařilo.',
-      );
-    }
+      // Google redirects here with ?error=... when the user cancels or denies.
+      const oauthError = c.req.query('error');
+      if (oauthError) {
+        return fail(
+          400,
+          oauthError === 'access_denied'
+            ? 'Přihlášení přes Google bylo zrušeno.'
+            : 'Přihlášení přes Google se nezdařilo.',
+        );
+      }
 
-    const code = c.req.query('code');
-    const state = c.req.query('state');
-    if (!code || !state) {
-      return fail(400, 'Chybí přihlašovací údaje z Googlu. Zkus to prosím znovu.');
-    }
-    const expectedState = getCookie(c, OAUTH_STATE_COOKIE);
-    const verifier = getCookie(c, OAUTH_VERIFIER_COOKIE);
-    if (!expectedState || !verifier || state !== expectedState) {
-      return fail(400, 'Neplatný nebo vypršelý přihlašovací požadavek. Zkus to prosím znovu.');
-    }
-    deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/', secure: isSecure(env) });
-    deleteCookie(c, OAUTH_VERIFIER_COOKIE, { path: '/', secure: isSecure(env) });
+      const code = c.req.query('code');
+      const state = c.req.query('state');
+      if (!code || !state) {
+        return fail(400, 'Chybí přihlašovací údaje z Googlu. Zkus to prosím znovu.');
+      }
+      const expectedState = getCookie(c, OAUTH_STATE_COOKIE);
+      const verifier = getCookie(c, OAUTH_VERIFIER_COOKIE);
+      if (!expectedState || !verifier || state !== expectedState) {
+        return fail(400, 'Neplatný nebo vypršelý přihlašovací požadavek. Zkus to prosím znovu.');
+      }
+      deleteCookie(c, OAUTH_STATE_COOKIE, { path: '/', secure: isSecure(env) });
+      deleteCookie(c, OAUTH_VERIFIER_COOKIE, { path: '/', secure: isSecure(env) });
 
-    let identity;
-    try {
-      identity = await exchangeCode(cfg, code, verifier);
-    } catch (err) {
-      console.error('Google exchange failed:', err);
-      return fail(400, 'Přihlášení přes Google selhalo. Zkus to prosím znovu.');
-    }
+      let identity;
+      try {
+        identity = await exchangeCode(cfg, code, verifier);
+      } catch (err) {
+        console.error('Google exchange failed:', err);
+        return fail(400, 'Přihlášení přes Google selhalo. Zkus to prosím znovu.');
+      }
 
-    const user = findOrCreateUserForGoogle(db, identity);
-    if (!user) {
-      return fail(403, 'Tvůj e-mail nemá oprávnění se přihlásit. Kontaktuj administrátora.');
-    }
+      const user = findOrCreateUserForGoogle(db, identity);
+      if (!user) {
+        return fail(403, 'Tvůj e-mail nemá oprávnění se přihlásit. Kontaktuj administrátora.');
+      }
 
-    const { token, expiresAt } = createSession(db, user.id);
-    setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(env, expiresAt));
+      const { token, expiresAt } = createSession(db, user.id);
+      setCookie(c, SESSION_COOKIE, token, sessionCookieOptions(env, expiresAt));
 
-    return c.redirect(env.PUBLIC_APP_URL + '/');
-  },
-)
+      // If the login was triggered by an MCP /authorize request, return there
+      // instead of the app home. Cookie name kept in sync with mcp/oauth-routes
+      // (MCP_PENDING_AUTHORIZE_COOKIE). Only same-origin /authorize paths are
+      // honoured to prevent open redirects.
+      const pendingAuthorize = getCookie(c, 'mcp_pending_authorize');
+      if (pendingAuthorize) {
+        deleteCookie(c, 'mcp_pending_authorize', { path: '/', secure: isSecure(env) });
+        if (pendingAuthorize.startsWith('/authorize?')) {
+          return c.redirect(pendingAuthorize);
+        }
+      }
+
+      return c.redirect(env.PUBLIC_APP_URL + '/');
+    },
+  )
 
   // ---- Invitation acceptance (public) -------------------------------------
 
@@ -195,9 +207,7 @@ export const authRoutes = new Hono<AppContext>()
         ? existing.id
         : (() => {
             const id = crypto.randomUUID();
-            db.insert(users)
-              .values({ id, email: invite.email, name, role: invite.role })
-              .run();
+            db.insert(users).values({ id, email: invite.email, name, role: invite.role }).run();
             return id;
           })();
 
