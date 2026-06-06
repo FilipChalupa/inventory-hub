@@ -77,7 +77,9 @@
       "Bash(git rm *)",
       "Bash(grep -n \"loan_started\\\\|loan_item_returned\\\\|damage_reported\\\\|assetEvents = \\\\|type', {\" apps/server/src/db/schema.ts)",
       "Bash(sed -n '/export const assetEvents/,/^\\);/p' apps/server/src/db/schema.ts)",
-      "Bash(echo \"=== EXIT $? ===\")"
+      "Bash(echo \"=== EXIT $? ===\")",
+      "Bash(sed -n '1,70p' apps/server/src/routes/assets.ts)",
+      "Bash(sed -n '1,50p' apps/server/src/lib/sessions.ts)"
     ]
   }
 }

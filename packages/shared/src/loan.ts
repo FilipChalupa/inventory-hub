@@ -80,6 +80,11 @@ export const updateLoanInput = z
   );
 export type UpdateLoanInput = z.infer<typeof updateLoanInput>;
 
+export const addLoanItemsInput = z.object({
+  assetCodes: z.array(assetCodeSchema).min(1, 'Vyber alespoň jeden asset'),
+});
+export type AddLoanItemsInput = z.infer<typeof addLoanItemsInput>;
+
 export const returnLoanItemInput = z.object({
   loanItemId: z.string().uuid(),
   returnCondition: z.enum(loanItemConditions),

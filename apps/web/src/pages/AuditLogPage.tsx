@@ -15,8 +15,13 @@ const EVENT_LABELS: Record<string, string> = {
   unarchived: 'Vrácen z archivu',
   damage_reported: 'Hlášené poškození',
   damage_resolved: 'Poškození opraveno',
+  loan_planned: 'Rezervace vytvořena',
   loan_started: 'Vypůjčen',
   loan_item_returned: 'Vrácen z výpůjčky',
+  loan_cancelled: 'Rezervace zrušena',
+  loan_updated: 'Výpůjčka upravena',
+  loan_item_added: 'Položka přidána do výpůjčky',
+  loan_item_removed: 'Položka odebrána z výpůjčky',
   repair_started: 'Poslán do opravy',
   repair_finished: 'Oprava dokončena',
 };

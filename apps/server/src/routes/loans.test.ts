@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { eq } from 'drizzle-orm';
-import { assets, damageReports, loanItems, loans } from '../db/schema.js';
+import { and, eq } from 'drizzle-orm';
+import { assetEvents, assets, damageReports, loanItems, loans } from '../db/schema.js';
 import { activateDueLoans } from '../lib/loanActivation.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
@@ -492,6 +492,103 @@ describe('loans API', () => {
         expectedReturnAt: inDays(5),
       });
       expect(patch.status).toBe(409);
+    });
+
+    it('logs a loan_updated event with a diff when edited', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Před',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      await jsonReq('PATCH', `/api/loans/${loanId}`, { borrowerName: 'Po' });
+
+      const assetId = server.db.select().from(assets).where(eq(assets.code, a)).get()!.id;
+      const events = server.db
+        .select()
+        .from(assetEvents)
+        .where(eq(assetEvents.assetId, assetId))
+        .all();
+      const updated = events.find((e) => e.type === 'loan_updated');
+      expect(updated).toBeTruthy();
+      expect((updated!.payload as { changes: { borrowerName?: unknown } }).changes.borrowerName).toEqual(
+        { from: 'Před', to: 'Po' },
+      );
+    });
+
+    it('adds an item to an active loan (asset → on_loan, logged)', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items`, { assetCodes: [b] });
+      expect(res.status).toBe(200);
+
+      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe('on_loan');
+      const bId = server.db.select().from(assets).where(eq(assets.code, b)).get()!.id;
+      const added = server.db
+        .select()
+        .from(assetEvents)
+        .where(eq(assetEvents.assetId, bId))
+        .all()
+        .find((e) => e.type === 'loan_item_added');
+      expect(added).toBeTruthy();
+    });
+
+    it('refuses to add an asset already in the loan', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items`, { assetCodes: [a] });
+      expect(res.status).toBe(409);
+    });
+
+    it('removes an item from an active loan (asset → in_stock, logged)', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a, b],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const bId = server.db.select().from(assets).where(eq(assets.code, b)).get()!.id;
+      const itemB = server.db
+        .select()
+        .from(loanItems)
+        .where(and(eq(loanItems.loanId, loanId), eq(loanItems.assetId, bId)))
+        .get()!;
+
+      const res = await jsonReq('DELETE', `/api/loans/${loanId}/items/${itemB.id}`);
+      expect(res.status).toBe(200);
+
+      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe('in_stock');
+      const removed = server.db
+        .select()
+        .from(assetEvents)
+        .where(eq(assetEvents.assetId, bId))
+        .all()
+        .find((e) => e.type === 'loan_item_removed');
+      expect(removed).toBeTruthy();
+    });
+
+    it('refuses to remove the last remaining item', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const item = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!;
+      const res = await jsonReq('DELETE', `/api/loans/${loanId}/items/${item.id}`);
+      expect(res.status).toBe(409);
     });
 
     it('for-asset lists active and planned commitments', async () => {

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import {
   createLoanInput,
   updateLoanInput,
+  addLoanItemsInput,
   returnLoanItemInput,
   deriveLoanStatus,
   loanWindowsOverlap,
@@ -285,7 +286,54 @@ export const loanRoutes = new Hono<AppContext>()
     if (input.loanedAt !== undefined) patch.loanedAt = input.loanedAt;
     if (input.expectedReturnAt !== undefined) patch.expectedReturnAt = input.expectedReturnAt;
 
-    db.update(loans).set(patch).where(eq(loans.id, id)).run();
+    // Build a diff of what actually changed, for the audit trail.
+    const fmt = (d: Date | null) => (d ? d.toISOString() : null);
+    const changes: Record<string, { from: unknown; to: unknown }> = {};
+    if (input.borrowerName !== undefined && input.borrowerName !== loan.borrowerName)
+      changes.borrowerName = { from: loan.borrowerName, to: input.borrowerName };
+    if (
+      input.borrowerContactId !== undefined &&
+      (input.borrowerContactId ?? null) !== loan.borrowerContactId
+    )
+      changes.borrowerContactId = { from: loan.borrowerContactId, to: input.borrowerContactId ?? null };
+    if (
+      input.borrowerContact !== undefined &&
+      (input.borrowerContact ?? null) !== loan.borrowerContact
+    )
+      changes.borrowerContact = { from: loan.borrowerContact, to: input.borrowerContact ?? null };
+    if (input.purpose !== undefined && (input.purpose ?? null) !== loan.purpose)
+      changes.purpose = { from: loan.purpose, to: input.purpose ?? null };
+    if (input.loanedAt !== undefined && input.loanedAt.getTime() !== loan.loanedAt.getTime())
+      changes.loanedAt = { from: fmt(loan.loanedAt), to: fmt(input.loanedAt) };
+    if (
+      input.expectedReturnAt !== undefined &&
+      (input.expectedReturnAt?.getTime() ?? null) !== (loan.expectedReturnAt?.getTime() ?? null)
+    )
+      changes.expectedReturnAt = { from: fmt(loan.expectedReturnAt), to: fmt(input.expectedReturnAt) };
+
+    const user = c.get('user')!;
+    const assetIds = db
+      .select({ assetId: loanItems.assetId })
+      .from(loanItems)
+      .where(eq(loanItems.loanId, id))
+      .all()
+      .map((r) => r.assetId);
+
+    db.transaction((tx) => {
+      tx.update(loans).set(patch).where(eq(loans.id, id)).run();
+      if (Object.keys(changes).length) {
+        for (const assetId of assetIds) {
+          tx.insert(assetEvents)
+            .values({
+              assetId,
+              actorUserId: user.id,
+              type: 'loan_updated',
+              payload: { loanId: id, changes },
+            })
+            .run();
+        }
+      }
+    });
     return c.json({ ok: true });
   })
   .delete('/:id', (c) => {
@@ -311,11 +359,165 @@ export const loanRoutes = new Hono<AppContext>()
             assetId: item.assetId,
             actorUserId: user.id,
             type: 'loan_cancelled',
-            payload: { loanId: id, borrower: loan.borrowerName },
+            payload: { loanId: id, borrower: loan.borrowerName, itemCount: items.length },
           })
           .run();
       }
       tx.delete(loans).where(eq(loans.id, id)).run();
+    });
+
+    return c.json({ ok: true });
+  })
+  .post('/:id/items', zValidator('json', addLoanItemsInput), (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const input = c.req.valid('json');
+    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+
+    const currentItems = db.select().from(loanItems).where(eq(loanItems.loanId, id)).all();
+    if (currentItems.length > 0 && currentItems.every((i) => i.returnedAt !== null)) {
+      return c.json({ error: { message: 'Výpůjčka je už vrácená' } }, 409);
+    }
+
+    const codes = input.assetCodes.map((x) => x.toUpperCase());
+    const targets = db.select().from(assets).where(inArray(assets.code, codes)).all();
+    if (targets.length !== codes.length) {
+      const found = new Set(targets.map((t) => t.code));
+      const missing = codes.filter((x) => !found.has(x));
+      return c.json({ error: { message: `Asset(y) nenalezen(y): ${missing.join(', ')}` } }, 400);
+    }
+
+    const openAssetIds = new Set(
+      currentItems.filter((i) => i.returnedAt === null).map((i) => i.assetId),
+    );
+    const dup = targets.filter((t) => openAssetIds.has(t.id));
+    if (dup.length) {
+      return c.json(
+        { error: { message: `Asset(y) už ve výpůjčce jsou: ${dup.map((d) => d.code).join(', ')}` } },
+        409,
+      );
+    }
+
+    const archived = targets.filter((t) => t.archivedAt !== null);
+    if (archived.length) {
+      return c.json(
+        { error: { message: `Asset(y) jsou archivované: ${archived.map((b) => b.code).join(', ')}` } },
+        409,
+      );
+    }
+    const notLoanable = targets.filter(
+      (t) => !(LOANABLE_STATUSES as readonly string[]).includes(t.status),
+    );
+    if (notLoanable.length) {
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) nelze v tomto stavu půjčit: ${notLoanable
+              .map((b) => `${b.code} (${b.status})`)
+              .join(', ')}`,
+          },
+        },
+        409,
+      );
+    }
+
+    // The added assets must be free in this loan's window vs other loans.
+    const newStart = loan.loanedAt;
+    const newEnd = loan.expectedReturnAt;
+    const targetIds = targets.map((t) => t.id);
+    const others = db
+      .select({
+        code: assets.code,
+        loanedAt: loans.loanedAt,
+        expectedReturnAt: loans.expectedReturnAt,
+      })
+      .from(loanItems)
+      .innerJoin(assets, eq(loanItems.assetId, assets.id))
+      .innerJoin(loans, eq(loanItems.loanId, loans.id))
+      .where(
+        and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt), ne(loanItems.loanId, id)),
+      )
+      .all();
+    const conflicts = [
+      ...new Set(
+        others
+          .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
+          .map((e) => e.code),
+      ),
+    ];
+    if (conflicts.length) {
+      return c.json(
+        { error: { message: `Asset(y) v daném termínu kolidují: ${conflicts.join(', ')}` } },
+        409,
+      );
+    }
+
+    const user = c.get('user')!;
+    const now = new Date();
+    const active = loan.startedAt !== null;
+    db.transaction((tx) => {
+      for (const t of targets) {
+        const itemId = crypto.randomUUID();
+        tx.insert(loanItems).values({ id: itemId, loanId: id, assetId: t.id }).run();
+        if (active) {
+          tx.update(assets).set({ status: 'on_loan', updatedAt: now }).where(eq(assets.id, t.id)).run();
+        }
+        tx.insert(assetEvents)
+          .values({
+            assetId: t.id,
+            actorUserId: user.id,
+            type: 'loan_item_added',
+            payload: { loanId: id, borrower: loan.borrowerName },
+          })
+          .run();
+      }
+    });
+
+    return c.json({ ok: true, added: targets.length });
+  })
+  .delete('/:id/items/:itemId', (c) => {
+    const db = c.get('db');
+    const loanId = c.req.param('id');
+    const itemId = c.req.param('itemId');
+    const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+
+    const item = db
+      .select()
+      .from(loanItems)
+      .where(and(eq(loanItems.id, itemId), eq(loanItems.loanId, loanId)))
+      .get();
+    if (!item) return c.json({ error: { message: 'Položka výpůjčky nenalezena' } }, 404);
+    if (item.returnedAt !== null) {
+      return c.json({ error: { message: 'Vrácenou položku nelze odebrat' } }, 409);
+    }
+
+    const total = db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).all().length;
+    if (total <= 1) {
+      return c.json(
+        { error: { message: 'Výpůjčka musí mít aspoň jednu položku — zruš celou výpůjčku.' } },
+        409,
+      );
+    }
+
+    const asset = db.select().from(assets).where(eq(assets.id, item.assetId)).get();
+    const user = c.get('user')!;
+    const now = new Date();
+    db.transaction((tx) => {
+      tx.delete(loanItems).where(eq(loanItems.id, itemId)).run();
+      // On an active loan the asset was out — put it back in stock.
+      if (loan.startedAt !== null && asset && asset.status === 'on_loan') {
+        tx.update(assets).set({ status: 'in_stock', updatedAt: now }).where(eq(assets.id, item.assetId)).run();
+      }
+      tx.insert(assetEvents)
+        .values({
+          assetId: item.assetId,
+          actorUserId: user.id,
+          type: 'loan_item_removed',
+          payload: { loanId, borrower: loan.borrowerName, assetCode: asset?.code },
+        })
+        .run();
     });
 
     return c.json({ ok: true });

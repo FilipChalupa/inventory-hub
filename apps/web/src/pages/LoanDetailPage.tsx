@@ -110,10 +110,23 @@ export function LoanDetailPage() {
               key={item.id}
               item={item}
               loanId={l.id}
+              canRemove={l.items.length > 1}
               onChanged={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
             />
           ))}
         </ul>
+        {l.status !== 'fully_returned' && (
+          <AddLoanItems
+            loanId={l.id}
+            from={l.loanedAt}
+            to={l.expectedReturnAt}
+            existingCodes={l.items
+              .filter((i) => !i.returnedAt)
+              .map((i) => i.assetCode)
+              .filter((x): x is string => Boolean(x))}
+            onAdded={() => qc.invalidateQueries({ queryKey: ['loan', id] })}
+          />
+        )}
       </Card>
     </article>
   );
@@ -262,19 +275,141 @@ function StartLoanBar({ loanId, onStarted }: { loanId: string; onStarted: () => 
   );
 }
 
+function AddLoanItems({
+  loanId,
+  from,
+  to,
+  existingCodes,
+  onAdded,
+}: {
+  loanId: string;
+  from: string;
+  to: string | null;
+  existingCodes: string[];
+  onAdded: () => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<string[]>([]);
+
+  const avail = useQuery({
+    queryKey: ['loan-availability', { loanId, q: search, from, to }],
+    queryFn: () =>
+      apiClient.loans.availability({ from, to: to ?? undefined, q: search || undefined }),
+    enabled: open,
+  });
+
+  const add = useMutation({
+    mutationFn: () => apiClient.loans.addItems(loanId, selected),
+    onSuccess: () => {
+      setSelected([]);
+      setOpen(false);
+      onAdded();
+    },
+  });
+
+  if (!open) {
+    return (
+      <div className="mt-3">
+        <Button variant="secondary" onClick={() => setOpen(true)}>
+          + Přidat položku
+        </Button>
+      </div>
+    );
+  }
+
+  const existing = new Set(existingCodes);
+  const items = (avail.data?.items ?? []).filter((a) => !existing.has(a.code));
+  const selectedSet = new Set(selected);
+
+  return (
+    <div className="mt-3 border-t pt-3 space-y-2">
+      <p className="text-xs text-slate-500">
+        Assety volné v termínu výpůjčky. Vybráno: {selected.length}
+      </p>
+      <Input
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Hledat kód / název…"
+      />
+      <ul className="max-h-56 overflow-y-auto divide-y rounded border">
+        {items.length === 0 && (
+          <li className="p-3 text-sm text-slate-500">Žádné dostupné assety.</li>
+        )}
+        {items.map((a) => {
+          const checked = selectedSet.has(a.code);
+          const disabled = !a.available && !checked;
+          return (
+            <li
+              key={a.code}
+              className={`flex items-center gap-3 p-2 ${disabled ? 'opacity-50' : 'hover:bg-slate-50'}`}
+            >
+              <input
+                type="checkbox"
+                checked={checked}
+                disabled={disabled}
+                onChange={() =>
+                  setSelected((prev) =>
+                    checked ? prev.filter((c) => c !== a.code) : [...prev, a.code],
+                  )
+                }
+              />
+              <span className="font-mono text-xs text-slate-500 w-28">{a.code}</span>
+              <span className="flex-1">{a.name}</span>
+              {!a.available && a.reason && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                  {a.reason}
+                </span>
+              )}
+              {a.available && a.status === 'on_loan' && (
+                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                  teď půjčeno
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="flex gap-2">
+        <Button onClick={() => add.mutate()} disabled={add.isPending || selected.length === 0}>
+          {add.isPending ? 'Přidávám…' : `Přidat (${selected.length})`}
+        </Button>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setOpen(false);
+            setSelected([]);
+          }}
+        >
+          Zrušit
+        </Button>
+      </div>
+      {add.error && <p className="text-sm text-red-600">{(add.error as Error).message}</p>}
+    </div>
+  );
+}
+
 function LoanItemRowComp({
   item,
   loanId,
+  canRemove,
   onChanged,
 }: {
   item: LoanItemRow;
   loanId: string;
+  canRemove: boolean;
   onChanged: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const [condition, setCondition] = useState<'ok' | 'damaged'>('ok');
   const [notes, setNotes] = useState('');
   const [returnedAt, setReturnedAt] = useState(() => new Date().toISOString().slice(0, 10));
+
+  const remove = useMutation({
+    mutationFn: () => apiClient.loans.removeItem(loanId, item.id),
+    onSuccess: onChanged,
+  });
 
   const mutate = useMutation({
     mutationFn: () =>
@@ -305,11 +440,28 @@ function LoanItemRowComp({
             {item.returnCondition === 'damaged' && ' · poškozeno'}
           </span>
         ) : (
-          <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
-            Vrátit
-          </Button>
+          <div className="flex items-center gap-2">
+            {canRemove && (
+              <Button
+                variant="ghost"
+                className="text-red-600 text-xs"
+                disabled={remove.isPending}
+                onClick={() => {
+                  if (window.confirm(`Odebrat ${item.assetCode} z výpůjčky?`)) remove.mutate();
+                }}
+              >
+                Odebrat
+              </Button>
+            )}
+            <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
+              Vrátit
+            </Button>
+          </div>
         )}
       </div>
+      {remove.error && (
+        <p className="text-sm text-red-600 mt-1">{(remove.error as Error).message}</p>
+      )}
 
       {open && (
         <div className="mt-3 space-y-2">

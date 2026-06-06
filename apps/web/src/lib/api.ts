@@ -431,6 +431,13 @@ export const apiClient = {
     update: (id: string, input: UpdateLoanInput) =>
       api<{ ok: true }>(`/api/loans/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) => api<{ ok: true }>(`/api/loans/${id}`, { method: 'DELETE' }),
+    addItems: (id: string, assetCodes: string[]) =>
+      api<{ ok: true; added: number }>(`/api/loans/${id}/items`, {
+        method: 'POST',
+        body: { assetCodes },
+      }),
+    removeItem: (loanId: string, itemId: string) =>
+      api<{ ok: true }>(`/api/loans/${loanId}/items/${itemId}`, { method: 'DELETE' }),
     forAsset: (code: string) =>
       api<{ items: LoanForAssetRow[] }>(`/api/loans/for-asset/${encodeURIComponent(code)}`),
     availability: (params: { from?: string; to?: string; q?: string } = {}) => {

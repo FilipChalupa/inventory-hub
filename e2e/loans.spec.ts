@@ -90,6 +90,36 @@ test.describe('loans', () => {
     await expect(page.locator('li').filter({ hasText: 'Cancel Borrower' })).toHaveCount(0);
   });
 
+  test('add then remove an item on a running loan', async ({ page }) => {
+    await createAsset(page, 'AddRem A', 'LAP-94001');
+    await createAsset(page, 'AddRem B', 'LAP-94002');
+    const createRes = await page.request.post('/api/loans', {
+      headers: { 'content-type': 'application/json' },
+      data: JSON.stringify({ borrowerName: 'AddRem Borrower', assetCodes: ['LAP-94001'] }),
+    });
+    const { id: loanId } = (await createRes.json()) as { id: string };
+
+    await page.goto(`/loans/${loanId}`);
+    await page.getByRole('button', { name: '+ Přidat položku' }).click();
+    await page.getByPlaceholder('Hledat kód / název…').fill('LAP-94002');
+    await page
+      .locator('li')
+      .filter({ hasText: 'LAP-94002' })
+      .getByRole('checkbox')
+      .check();
+    await page.getByRole('button', { name: /Přidat \(1\)/ }).click();
+    await expect(page.getByRole('link', { name: 'LAP-94002' })).toBeVisible();
+
+    // Remove it again.
+    page.on('dialog', (dialog) => dialog.accept());
+    await page
+      .locator('li')
+      .filter({ hasText: 'LAP-94002' })
+      .getByRole('button', { name: 'Odebrat' })
+      .click();
+    await expect(page.getByRole('link', { name: 'LAP-94002' })).toBeHidden();
+  });
+
   test('return all open items at once', async ({ page }) => {
     await createAsset(page, 'Bulk A', 'LAP-93201');
     await createAsset(page, 'Bulk B', 'LAP-93202');
