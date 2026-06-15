@@ -104,7 +104,9 @@
       "Bash(node repro.mjs)",
       "Bash(python3 -)",
       "Bash(git ls-tree *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(grep -E \"\\\\.\\(jsx|tsx|js|ts\\)$\")",
+      "Bash(xargs ls -la)"
     ],
     "additionalDirectories": [
       "/tmp"

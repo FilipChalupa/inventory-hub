@@ -24,6 +24,7 @@ export const cs = {
     audit: 'Audit',
     users: 'Uživatelé',
     settings: 'Nastavení',
+    catalog: 'Číselníky',
   },
   asset: {
     statuses: {
