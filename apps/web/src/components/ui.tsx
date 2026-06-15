@@ -1,4 +1,5 @@
 import clsx from 'clsx';
+import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react';
 import { t } from '../i18n/messages.js';
 
@@ -38,17 +39,27 @@ export function Button({
 const formControl =
   'block w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={clsx(formControl, className)} {...rest} />;
-}
+// forwardRef so react-hook-form's `register()` ref reaches the real DOM node.
+// Without it the ref is silently dropped: `reset()` can't populate the input
+// and RHF reads `undefined` for the field value on submit (which crashes any
+// custom `validate` that touches the value, silently aborting the submit).
+export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function Input({ className, ...rest }, ref) {
+    return <input ref={ref} className={clsx(formControl, className)} {...rest} />;
+  },
+);
 
-export function Select({ className, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={clsx(formControl, className)} {...rest} />;
-}
+export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(
+  function Select({ className, ...rest }, ref) {
+    return <select ref={ref} className={clsx(formControl, className)} {...rest} />;
+  },
+);
 
-export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={clsx(formControl, className)} {...rest} />;
-}
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function Textarea({ className, ...rest }, ref) {
+    return <textarea ref={ref} className={clsx(formControl, className)} {...rest} />;
+  },
+);
 
 export function Field({
   label,

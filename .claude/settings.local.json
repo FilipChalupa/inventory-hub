@@ -95,7 +95,14 @@
       "Bash(sed -n '15,55p' packages/shared/src/asset.ts)",
       "Bash(sed -n '31,95p' packages/shared/src/loan.ts)",
       "Bash(sed -n '8,16p' contacts.ts)",
-      "Bash(sed -n '16,21p' asset-types.ts)"
+      "Bash(sed -n '16,21p' asset-types.ts)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(grep -iA30 devDependencies)",
+      "Bash(grep -E \"^\\(vite|tsx|vitest\\)$\")",
+      "Bash(curl -s -i -m5 -X POST http://localhost:3001/auth/dev-login -H 'content-type: application/json' -H 'Origin: http://localhost:3001' -d '{\"email\":\"admin@example.com\"}' -c /tmp/ck.txt)",
+      "Bash(sed -i 's/globalThis.navigator = dom.window.navigator;/Object.defineProperty\\(globalThis,\"navigator\",{value:dom.window.navigator,configurable:true}\\);/' repro.mjs)",
+      "Bash(node repro.mjs)",
+      "Bash(python3 -)"
     ],
     "additionalDirectories": [
       "/tmp"
