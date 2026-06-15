@@ -102,7 +102,9 @@
       "Bash(curl -s -i -m5 -X POST http://localhost:3001/auth/dev-login -H 'content-type: application/json' -H 'Origin: http://localhost:3001' -d '{\"email\":\"admin@example.com\"}' -c /tmp/ck.txt)",
       "Bash(sed -i 's/globalThis.navigator = dom.window.navigator;/Object.defineProperty\\(globalThis,\"navigator\",{value:dom.window.navigator,configurable:true}\\);/' repro.mjs)",
       "Bash(node repro.mjs)",
-      "Bash(python3 -)"
+      "Bash(python3 -)",
+      "Bash(git ls-tree *)",
+      "Bash(git push *)"
     ],
     "additionalDirectories": [
       "/tmp"
