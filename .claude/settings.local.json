@@ -106,7 +106,11 @@
       "Bash(git ls-tree *)",
       "Bash(git push *)",
       "Bash(grep -E \"\\\\.\\(jsx|tsx|js|ts\\)$\")",
-      "Bash(xargs ls -la)"
+      "Bash(xargs ls -la)",
+      "Bash(echo \"shared exit $?\")",
+      "Bash(echo \"web exit $?\")",
+      "Bash(echo \"server exit $?\")",
+      "Bash(echo \"exit $?\")"
     ],
     "additionalDirectories": [
       "/tmp"

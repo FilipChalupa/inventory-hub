@@ -196,6 +196,71 @@ export const loanRoutes = new Hono<AppContext>()
     }));
     return c.json({ items });
   })
+  // All live (non-archived) assets with their open commitments (active +
+  // planned), for the multi-asset availability calendar. Each window's start
+  // is the loan's effective start (loanedAt while planned, startedAt once
+  // active); a null end is open-ended.
+  .get('/calendar', (c) => {
+    const db = c.get('db');
+    const q = c.req.query('q')?.trim().toLowerCase();
+
+    let candidates = db
+      .select({ id: assets.id, code: assets.code, name: assets.name, status: assets.status })
+      .from(assets)
+      .where(isNull(assets.archivedAt))
+      .orderBy(asc(assets.code))
+      .all();
+
+    if (q) {
+      candidates = candidates.filter(
+        (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
+      );
+    }
+
+    const ids = candidates.map((a) => a.id);
+    const rows = ids.length
+      ? db
+          .select({
+            assetId: loanItems.assetId,
+            loanId: loans.id,
+            borrowerName: loans.borrowerName,
+            loanedAt: loans.loanedAt,
+            startedAt: loans.startedAt,
+            expectedReturnAt: loans.expectedReturnAt,
+          })
+          .from(loanItems)
+          .innerJoin(loans, eq(loanItems.loanId, loans.id))
+          .where(and(inArray(loanItems.assetId, ids), isNull(loanItems.returnedAt)))
+          .orderBy(asc(loans.loanedAt))
+          .all()
+      : [];
+
+    type CalendarWindow = {
+      loanId: string;
+      borrowerName: string;
+      start: Date;
+      end: Date | null;
+      status: 'planned' | 'active';
+    };
+    const windowsByAsset = new Map<string, CalendarWindow[]>();
+    for (const r of rows) {
+      const list = windowsByAsset.get(r.assetId) ?? [];
+      list.push({
+        loanId: r.loanId,
+        borrowerName: r.borrowerName,
+        start: r.startedAt ?? r.loanedAt,
+        end: r.expectedReturnAt,
+        status: r.startedAt === null ? 'planned' : 'active',
+      });
+      windowsByAsset.set(r.assetId, list);
+    }
+
+    const items = candidates.map((a) => ({
+      ...a,
+      windows: windowsByAsset.get(a.id) ?? [],
+    }));
+    return c.json({ items });
+  })
   .get('/:id', (c) => {
     const db = c.get('db');
     const id = c.req.param('id');

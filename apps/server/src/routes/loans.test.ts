@@ -710,6 +710,41 @@ describe('loans API', () => {
       expect(body.items).toHaveLength(2);
       expect(body.items.map((i) => i.status).sort()).toEqual(['active', 'planned']);
     });
+
+    it('calendar returns every live asset with its open windows', async () => {
+      const a = await makeAsset(server, cookie, 'Půjčený');
+      const b = await makeAsset(server, cookie, 'Volný');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Aktivní',
+        expectedReturnAt: inDays(5),
+        assetCodes: [a],
+      });
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: inDays(10),
+        expectedReturnAt: inDays(12),
+        assetCodes: [a],
+      });
+
+      const res = await server.authRequest('/api/loans/calendar', { cookie });
+      expect(res.status).toBe(200);
+      const body = (await res.json()) as {
+        items: { code: string; windows: { status: string }[] }[];
+      };
+      const loaned = body.items.find((i) => i.code === a)!;
+      const free = body.items.find((i) => i.code === b)!;
+      expect(loaned.windows.map((w) => w.status).sort()).toEqual(['active', 'planned']);
+      expect(free.windows).toHaveLength(0);
+    });
+
+    it('calendar filters assets by the q query', async () => {
+      const a = await makeAsset(server, cookie, 'Vrtačka');
+      await makeAsset(server, cookie, 'Žebřík');
+
+      const res = await server.authRequest('/api/loans/calendar?q=vrt', { cookie });
+      const body = (await res.json()) as { items: { code: string }[] };
+      expect(body.items.map((i) => i.code)).toEqual([a]);
+    });
   });
 
   describe('return flow', () => {

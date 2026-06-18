@@ -141,6 +141,22 @@ export type LoanAvailabilityAsset = {
   reason?: string;
 };
 
+export type LoanCalendarWindow = {
+  loanId: string;
+  borrowerName: string;
+  start: string;
+  end: string | null;
+  status: 'planned' | 'active';
+};
+
+export type LoanCalendarAsset = {
+  id: string;
+  code: string;
+  name: string;
+  status: AssetStatus;
+  windows: LoanCalendarWindow[];
+};
+
 export type ContactRow = {
   id: string;
   name: string;
@@ -512,6 +528,10 @@ export const apiClient = {
       api<{ ok: true }>(`/api/loans/${loanId}/items/${itemId}`, { method: 'DELETE' }),
     forAsset: (code: string) =>
       api<{ items: LoanForAssetRow[] }>(`/api/loans/for-asset/${encodeURIComponent(code)}`),
+    calendar: (q?: string) =>
+      api<{ items: LoanCalendarAsset[] }>(
+        `/api/loans/calendar${q ? `?q=${encodeURIComponent(q)}` : ''}`,
+      ),
     availability: (params: { from?: string; to?: string; q?: string } = {}) => {
       const qs = new URLSearchParams();
       if (params.q) qs.set('q', params.q);

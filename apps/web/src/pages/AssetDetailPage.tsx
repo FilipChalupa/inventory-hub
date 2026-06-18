@@ -14,6 +14,8 @@ import {
   formatDate,
 } from '../components/ui.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
+import { AvailabilityCalendar } from '../components/AvailabilityCalendar.js';
+import type { BusyWindow } from '../lib/availability.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
@@ -303,6 +305,19 @@ export function AssetDetailPage() {
 
       <Card>
         <h2 className="font-semibold mb-2">Rezervace a výpůjčky</h2>
+        <AvailabilityCalendar
+          windows={(assetLoans.data?.items ?? []).map(
+            (loan): BusyWindow => ({
+              start: new Date(
+                loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt,
+              ),
+              end: loan.expectedReturnAt ? new Date(loan.expectedReturnAt) : null,
+              status: loan.status,
+              label: loan.borrowerName,
+            }),
+          )}
+        />
+        <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700" />
         {assetLoans.data?.items.length === 0 && (
           <p className="text-sm text-slate-500">Žádné aktivní ani plánované výpůjčky.</p>
         )}
