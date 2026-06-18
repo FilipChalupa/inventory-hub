@@ -35,8 +35,8 @@ test.describe('invitations', () => {
     await inviteePage.getByPlaceholder('Jan Novák').fill('Nová Posila');
     await inviteePage.getByRole('button', { name: /Přijmout pozvánku/ }).click();
 
-    // Logged in → lands on assets page.
-    await expect(inviteePage.getByRole('heading', { name: 'Assety' })).toBeVisible({
+    // Logged in → lands on the home dashboard.
+    await expect(inviteePage.getByRole('heading', { name: 'Dnes' })).toBeVisible({
       timeout: 10_000,
     });
 

@@ -26,7 +26,7 @@ test.describe('assets', () => {
     });
     expect(create.ok()).toBeTruthy();
 
-    await page.goto('/');
+    await page.goto('/assets');
     await expect(page.getByText('E2E API Asset')).toBeVisible();
     await page.getByText('E2E API Asset').click();
     await expect(page).toHaveURL(new RegExp(`/a/${code}`));
@@ -34,7 +34,7 @@ test.describe('assets', () => {
   });
 
   test('seeded asset shows up on the list and opens', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/assets');
     await expect(page.getByText('ThinkPad X1 Carbon')).toBeVisible();
     await page.getByText('ThinkPad X1 Carbon').click();
     await expect(page).toHaveURL(/\/a\/LAP-00001/);
@@ -62,7 +62,7 @@ test.describe('assets', () => {
     await expect(page.getByText('archivováno', { exact: true })).toBeVisible();
 
     // List view shouldn't show it without the archived checkbox.
-    await page.goto('/');
+    await page.goto('/assets');
     await expect(page.getByRole('link', { name: new RegExp(code) })).toHaveCount(0);
     await page.getByLabel('archivované').check();
     await expect(page.getByRole('link', { name: new RegExp(code) })).toBeVisible();
