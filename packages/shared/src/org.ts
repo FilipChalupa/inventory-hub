@@ -34,3 +34,24 @@ export const orgSettingsSchema = z.object({
   allowedDomains: z.array(allowedDomainSchema).default([]),
 });
 export type OrgSettings = z.infer<typeof orgSettingsSchema>;
+
+/**
+ * Organization-wide defaults for the label printer (shared across users so a
+ * company prints uniform stickers).
+ *  - `compact`: encode just the bare code in the QR (smaller/denser) instead
+ *     of the full deep-link URL.
+ *  - `showName`: print the asset name on the label.
+ *  - `note`: free-text line under the code (e.g. a contact email).
+ */
+export const labelSettingsSchema = z.object({
+  compact: z.boolean().default(false),
+  showName: z.boolean().default(true),
+  note: z.string().trim().max(200).default(''),
+});
+export type LabelSettings = z.infer<typeof labelSettingsSchema>;
+
+export const DEFAULT_LABEL_SETTINGS: LabelSettings = {
+  compact: false,
+  showName: true,
+  note: '',
+};

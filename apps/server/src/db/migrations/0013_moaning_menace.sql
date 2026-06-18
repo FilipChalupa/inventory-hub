@@ -1,0 +1,1 @@
+ALTER TABLE `org_settings` ADD `label_settings` text DEFAULT '{"compact":false,"showName":true,"note":""}' NOT NULL;

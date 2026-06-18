@@ -28,3 +28,58 @@ describe('org API — MCP connection info', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('org API — label settings', () => {
+  let server: TestServer;
+  let cookie: string;
+
+  beforeEach(() => {
+    server = setupTestServer();
+    cookie = server.loginAs(server.createUser({ role: 'admin' }));
+  });
+
+  afterEach(() => {
+    server.close();
+  });
+
+  async function putJson(path: string, body: unknown, c = cookie) {
+    return server.authRequest(path, {
+      cookie: c,
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+
+  it('returns default label settings before the org is initialized', async () => {
+    const res = await server.authRequest('/api/org', { cookie });
+    const body = (await res.json()) as { labelSettings: { compact: boolean; showName: boolean; note: string } };
+    expect(body.labelSettings).toEqual({ compact: false, showName: true, note: '' });
+  });
+
+  it('persists label settings org-wide once initialized', async () => {
+    expect((await putJson('/api/org', { name: 'Acme', codePrefix: null, allowedDomains: [] })).status).toBe(200);
+
+    const save = await putJson('/api/org/label-settings', {
+      compact: true,
+      showName: false,
+      note: 'najdete-li, pište spravce@acme.cz',
+    });
+    expect(save.status).toBe(200);
+
+    const res = await server.authRequest('/api/org', { cookie });
+    const body = (await res.json()) as { labelSettings: { compact: boolean; showName: boolean; note: string } };
+    expect(body.labelSettings).toEqual({
+      compact: true,
+      showName: false,
+      note: 'najdete-li, pište spravce@acme.cz',
+    });
+  });
+
+  it('forbids non-admins from changing label settings', async () => {
+    await putJson('/api/org', { name: 'Acme', codePrefix: null, allowedDomains: [] });
+    const memberCookie = server.loginAs(server.createUser({ role: 'operator' }));
+    const res = await putJson('/api/org/label-settings', { compact: true, showName: true, note: '' }, memberCookie);
+    expect(res.status).toBe(403);
+  });
+});

@@ -631,11 +631,16 @@ export const assetRoutes = new Hono<AppContext>()
   .get('/:code/qr', async (c) => {
     const env = c.get('env');
     const code = c.req.param('code').toUpperCase();
-    const url = `${env.PUBLIC_APP_URL}/a/${code}`;
-    const png = await QRCode.toBuffer(url, {
+    // Compact mode encodes just the bare code (far fewer modules → prints
+    // smaller and still scannable by the in-app scanner, which accepts both a
+    // URL and a bare code). Default encodes the full deep-link URL so any
+    // phone camera opens the asset page.
+    const compact = c.req.query('compact') === '1';
+    const data = compact ? code : `${env.PUBLIC_APP_URL}/a/${code}`;
+    const png = await QRCode.toBuffer(data, {
       errorCorrectionLevel: 'M',
       margin: 1,
-      width: 512,
+      width: compact ? 256 : 512,
     });
     return new Response(png, {
       headers: {

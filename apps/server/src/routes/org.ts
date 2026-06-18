@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
-import { orgSettingsSchema } from '@inventory-hub/shared';
+import { orgSettingsSchema, labelSettingsSchema, DEFAULT_LABEL_SETTINGS } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { orgSettings } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -17,7 +17,9 @@ export const orgRoutes = new Hono<AppContext>()
     // API/MCP clients can build clickable links without guessing the host.
     const appUrl = c.get('env').PUBLIC_APP_URL.replace(/\/$/, '');
     const row = db.select().from(orgSettings).where(eq(orgSettings.id, SINGLETON_ID)).get();
-    if (!row) return c.json({ initialized: false, appUrl }, 200);
+    if (!row) {
+      return c.json({ initialized: false, appUrl, labelSettings: DEFAULT_LABEL_SETTINGS }, 200);
+    }
     return c.json({
       initialized: true,
       appUrl,
@@ -26,6 +28,7 @@ export const orgRoutes = new Hono<AppContext>()
         codePrefix: row.codePrefix,
         allowedDomains: row.allowedDomains,
       },
+      labelSettings: row.labelSettings ?? DEFAULT_LABEL_SETTINGS,
     });
   })
   // Connection details for the remote MCP server, surfaced in Settings so an
@@ -59,6 +62,24 @@ export const orgRoutes = new Hono<AppContext>()
           updatedAt: now,
         },
       })
+      .run();
+    return c.json({ ok: true });
+  })
+  // Org-wide label-printer defaults. Separate from the main settings PUT so the
+  // labels page can save them without resending name/prefix/domains.
+  .put('/label-settings', requireAuth('admin'), zValidator('json', labelSettingsSchema), (c) => {
+    const db = c.get('db');
+    const input = c.req.valid('json');
+    const row = db.select({ id: orgSettings.id }).from(orgSettings).where(eq(orgSettings.id, SINGLETON_ID)).get();
+    if (!row) {
+      return c.json(
+        { error: { message: 'Nejdřív vyplň základní nastavení organizace.' } },
+        400,
+      );
+    }
+    db.update(orgSettings)
+      .set({ labelSettings: input, updatedAt: new Date() })
+      .where(eq(orgSettings.id, SINGLETON_ID))
       .run();
     return c.json({ ok: true });
   });

@@ -26,6 +26,11 @@ export const orgSettings = sqliteTable('org_settings', {
     .$type<{ domain: string; defaultRole: 'admin' | 'operator' | 'member' | 'auditor' }[]>()
     .notNull()
     .default([]),
+  // Org-wide label-printer defaults (compact QR / show name / contact note).
+  labelSettings: text('label_settings', { mode: 'json' })
+    .$type<{ compact: boolean; showName: boolean; note: string }>()
+    .notNull()
+    .default({ compact: false, showName: true, note: '' }),
   ...timestamps,
 });
 

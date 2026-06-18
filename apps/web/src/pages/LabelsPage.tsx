@@ -1,14 +1,39 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
-import { Button, Card, Input, Textarea } from '../components/ui.js';
+import { Button, Card, Field, Input, Textarea } from '../components/ui.js';
+import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 
 export function LabelsPage() {
   const [params] = useSearchParams();
+  const queryClient = useQueryClient();
+  const isAdmin = hasRole(useCurrentUser(), 'admin');
   const initial = params.get('codes')?.split(',').map((c) => c.trim()).filter(Boolean) ?? [];
   const [codesInput, setCodesInput] = useState(initial.join('\n'));
   const [filter, setFilter] = useState('');
+
+  // Label appearance — seeded from the org-wide defaults, tweakable locally for
+  // the current print, and (for admins) saveable back as the org default.
+  const [compact, setCompact] = useState(false);
+  const [showName, setShowName] = useState(true);
+  const [note, setNote] = useState('');
+  const seeded = useRef(false);
+
+  const org = useQuery({ queryKey: ['org'], queryFn: () => apiClient.org.get() });
+  useEffect(() => {
+    if (seeded.current || !org.data) return;
+    setCompact(org.data.labelSettings.compact);
+    setShowName(org.data.labelSettings.showName);
+    setNote(org.data.labelSettings.note);
+    seeded.current = true;
+  }, [org.data]);
+
+  const saveDefaults = useMutation({
+    mutationFn: () =>
+      apiClient.org.putLabelSettings({ compact, showName, note: note.trim() }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['org'] }),
+  });
 
   const codes = useMemo(
     () =>
@@ -82,19 +107,21 @@ export function LabelsPage() {
             {filtered.map((a) => {
               const selected = codes.includes(a.code);
               return (
-                <li key={a.code} className="flex items-center gap-2 p-1.5 hover:bg-slate-50 dark:hover:bg-slate-700">
-                  <input
-                    type="checkbox"
-                    checked={selected}
-                    onChange={() => {
-                      const next = new Set(codes);
-                      if (selected) next.delete(a.code);
-                      else next.add(a.code);
-                      setCodesInput(Array.from(next).join('\n'));
-                    }}
-                  />
-                  <span className="font-mono text-xs text-slate-500 w-24">{a.code}</span>
-                  <span>{a.name}</span>
+                <li key={a.code}>
+                  <label className="flex items-center gap-2 p-1.5 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700">
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => {
+                        const next = new Set(codes);
+                        if (selected) next.delete(a.code);
+                        else next.add(a.code);
+                        setCodesInput(Array.from(next).join('\n'));
+                      }}
+                    />
+                    <span className="font-mono text-xs text-slate-500 w-24">{a.code}</span>
+                    <span>{a.name}</span>
+                  </label>
                 </li>
               );
             })}
@@ -102,11 +129,62 @@ export function LabelsPage() {
         </Card>
       </div>
 
+      <Card className="print:hidden space-y-3">
+        <h2 className="font-semibold">Nastavení štítku</h2>
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
+            Malý kód (jen kód, bez odkazu)
+          </label>
+          <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} />
+            Tisknout název
+          </label>
+        </div>
+        <p className="text-xs text-slate-500">
+          Malý kód kóduje jen kód assetu (menší QR, čte ho čtečka v aplikaci). Velký kóduje plnou
+          adresu, takže ho otevře i foťák v mobilu.
+        </p>
+        <Field label="Poznámka pod kódem (volitelná)">
+          <Input
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            placeholder="např. Když najdete, ozvěte se: spravce@firma.cz"
+            maxLength={200}
+          />
+        </Field>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              disabled={saveDefaults.isPending}
+              onClick={() => saveDefaults.mutate()}
+            >
+              {saveDefaults.isPending ? 'Ukládám…' : 'Uložit jako výchozí pro organizaci'}
+            </Button>
+            {saveDefaults.isSuccess && (
+              <span className="text-xs text-emerald-600">Uloženo pro celou organizaci.</span>
+            )}
+            {saveDefaults.error && (
+              <span className="text-xs text-red-600">{(saveDefaults.error as Error).message}</span>
+            )}
+          </div>
+        )}
+        {!isAdmin && (
+          <p className="text-xs text-slate-400">
+            Výchozí nastavení pro organizaci může změnit jen admin; tady si ho můžeš upravit pro tento
+            tisk.
+          </p>
+        )}
+      </Card>
+
       {labels.data && (
         <div className="print:block">
           <div
             className="grid gap-3"
-            style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))' }}
+            style={{
+              gridTemplateColumns: `repeat(auto-fill, minmax(${compact ? 160 : 220}px, 1fr))`,
+            }}
           >
             {labels.data.items.map((l) => (
               <div
@@ -118,13 +196,18 @@ export function LabelsPage() {
                 className="border border-slate-300 rounded p-3 flex items-center gap-3 break-inside-avoid bg-white text-slate-900"
               >
                 <img
-                  src={apiClient.assets.qrUrl(l.code)}
+                  src={apiClient.assets.qrUrl(l.code, { compact })}
                   alt={l.code}
-                  className="w-24 h-24 shrink-0"
+                  className={compact ? 'w-16 h-16 shrink-0' : 'w-24 h-24 shrink-0'}
                 />
                 <div className="min-w-0">
                   <p className="font-mono text-xs">{l.code}</p>
-                  <p className="text-sm font-medium truncate">{l.name}</p>
+                  {showName && <p className="text-sm font-medium truncate">{l.name}</p>}
+                  {note.trim() && (
+                    <p className="text-[10px] leading-tight text-slate-600 mt-0.5 break-words">
+                      {note.trim()}
+                    </p>
+                  )}
                 </div>
               </div>
             ))}

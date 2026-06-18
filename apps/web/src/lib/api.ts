@@ -7,6 +7,7 @@ import type {
   UpdateLoanInput,
   ReturnLoanItemInput,
   AllowedDomain,
+  LabelSettings,
   UserRole,
   CustomFieldsSchema,
   CreateInventorySessionInput,
@@ -372,10 +373,14 @@ export const apiClient = {
     get: () =>
       api<{
         initialized: boolean;
+        appUrl?: string;
         settings?: { name: string; codePrefix: string | null; allowedDomains: AllowedDomain[] };
+        labelSettings: LabelSettings;
       }>('/api/org'),
     put: (input: { name: string; codePrefix: string | null; allowedDomains: AllowedDomain[] }) =>
       api<{ ok: true }>('/api/org', { method: 'PUT', body: input }),
+    putLabelSettings: (input: LabelSettings) =>
+      api<{ ok: true }>('/api/org/label-settings', { method: 'PUT', body: input }),
     mcpInfo: () => api<{ url: string; googleConfigured: boolean }>('/api/org/mcp-info'),
   },
 
@@ -468,7 +473,8 @@ export const apiClient = {
       api<{
         items: (AssetEventRow & { assetCode: string | null; assetName: string | null })[];
       }>(`/api/assets/events/all?limit=${limit}`),
-    qrUrl: (code: string) => `/api/assets/${encodeURIComponent(code)}/qr`,
+    qrUrl: (code: string, opts: { compact?: boolean } = {}) =>
+      `/api/assets/${encodeURIComponent(code)}/qr${opts.compact ? '?compact=1' : ''}`,
     labels: (codes: string[]) =>
       api<{ items: { code: string; name: string; qrUrl: string }[] }>('/api/assets/labels', {
         method: 'POST',
