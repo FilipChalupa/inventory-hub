@@ -171,7 +171,7 @@ function ApiKeysSection() {
       <p className="text-xs text-slate-500 mb-3">
         Pro integrace a skripty. Klíč se posílá jako{' '}
         <span className="font-mono">Authorization: Bearer …</span> a má práva admina, který ho
-        vytvořil. Token uvidíš jen jednou.
+        vytvořil. Slouží i pro odběr kalendáře výpůjček (.ics). Token uvidíš jen jednou.
       </p>
 
       {created && (
@@ -180,6 +180,15 @@ function ApiKeysSection() {
           <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {created.token}
           </code>
+          <p className="text-sm font-medium mt-3 mb-1">
+            Odběr kalendáře (termíny vrácení a začátky rezervací):
+          </p>
+          <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
+            {`${window.location.origin}/feeds/loans.ics?token=${created.token}`}
+          </code>
+          <p className="text-xs text-slate-500 mt-1">
+            Vlož jako odebíraný kalendář v Google / Apple kalendáři (URL veřejné adresy).
+          </p>
           <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
             Mám zkopírováno
           </Button>

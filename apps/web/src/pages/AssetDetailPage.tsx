@@ -15,7 +15,7 @@ import {
 } from '../components/ui.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { AvailabilityCalendar } from '../components/AvailabilityCalendar.js';
-import { nonLoanableReason, toISODate, type BusyWindow } from '../lib/availability.js';
+import { nextFreeAt, nonLoanableReason, toISODate, type BusyWindow } from '../lib/availability.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
@@ -103,6 +103,15 @@ export function AssetDetailPage() {
   const isArchived = a.archivedAt !== null;
   const assetType = types.data?.items.find((t) => t.id === a.typeId);
   const customSchema: CustomFieldsSchema = assetType?.customFieldsSchema ?? [];
+
+  const blockReason = nonLoanableReason(a.status);
+  const loanWindows: BusyWindow[] = (assetLoans.data?.items ?? []).map((loan) => ({
+    start: new Date(loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt),
+    end: loan.expectedReturnAt ? new Date(loan.expectedReturnAt) : null,
+    status: loan.status,
+    label: loan.borrowerName,
+  }));
+  const nextFree = blockReason ? null : nextFreeAt(loanWindows);
 
   return (
     <article className="space-y-6">
@@ -305,23 +314,27 @@ export function AssetDetailPage() {
       />
 
       <Card>
-        <h2 className="font-semibold mb-2">Rezervace a výpůjčky</h2>
-        <AvailabilityCalendar
-          windows={(assetLoans.data?.items ?? []).map(
-            (loan): BusyWindow => ({
-              start: new Date(
-                loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt,
-              ),
-              end: loan.expectedReturnAt ? new Date(loan.expectedReturnAt) : null,
-              status: loan.status,
-              label: loan.borrowerName,
-            }),
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <h2 className="font-semibold">Rezervace a výpůjčky</h2>
+          {nextFree && (
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {nextFree.kind === 'now' && (
+                <>
+                  Volné: <span className="font-medium text-emerald-700 dark:text-emerald-400">teď</span>
+                </>
+              )}
+              {nextFree.kind === 'date' && (
+                <>Volné od {nextFree.date.toLocaleDateString('cs-CZ')}</>
+              )}
+              {nextFree.kind === 'never' && <>Vypůjčeno bez termínu vrácení</>}
+            </span>
           )}
-          blocked={
-            nonLoanableReason(a.status) ? { reason: nonLoanableReason(a.status)! } : undefined
-          }
+        </div>
+        <AvailabilityCalendar
+          windows={loanWindows}
+          blocked={blockReason ? { reason: blockReason } : undefined}
           onCreateLoan={
-            nonLoanableReason(a.status)
+            blockReason
               ? undefined
               : (fromDay, toDay) =>
                   navigate(

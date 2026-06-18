@@ -19,6 +19,7 @@ import { assetTypeRoutes } from './routes/asset-types.js';
 import { locationRoutes } from './routes/locations.js';
 import { damageRoutes } from './routes/damages.js';
 import { loanRoutes } from './routes/loans.js';
+import { feedRoutes } from './routes/feeds.js';
 import { inventoryRoutes } from './routes/inventory.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { exportRoutes } from './routes/export.js';
@@ -109,6 +110,10 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
       return c.notFound();
     }
   });
+
+  // Subscribable calendar feeds — authenticate via `?token=<api key>`, so they
+  // sit outside the session-guarded /api/* surface (mounted before the SPA).
+  app.route('/feeds', feedRoutes);
 
   // All /api/* routes require an authenticated session. Org PUT additionally
   // requires admin role — handled inside the org router.

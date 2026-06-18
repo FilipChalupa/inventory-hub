@@ -40,6 +40,32 @@ export function dayState(windows: BusyWindow[], day: Date): DayState {
   return { status, windows: hits };
 }
 
+export type NextFree =
+  | { kind: 'now' }
+  | { kind: 'date'; date: Date }
+  | { kind: 'never' };
+
+/**
+ * The moment an asset is next free, walking forward from `from` and jumping
+ * past each covering window (so back-to-back loans collapse). `now` = free
+ * already; `never` = an open-ended loan currently covers it.
+ */
+export function nextFreeAt(windows: BusyWindow[], from: Date = new Date()): NextFree {
+  let cursor = from;
+  // Bounded loop: at most one jump per window.
+  for (let i = 0; i <= windows.length; i++) {
+    const covering = windows.find(
+      (w) =>
+        w.start.getTime() <= cursor.getTime() &&
+        (w.end === null || cursor.getTime() < w.end.getTime()),
+    );
+    if (!covering) break;
+    if (covering.end === null) return { kind: 'never' };
+    cursor = covering.end;
+  }
+  return cursor.getTime() <= from.getTime() ? { kind: 'now' } : { kind: 'date', date: cursor };
+}
+
 /**
  * The 6×7 day matrix for a month, Monday-first, including the trailing/leading
  * days of the neighbouring months that fill the grid.

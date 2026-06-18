@@ -843,6 +843,29 @@ describe('loans API', () => {
       expect(body.dueToday.map((x) => x.borrowerName)).toEqual(['Dnes vrátit']);
       expect(body.startingToday.map((x) => x.borrowerName)).toEqual(['Začíná dnes']);
     });
+
+    it('ics feed serves return deadlines for a valid token and 401s otherwise', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Jan Novák',
+        expectedReturnAt: inDays(3),
+        assetCodes: [a],
+      });
+      const keyRes = await jsonPost(server, cookie, '/api/api-keys', { name: 'cal' });
+      const { token } = (await keyRes.json()) as { token: string };
+
+      const ok = await server.authRequest(`/feeds/loans.ics?token=${encodeURIComponent(token)}`, {
+        cookie,
+      });
+      expect(ok.status).toBe(200);
+      expect(ok.headers.get('content-type')).toContain('text/calendar');
+      const text = await ok.text();
+      expect(text).toContain('BEGIN:VCALENDAR');
+      expect(text).toContain('Vrátit: Jan Novák');
+
+      const bad = await server.authRequest('/feeds/loans.ics?token=nope', { cookie });
+      expect(bad.status).toBe(401);
+    });
   });
 
   describe('return flow', () => {

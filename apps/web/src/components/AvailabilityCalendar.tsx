@@ -21,6 +21,19 @@ const dayClasses: Record<DayStatus, string> = {
 
 const blockedDayClass = 'bg-slate-100 text-slate-400 dark:bg-slate-700/40 dark:text-slate-500';
 
+function statusLabel(status: DayStatus | 'blocked'): string {
+  switch (status) {
+    case 'free':
+      return 'volné';
+    case 'active':
+      return 'vypůjčeno';
+    case 'planned':
+      return 'rezervováno';
+    case 'blocked':
+      return 'nedostupné';
+  }
+}
+
 /**
  * Month grid showing when an asset is free vs reserved/loaned. Navigates
  * between months locally; the caller just supplies the windows.
@@ -56,11 +69,33 @@ export function AvailabilityCalendar({
     });
   }
 
+  // A day that can be part of a loan window: free (no commitment) and not
+  // hatched out by a blocking status.
+  function isFreeForLoan(day: Date): boolean {
+    const st = dayState(windows, day);
+    if (st.status !== 'free') return false;
+    if (blocked && dayBounds(day)[0].getTime() >= todayStart.getTime()) return false;
+    return true;
+  }
+
+  // Clamp the range end to the last day reachable from `start` without
+  // crossing a busy/blocked day, so a selection can never span a commitment.
+  function clampEnd(start: Date, target: Date): Date {
+    let end = start;
+    const cursorDay = new Date(start);
+    while (cursorDay.getTime() <= target.getTime()) {
+      if (!isFreeForLoan(cursorDay)) break;
+      end = new Date(cursorDay);
+      cursorDay.setDate(cursorDay.getDate() + 1);
+    }
+    return end;
+  }
+
   function pick(day: Date) {
     setSel((cur) => {
       if (!cur || cur.end) return { start: day, end: null };
       if (day.getTime() < cur.start.getTime()) return { start: day, end: null };
-      return { start: cur.start, end: day };
+      return { start: cur.start, end: clampEnd(cur.start, day) };
     });
   }
 
@@ -142,19 +177,38 @@ export function AvailabilityCalendar({
             : isToday
               ? 'ring-2 ring-inset ring-slate-900 dark:ring-slate-100 font-semibold'
               : undefined;
+          const className = clsx(
+            'aspect-square rounded flex items-center justify-center text-xs',
+            isBlocked ? blockedDayClass : dayClasses[state.status],
+            !inMonth && 'opacity-40',
+            selectable && 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-400',
+            ring,
+          );
+          const label = `${day.toLocaleDateString('cs-CZ')} — ${statusLabel(
+            isBlocked ? 'blocked' : state.status,
+          )}`;
+          if (selectable) {
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => pick(day)}
+                aria-pressed={selected}
+                aria-label={`${day.toLocaleDateString('cs-CZ')} — volné, vybrat`}
+                className={className}
+              >
+                {day.getDate()}
+              </button>
+            );
+          }
           return (
             <div
               key={day.toISOString()}
+              role="img"
+              aria-label={label}
               title={title || undefined}
               style={isBlocked ? HATCH_STYLE : undefined}
-              onClick={selectable ? () => pick(day) : undefined}
-              className={clsx(
-                'aspect-square rounded flex items-center justify-center text-xs',
-                isBlocked ? blockedDayClass : dayClasses[state.status],
-                !inMonth && 'opacity-40',
-                selectable && 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-400',
-                ring,
-              )}
+              className={className}
             >
               {day.getDate()}
             </div>
