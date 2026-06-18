@@ -2,13 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
-import { apiClient, type InventoryReportAsset, type ScanResult } from '../lib/api.js';
-import { Button, Card, Input, StatusBadge, formatDate } from '../components/ui.js';
+import {
+  apiClient,
+  type InventoryReport,
+  type InventoryReportAsset,
+  type InventorySessionRow,
+  type ScanResult,
+} from '../lib/api.js';
+import { Button, Card, Input, StatusBadge, Textarea, formatDate } from '../components/ui.js';
 import { locationPath } from '../lib/locations.js';
 import { parseScannedValue } from '../lib/scan.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 
 const SCANNER_ELEMENT_ID = 'inventory-scanner-region';
+
+type Detail = { session: InventorySessionRow; report: InventoryReport };
 
 export function InventorySessionPage() {
   const { id = '' } = useParams();
@@ -33,6 +41,12 @@ export function InventorySessionPage() {
   const report = detail.data?.report;
   const isOpen = session?.status === 'open';
 
+  // Write the fresh report straight into the cache. The service worker serves
+  // GET /api/* stale-while-revalidate, so relying on a refetch would show
+  // stale counts until a reload — the mutations return the report instead.
+  const applyReport = (next: InventoryReport) =>
+    queryClient.setQueryData<Detail>(['inventory', id], (old) => (old ? { ...old, report: next } : old));
+
   const scan = useMutation({
     mutationFn: (code: string) => apiClient.inventory.scan(id, code),
     onSuccess: (res) => {
@@ -46,25 +60,63 @@ export function InventorySessionPage() {
               ? `↺ ${label} (už naskenováno)`
               : `⚠ ${label} (mimo rozsah / archivováno)`,
       });
-      void queryClient.invalidateQueries({ queryKey: ['inventory', id] });
+      applyReport(res.report);
     },
     onError: (e: unknown) =>
       setLastResult({ kind: 'unexpected', text: e instanceof Error ? e.message : 'Chyba skenu' }),
   });
 
+  const itemNote = useMutation({
+    mutationFn: (v: { assetId: string; note: string }) =>
+      apiClient.inventory.setItemNote(id, v.assetId, v.note),
+    onSuccess: (res) => applyReport(res.report),
+    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+  });
+
+  const saveSessionNote = useMutation({
+    mutationFn: (note: string) =>
+      apiClient.inventory.update(id, { note: note.trim() ? note.trim() : null }),
+    onSuccess: (_res, note) =>
+      queryClient.setQueryData<Detail>(['inventory', id], (old) =>
+        old ? { ...old, session: { ...old.session, note: note.trim() ? note.trim() : null } } : old,
+      ),
+    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+  });
+
+  // Patch the session's status into the cache directly (same stale-SW reason
+  // as the report) and refresh the list in the background.
+  const setStatus = (status: 'open' | 'closed') => {
+    queryClient.setQueryData<Detail>(['inventory', id], (old) =>
+      old
+        ? {
+            ...old,
+            session: {
+              ...old.session,
+              status,
+              closedAt: status === 'closed' ? new Date().toISOString() : null,
+            },
+          }
+        : old,
+    );
+    void queryClient.invalidateQueries({ queryKey: ['inventory'], exact: true });
+  };
+
   const close = useMutation({
     mutationFn: () => apiClient.inventory.close(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+    onSuccess: () => setStatus('closed'),
     onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
   });
   const reopen = useMutation({
     mutationFn: () => apiClient.inventory.reopen(id),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+    onSuccess: () => setStatus('open'),
     onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
   });
   const markLost = useMutation({
     mutationFn: (codes: string[]) => apiClient.inventory.markLost(id, codes),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['inventory'] }),
+    onSuccess: (res) => {
+      applyReport(res.report);
+      void queryClient.invalidateQueries({ queryKey: ['inventory'], exact: true });
+    },
     onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
   });
 
@@ -83,6 +135,22 @@ export function InventorySessionPage() {
     );
   }
 
+  const scopeLabel =
+    session.assetIds && session.assetIds.length > 0
+      ? `ručně vybráno ${session.assetIds.length} assetů`
+      : [
+          session.locationId ? locationLabel(session.locationId) : 'celá organizace',
+          session.typeIds && session.typeIds.length > 0
+            ? `${session.typeIds.length} ${session.typeIds.length === 1 ? 'typ' : 'typů'}`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(' · ');
+
+  const onSaveNote = canWrite
+    ? (assetId: string, note: string) => itemNote.mutate({ assetId, note })
+    : undefined;
+
   return (
     <section className="space-y-4">
       <Link to="/inventory" className="text-sm text-slate-500 hover:underline">
@@ -93,8 +161,7 @@ export function InventorySessionPage() {
         <div>
           <h1 className="text-2xl font-bold">{session.name}</h1>
           <p className="text-sm text-slate-500">
-            Rozsah: {session.locationId ? locationLabel(session.locationId) : 'celá organizace'} ·
-            založeno {formatDate(session.createdAt)}
+            Rozsah: {scopeLabel} · založeno {formatDate(session.createdAt)}
             {session.status === 'closed' && session.closedAt
               ? ` · uzavřeno ${formatDate(session.closedAt)}`
               : ''}
@@ -117,6 +184,13 @@ export function InventorySessionPage() {
         <Stat label="Navíc" value={report.counts.unexpected} tone="amber" />
       </div>
 
+      <SessionNote
+        note={session.note}
+        canWrite={canWrite}
+        saving={saveSessionNote.isPending}
+        onSave={(note) => saveSessionNote.mutate(note)}
+      />
+
       {canWrite && isOpen && (
         <ScanPanel
           onCode={(code) => scan.mutate(code)}
@@ -130,19 +204,11 @@ export function InventorySessionPage() {
       {canWrite && (
         <div className="flex flex-wrap gap-2">
           {isOpen ? (
-            <Button
-              variant="secondary"
-              onClick={() => close.mutate()}
-              disabled={close.isPending}
-            >
+            <Button variant="secondary" onClick={() => close.mutate()} disabled={close.isPending}>
               Uzavřít inventuru
             </Button>
           ) : (
-            <Button
-              variant="secondary"
-              onClick={() => reopen.mutate()}
-              disabled={reopen.isPending}
-            >
+            <Button variant="secondary" onClick={() => reopen.mutate()} disabled={reopen.isPending}>
               Znovu otevřít
             </Button>
           )}
@@ -174,6 +240,9 @@ export function InventorySessionPage() {
         assets={report.missing}
         locationLabel={locationLabel}
         emptyText="Nic nechybí 🎉"
+        canWrite={canWrite}
+        onSaveNote={onSaveNote}
+        onMarkFound={canWrite && isOpen ? (code) => scan.mutate(code) : undefined}
       />
       <AssetGroup
         title="Navíc / mimo rozsah"
@@ -181,14 +250,86 @@ export function InventorySessionPage() {
         assets={report.unexpected}
         locationLabel={locationLabel}
         emptyText="Nic navíc."
+        canWrite={canWrite}
+        onSaveNote={onSaveNote}
       />
       <AssetGroup
         title="Nalezeno"
         assets={report.found}
         locationLabel={locationLabel}
         emptyText="Zatím nic naskenováno."
+        canWrite={canWrite}
+        onSaveNote={onSaveNote}
       />
     </section>
+  );
+}
+
+function SessionNote({
+  note,
+  canWrite,
+  saving,
+  onSave,
+}: {
+  note: string | null;
+  canWrite: boolean;
+  saving: boolean;
+  onSave: (note: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(note ?? '');
+
+  if (!canWrite) {
+    if (!note) return null;
+    return (
+      <Card>
+        <h2 className="font-semibold mb-1 text-sm">Poznámka</h2>
+        <p className="text-sm whitespace-pre-wrap">{note}</p>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="space-y-2">
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-sm">Poznámka k inventuře</h2>
+        {!editing && (
+          <Button
+            variant="ghost"
+            className="text-xs"
+            onClick={() => {
+              setDraft(note ?? '');
+              setEditing(true);
+            }}
+          >
+            {note ? 'Upravit' : 'Přidat'}
+          </Button>
+        )}
+      </div>
+      {editing ? (
+        <div className="space-y-2">
+          <Textarea rows={3} value={draft} onChange={(e) => setDraft(e.target.value)} />
+          <div className="flex gap-2">
+            <Button
+              disabled={saving}
+              onClick={() => {
+                onSave(draft);
+                setEditing(false);
+              }}
+            >
+              {saving ? 'Ukládám…' : 'Uložit'}
+            </Button>
+            <Button variant="ghost" onClick={() => setEditing(false)}>
+              Zrušit
+            </Button>
+          </div>
+        </div>
+      ) : note ? (
+        <p className="text-sm whitespace-pre-wrap">{note}</p>
+      ) : (
+        <p className="text-sm text-slate-400">Bez poznámky.</p>
+      )}
+    </Card>
   );
 }
 
@@ -334,12 +475,18 @@ function AssetGroup({
   assets,
   locationLabel,
   emptyText,
+  canWrite,
+  onMarkFound,
+  onSaveNote,
 }: {
   title: string;
   hint?: string;
   assets: InventoryReportAsset[];
   locationLabel: (id: string | null) => string;
   emptyText: string;
+  canWrite: boolean;
+  onMarkFound?: (code: string) => void;
+  onSaveNote?: (assetId: string, note: string) => void;
 }) {
   return (
     <div className="space-y-1">
@@ -352,18 +499,95 @@ function AssetGroup({
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {assets.map((a) => (
-            <li key={a.id} className="flex items-center justify-between p-2.5 gap-3 text-sm">
-              <Link to={`/a/${a.code}`} className="hover:underline">
-                <span className="font-mono">{a.code}</span> — {a.name}
-              </Link>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <span>{locationLabel(a.locationId)}</span>
-                <StatusBadge status={a.status} />
-              </div>
-            </li>
+            <ReportItem
+              key={a.id}
+              asset={a}
+              locationLabel={locationLabel}
+              canWrite={canWrite}
+              onMarkFound={onMarkFound}
+              onSaveNote={onSaveNote}
+            />
           ))}
         </ul>
       )}
     </div>
+  );
+}
+
+function ReportItem({
+  asset,
+  locationLabel,
+  canWrite,
+  onMarkFound,
+  onSaveNote,
+}: {
+  asset: InventoryReportAsset;
+  locationLabel: (id: string | null) => string;
+  canWrite: boolean;
+  onMarkFound?: (code: string) => void;
+  onSaveNote?: (assetId: string, note: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(asset.note ?? '');
+
+  return (
+    <li className="p-2.5 text-sm space-y-2">
+      <div className="flex items-center justify-between gap-3">
+        <Link to={`/a/${asset.code}`} className="hover:underline min-w-0 truncate">
+          <span className="font-mono">{asset.code}</span> — {asset.name}
+        </Link>
+        <div className="flex items-center gap-2 text-xs text-slate-500 shrink-0">
+          <span className="hidden sm:inline">{locationLabel(asset.locationId)}</span>
+          <StatusBadge status={asset.status} />
+          {onMarkFound && (
+            <Button
+              variant="secondary"
+              className="text-xs py-0.5"
+              onClick={() => onMarkFound(asset.code)}
+            >
+              Nalezeno
+            </Button>
+          )}
+          {canWrite && onSaveNote && (
+            <button
+              type="button"
+              onClick={() => {
+                setDraft(asset.note ?? '');
+                setEditing((v) => !v);
+              }}
+              className="rounded px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
+              title={asset.note ? 'Upravit poznámku' : 'Přidat poznámku'}
+              aria-label="Poznámka k položce"
+            >
+              📝
+            </button>
+          )}
+        </div>
+      </div>
+
+      {asset.note && !editing && (
+        <p className="text-xs text-slate-500 dark:text-slate-400">📝 {asset.note}</p>
+      )}
+
+      {editing && onSaveNote && (
+        <div className="flex gap-2">
+          <Input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Poznámka k položce…"
+            className="text-xs"
+          />
+          <Button
+            className="text-xs"
+            onClick={() => {
+              onSaveNote(asset.id, draft);
+              setEditing(false);
+            }}
+          >
+            Uložit
+          </Button>
+        </div>
+      )}
+    </li>
   );
 }

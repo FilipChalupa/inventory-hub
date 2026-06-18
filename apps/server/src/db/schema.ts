@@ -265,6 +265,12 @@ export const inventorySessions = sqliteTable('inventory_sessions', {
   // Scope: when set, only assets within this location (and its descendants)
   // are expected; null = the whole organization.
   locationId: text('location_id').references(() => locations.id, { onDelete: 'set null' }),
+  // Optional scope refinements. When `assetIds` is set the session covers
+  // exactly those hand-picked assets; otherwise the expected set is the
+  // non-archived assets matching `locationId` (subtree) AND `typeIds`, each
+  // applied only when provided (empty/null = no constraint on that axis).
+  typeIds: text('type_ids', { mode: 'json' }).$type<string[]>(),
+  assetIds: text('asset_ids', { mode: 'json' }).$type<string[]>(),
   status: text('status', { enum: ['open', 'closed'] })
     .notNull()
     .default('open'),
@@ -297,6 +303,33 @@ export const inventoryScans = sqliteTable(
   (t) => ({
     sessionIdx: index('inventory_scans_session_idx').on(t.sessionId),
     sessionAssetUnique: uniqueIndex('inventory_scans_session_asset_unique').on(
+      t.sessionId,
+      t.assetId,
+    ),
+  }),
+);
+
+/**
+ * Free-text note pinned to a single asset within an inventory session
+ * (e.g. "damaged box", "found in the wrong room"). One note per (session,
+ * asset); deleting either cascades.
+ */
+export const inventoryItemNotes = sqliteTable(
+  'inventory_item_notes',
+  {
+    id: id(),
+    sessionId: text('session_id')
+      .notNull()
+      .references(() => inventorySessions.id, { onDelete: 'cascade' }),
+    assetId: text('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    note: text('note').notNull(),
+    ...timestamps,
+  },
+  (t) => ({
+    sessionIdx: index('inventory_item_notes_session_idx').on(t.sessionId),
+    sessionAssetUnique: uniqueIndex('inventory_item_notes_session_asset_unique').on(
       t.sessionId,
       t.assetId,
     ),

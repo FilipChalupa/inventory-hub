@@ -10,6 +10,7 @@ import type {
   UserRole,
   CustomFieldsSchema,
   CreateInventorySessionInput,
+  UpdateInventorySessionInput,
   InventorySessionStatus,
   ScanResultKind,
 } from '@inventory-hub/shared';
@@ -254,6 +255,8 @@ export type InventorySessionRow = {
   id: string;
   name: string;
   locationId: string | null;
+  typeIds: string[] | null;
+  assetIds: string[] | null;
   status: InventorySessionStatus;
   note: string | null;
   startedByUserId: string | null;
@@ -270,6 +273,7 @@ export type InventoryReportAsset = {
   status: AssetStatus;
   locationId: string | null;
   scannedAt: string | null;
+  note: string | null;
 };
 
 export type InventoryReport = {
@@ -288,6 +292,7 @@ export type ScanResult = {
     status: AssetStatus;
     locationId: string | null;
   };
+  report: InventoryReport;
 };
 
 async function uploadImportCsv(
@@ -598,17 +603,24 @@ export const apiClient = {
       api<{ session: InventorySessionRow; report: InventoryReport }>(`/api/inventory/${id}`),
     create: (input: CreateInventorySessionInput) =>
       api<{ session: InventorySessionRow }>('/api/inventory', { method: 'POST', body: input }),
+    update: (id: string, input: UpdateInventorySessionInput) =>
+      api<{ ok: true }>(`/api/inventory/${id}`, { method: 'PATCH', body: input }),
     scan: (id: string, code: string) =>
       api<ScanResult>(`/api/inventory/${id}/scan`, { method: 'POST', body: { code } }),
+    setItemNote: (id: string, assetId: string, note: string) =>
+      api<{ ok: true; report: InventoryReport }>(
+        `/api/inventory/${id}/items/${encodeURIComponent(assetId)}/note`,
+        { method: 'PUT', body: { note } },
+      ),
     close: (id: string) =>
       api<{ ok: true }>(`/api/inventory/${id}/close`, { method: 'POST' }),
     reopen: (id: string) =>
       api<{ ok: true }>(`/api/inventory/${id}/reopen`, { method: 'POST' }),
     markLost: (id: string, codes: string[]) =>
-      api<{ ok: true; archived: number }>(`/api/inventory/${id}/mark-lost`, {
-        method: 'POST',
-        body: { codes },
-      }),
+      api<{ ok: true; archived: number; report: InventoryReport }>(
+        `/api/inventory/${id}/mark-lost`,
+        { method: 'POST', body: { codes } },
+      ),
   },
 
   apiKeys: {

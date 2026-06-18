@@ -190,4 +190,98 @@ describe('inventory API', () => {
     const res = await server.authRequest(`/api/inventory/${sid}`, { cookie: auditorCookie });
     expect(res.status).toBe(200);
   });
+
+  it('scan returns the freshly reconciled report for live updates', async () => {
+    const a = await makeAsset(server, cookie, 'A');
+    await makeAsset(server, cookie, 'B');
+    const sid = await createSession(server, cookie);
+
+    const res = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: a });
+    const body = (await res.json()) as {
+      result: string;
+      report: { counts: { found: number }; found: { code: string }[] };
+    };
+    expect(body.result).toBe('found');
+    expect(body.report.counts.found).toBe(1);
+    expect(body.report.found.map((x) => x.code)).toContain(a);
+  });
+
+  it('scopes by asset type', async () => {
+    const typeRes = await jsonPost(server, cookie, '/api/asset-types', {
+      name: 'Monitor',
+      codePrefix: 'MON',
+    });
+    const monTypeId = ((await typeRes.json()) as { id: string }).id;
+    const monRes = await jsonPost(server, cookie, '/api/assets', { name: 'Mon', typeId: monTypeId });
+    const monCode = ((await monRes.json()) as { code: string }).code;
+    await makeAsset(server, cookie, 'Laptop'); // laptop type — outside scope
+
+    const sid = await createSession(server, cookie, { typeIds: [monTypeId] });
+    const detail = await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json();
+    const report = (detail as { report: { counts: Record<string, number>; missing: { code: string }[] } })
+      .report;
+    expect(report.counts.expected).toBe(1);
+    expect(report.missing.map((m) => m.code)).toEqual([monCode]);
+  });
+
+  it('scopes to a hand-picked asset list (codes)', async () => {
+    const a = await makeAsset(server, cookie, 'Picked');
+    const b = await makeAsset(server, cookie, 'NotPicked');
+
+    const sid = await createSession(server, cookie, { assetCodes: [a] });
+    expect(
+      ((await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
+        report: { counts: { expected: number } };
+      }).report.counts.expected,
+    ).toBe(1);
+
+    // The non-picked asset is out of scope → unexpected when scanned.
+    const r = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: b });
+    expect(((await r.json()) as { result: string }).result).toBe('unexpected');
+  });
+
+  it('rejects a picked asset list with an unknown code', async () => {
+    const res = await jsonPost(server, cookie, '/api/inventory', { assetCodes: ['LAP-99999'] });
+    expect(res.status).toBe(400);
+  });
+
+  it('stores and clears a per-item note, surfaced in the report', async () => {
+    const a = await makeAsset(server, cookie, 'A');
+    const sid = await createSession(server, cookie);
+    const assetId = server.db.select().from(assets).where(eq(assets.code, a)).get()!.id;
+
+    const setRes = await server.authRequest(`/api/inventory/${sid}/items/${assetId}/note`, {
+      cookie,
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note: 'poškozená krabice' }),
+    });
+    expect(setRes.status).toBe(200);
+    const setBody = (await setRes.json()) as { report: { missing: { code: string; note: string | null }[] } };
+    expect(setBody.report.missing.find((m) => m.code === a)?.note).toBe('poškozená krabice');
+
+    const clearRes = await server.authRequest(`/api/inventory/${sid}/items/${assetId}/note`, {
+      cookie,
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note: '' }),
+    });
+    const clearBody = (await clearRes.json()) as { report: { missing: { code: string; note: string | null }[] } };
+    expect(clearBody.report.missing.find((m) => m.code === a)?.note).toBeNull();
+  });
+
+  it('updates the session note via PATCH', async () => {
+    const sid = await createSession(server, cookie);
+    const res = await server.authRequest(`/api/inventory/${sid}`, {
+      cookie,
+      method: 'PATCH',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ note: 'obecná poznámka' }),
+    });
+    expect(res.status).toBe(200);
+    const detail = (await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
+      session: { note: string | null };
+    };
+    expect(detail.session.note).toBe('obecná poznámka');
+  });
 });

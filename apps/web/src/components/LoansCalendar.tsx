@@ -2,85 +2,110 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
-import { apiClient, type LoanScheduleRow } from '../lib/api.js';
-import {
-  WEEKDAY_LABELS,
-  isSameDay,
-  monthGridDays,
-  monthGridRange,
-  monthTitle,
-} from '../lib/availability.js';
+import { apiClient } from '../lib/api.js';
+import { WEEKDAY_LABELS, monthGridDays, monthGridRange, monthTitle } from '../lib/availability.js';
 
-type LoanEvent = {
+type Tone = 'planned' | 'open' | 'overdue';
+
+type Bar = {
   loanId: string;
   borrowerName: string;
   itemCount: number;
-  kind: 'start' | 'return';
-  overdue: boolean;
+  tone: Tone;
+  startCol: number;
+  span: number;
+  roundedLeft: boolean;
+  roundedRight: boolean;
+  lane: number;
 };
 
-const MAX_PER_DAY = 3;
+const toneClass: Record<Tone, string> = {
+  planned: 'bg-violet-200 text-violet-900 dark:bg-violet-800/70 dark:text-violet-100',
+  open: 'bg-amber-200 text-amber-900 dark:bg-amber-700/70 dark:text-amber-100',
+  overdue: 'bg-red-300 text-red-900 dark:bg-red-800/80 dark:text-red-100',
+};
+
+const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+const dayDiff = (a: Date, b: Date) =>
+  Math.round((startOfDay(a).getTime() - startOfDay(b).getTime()) / 86_400_000);
 
 /**
- * Loan-centric month calendar: each day shows the loans that *start* (▶) or
- * are *due back* (⮐) that day, so whoever hands the gear out can plan pickups
- * and returns. Overdue returns are flagged red.
+ * Loan-centric month calendar drawing each loan as a continuous bar across
+ * every day it touches (start → return), stacked into lanes so overlapping
+ * loans don't collide. Overdue loans are red; click a bar to open the loan.
  */
 export function LoansCalendar() {
   const today = new Date();
-  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const todayStart = startOfDay(today);
   const [cursor, setCursor] = useState(() => ({
     year: today.getFullYear(),
     month: today.getMonth(),
   }));
 
-  const [from, to] = useMemo(
-    () => monthGridRange(cursor.year, cursor.month),
-    [cursor],
-  );
+  const [from, to] = useMemo(() => monthGridRange(cursor.year, cursor.month), [cursor]);
   const grid = useMemo(() => monthGridDays(cursor.year, cursor.month), [cursor]);
+  const weeks = useMemo(() => {
+    const out: Date[][] = [];
+    for (let i = 0; i < grid.length; i += 7) out.push(grid.slice(i, i + 7));
+    return out;
+  }, [grid]);
+  const gridEndDay = startOfDay(grid[grid.length - 1]!);
 
   const schedule = useQuery({
     queryKey: ['loan-schedule', from.toISOString(), to.toISOString()],
-    queryFn: () =>
-      apiClient.loans.schedule({ from: from.toISOString(), to: to.toISOString() }),
+    queryFn: () => apiClient.loans.schedule({ from: from.toISOString(), to: to.toISOString() }),
   });
 
-  // Bucket start/return events by day key (local date).
-  const eventsByDay = useMemo(() => {
-    const map = new Map<string, LoanEvent[]>();
-    const push = (day: Date, ev: LoanEvent) => {
-      const key = dayKey(day);
-      const list = map.get(key) ?? [];
-      list.push(ev);
-      map.set(key, list);
-    };
-    for (const loan of schedule.data?.items ?? []) {
-      const start = new Date(loan.start);
-      push(start, {
-        loanId: loan.id,
-        borrowerName: loan.borrowerName,
-        itemCount: loan.itemCount,
-        kind: 'start',
-        overdue: false,
+  // Normalize each loan to an inclusive [startDay, endDay] span. Open-ended
+  // loans (no return date) run to the end of the visible grid.
+  const spans = useMemo(() => {
+    return (schedule.data?.items ?? []).map((l) => {
+      const startDay = startOfDay(new Date(l.start));
+      const hasEnd = !!l.end;
+      const endDay = hasEnd ? startOfDay(new Date(l.end!)) : gridEndDay;
+      const overdue = l.status !== 'planned' && hasEnd && endDay.getTime() < todayStart.getTime();
+      const tone: Tone = overdue ? 'overdue' : l.status === 'planned' ? 'planned' : 'open';
+      return { loan: l, startDay, endDay, hasEnd, tone };
+    });
+  }, [schedule.data, gridEndDay, todayStart]);
+
+  // Slice each span into per-week bar segments and assign non-overlapping lanes.
+  const barsByWeek = useMemo<Bar[][]>(() => {
+    return weeks.map((week) => {
+      const week0 = startOfDay(week[0]!);
+      const week6 = startOfDay(week[6]!);
+      const segs = spans
+        .filter((s) => s.startDay <= week6 && s.endDay >= week0)
+        .map((s) => {
+          const startCol = Math.max(0, dayDiff(s.startDay, week0));
+          const endCol = Math.min(6, dayDiff(s.endDay, week0));
+          return {
+            loanId: s.loan.id,
+            borrowerName: s.loan.borrowerName,
+            itemCount: s.loan.itemCount,
+            tone: s.tone,
+            startCol,
+            span: endCol - startCol + 1,
+            roundedLeft: s.startDay >= week0,
+            roundedRight: s.hasEnd && s.endDay <= week6,
+            startKey: s.startDay.getTime(),
+          };
+        })
+        .sort((a, b) => a.startCol - b.startCol || a.startKey - b.startKey);
+
+      const laneEnds: number[] = [];
+      return segs.map((s): Bar => {
+        let lane = laneEnds.findIndex((end) => end < s.startCol);
+        if (lane === -1) {
+          lane = laneEnds.length;
+          laneEnds.push(s.startCol + s.span - 1);
+        } else {
+          laneEnds[lane] = s.startCol + s.span - 1;
+        }
+        return { ...s, lane };
       });
-      if (loan.end) {
-        const end = new Date(loan.end);
-        const overdue =
-          loan.status !== 'planned' &&
-          new Date(end.getFullYear(), end.getMonth(), end.getDate()).getTime() <
-            todayStart.getTime();
-        push(end, {
-          loanId: loan.id,
-          borrowerName: loan.borrowerName,
-          itemCount: loan.itemCount,
-          kind: 'return',
-          overdue,
-        });
-      }
-    }
-    return map;
-  }, [schedule.data, todayStart]);
+    });
+  }, [weeks, spans]);
 
   function shift(delta: number) {
     setCursor((c) => {
@@ -126,90 +151,95 @@ export function LoansCalendar() {
         <p className="text-sm text-red-600 mb-2">{(schedule.error as Error).message}</p>
       )}
 
-      <div className="grid grid-cols-7 gap-px rounded border border-slate-200 bg-slate-200 dark:border-slate-700 dark:bg-slate-700 overflow-hidden">
-        {WEEKDAY_LABELS.map((label) => (
-          <div
-            key={label}
-            className="bg-slate-50 text-center text-xs font-medium text-slate-400 py-1 dark:bg-slate-800 dark:text-slate-500"
-          >
-            {label}
-          </div>
-        ))}
-        {grid.map((day) => {
-          const inMonth = day.getMonth() === cursor.month;
-          const isToday = isSameDay(day, today);
-          const events = eventsByDay.get(dayKey(day)) ?? [];
-          return (
+      <div className="rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+        <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
+          {WEEKDAY_LABELS.map((label) => (
             <div
-              key={day.toISOString()}
-              className={clsx(
-                'min-h-20 bg-white p-1 dark:bg-slate-800',
-                !inMonth && 'bg-slate-50 dark:bg-slate-800/50',
-              )}
+              key={label}
+              className="text-center text-xs font-medium text-slate-400 dark:text-slate-500 py-1"
             >
-              <div
+              {label}
+            </div>
+          ))}
+        </div>
+        {weeks.map((week, wi) => (
+          <div
+            key={wi}
+            className={clsx(
+              'grid grid-cols-7 gap-px',
+              wi > 0 && 'border-t border-slate-200 dark:border-slate-700',
+            )}
+            style={{ gridAutoRows: 'min-content' }}
+          >
+            {week.map((day, col) => {
+              const inMonth = day.getMonth() === cursor.month;
+              const isToday =
+                day.getFullYear() === today.getFullYear() &&
+                day.getMonth() === today.getMonth() &&
+                day.getDate() === today.getDate();
+              const weekend = day.getDay() === 0 || day.getDay() === 6;
+              return (
+                <div
+                  key={day.toISOString()}
+                  className={clsx(
+                    'min-h-16 px-1 pt-1',
+                    !inMonth && 'bg-slate-50 dark:bg-slate-800/40',
+                    weekend && inMonth && 'bg-slate-50/60 dark:bg-slate-800/20',
+                  )}
+                  style={{ gridColumn: col + 1, gridRow: 1 }}
+                >
+                  <span
+                    className={clsx(
+                      'inline-block text-xs px-1 rounded',
+                      inMonth ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300 dark:text-slate-600',
+                      isToday &&
+                        'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold',
+                    )}
+                  >
+                    {day.getDate()}
+                  </span>
+                </div>
+              );
+            })}
+            {barsByWeek[wi]!.map((bar, bi) => (
+              <Link
+                key={`${bar.loanId}-${bi}`}
+                to={`/loans/${bar.loanId}`}
+                title={`${bar.borrowerName} (${bar.itemCount} ks)`}
+                style={{
+                  gridColumn: `${bar.startCol + 1} / span ${bar.span}`,
+                  gridRow: bar.lane + 2,
+                }}
                 className={clsx(
-                  'text-xs mb-0.5 px-1',
-                  inMonth ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300 dark:text-slate-600',
-                  isToday &&
-                    'inline-block rounded bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold',
+                  'mx-0.5 mb-0.5 truncate px-1 text-[11px] leading-5 hover:opacity-80',
+                  toneClass[bar.tone],
+                  bar.roundedLeft ? 'rounded-l' : 'rounded-l-none',
+                  bar.roundedRight ? 'rounded-r' : 'rounded-r-none',
                 )}
               >
-                {day.getDate()}
-              </div>
-              <div className="space-y-0.5">
-                {events.slice(0, MAX_PER_DAY).map((ev, i) => (
-                  <EventChip key={`${ev.loanId}-${ev.kind}-${i}`} event={ev} />
-                ))}
-                {events.length > MAX_PER_DAY && (
-                  <div className="text-[10px] text-slate-400 px-1">
-                    +{events.length - MAX_PER_DAY} dalších
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+                {bar.roundedLeft ? '' : '‹ '}
+                {bar.borrowerName}
+                {!bar.roundedRight && ' ›'}
+              </Link>
+            ))}
+          </div>
+        ))}
       </div>
 
-      <Legend />
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+        <LegendItem tone="planned" label="Rezervováno" />
+        <LegendItem tone="open" label="Vypůjčeno" />
+        <LegendItem tone="overdue" label="Po termínu" />
+      </div>
     </div>
   );
 }
 
-function EventChip({ event }: { event: LoanEvent }) {
-  const cls = event.overdue
-    ? 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200'
-    : event.kind === 'start'
-      ? 'bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-200'
-      : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200';
+function LegendItem({ tone, label }: { tone: Tone; label: string }) {
   return (
-    <Link
-      to={`/loans/${event.loanId}`}
-      title={`${event.kind === 'start' ? 'Začátek' : 'Vrácení'}: ${event.borrowerName} (${event.itemCount} ks)`}
-      className={clsx('block truncate rounded px-1 py-0.5 text-[11px] hover:opacity-80', cls)}
-    >
-      {event.kind === 'start' ? '▶' : '⮐'} {event.borrowerName}
-    </Link>
+    <span className="inline-flex items-center gap-1.5">
+      <span className={clsx('inline-block w-3 h-3 rounded', toneClass[tone])} />
+      {label}
+    </span>
   );
-}
-
-function Legend() {
-  return (
-    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-      <span className="inline-flex items-center gap-1.5">
-        <span className="inline-block w-3 h-3 rounded bg-violet-100 dark:bg-violet-900/40" />▶ Začátek
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="inline-block w-3 h-3 rounded bg-amber-100 dark:bg-amber-900/40" />⮐ Vrácení
-      </span>
-      <span className="inline-flex items-center gap-1.5">
-        <span className="inline-block w-3 h-3 rounded bg-red-100 dark:bg-red-900/40" />Po termínu
-      </span>
-    </div>
-  );
-}
-
-function dayKey(d: Date): string {
-  return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 }

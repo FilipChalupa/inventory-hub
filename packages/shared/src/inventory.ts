@@ -8,6 +8,8 @@ export const inventorySessionSchema = z.object({
   id: z.string().uuid(),
   name: z.string().min(1).max(200),
   locationId: z.string().uuid().nullable(),
+  typeIds: z.array(z.string().uuid()).nullable(),
+  assetIds: z.array(z.string().uuid()).nullable(),
   status: z.enum(inventorySessionStatuses),
   note: z.string().nullable(),
   startedByUserId: z.string().uuid().nullable(),
@@ -20,12 +22,29 @@ export type InventorySession = z.infer<typeof inventorySessionSchema>;
 export const createInventorySessionInput = z.object({
   // Optional human label; the server fills in a date-based default when empty.
   name: z.string().min(1).max(200).optional(),
-  // When set the inventory is scoped to this location and its descendants;
-  // omitted/null means the whole organization is expected.
+  // Scope. When `assetCodes` is set the session covers exactly those
+  // hand-picked assets (resolved to ids server-side). Otherwise the expected
+  // set is non-archived assets matching `locationId` (its subtree) AND
+  // `typeIds` — each applied only when given, and an omitted/empty pair means
+  // the whole organization.
   locationId: z.string().uuid().nullable().optional(),
+  typeIds: z.array(z.string().uuid()).max(100).optional(),
+  assetCodes: z.array(assetCodeSchema).max(2000).optional(),
   note: z.string().max(1000).nullable().optional(),
 });
 export type CreateInventorySessionInput = z.infer<typeof createInventorySessionInput>;
+
+export const updateInventorySessionInput = z.object({
+  name: z.string().trim().min(1).max(200).optional(),
+  note: z.string().max(1000).nullable().optional(),
+});
+export type UpdateInventorySessionInput = z.infer<typeof updateInventorySessionInput>;
+
+export const inventoryItemNoteInput = z.object({
+  // Empty string clears the note.
+  note: z.string().max(1000),
+});
+export type InventoryItemNoteInput = z.infer<typeof inventoryItemNoteInput>;
 
 export const scanInventoryInput = z.object({
   code: assetCodeSchema,
