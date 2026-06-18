@@ -166,6 +166,19 @@ export type LoanScheduleRow = {
   itemCount: number;
 };
 
+export type LoanTodayBucket = {
+  id: string;
+  borrowerName: string;
+  itemCount: number;
+  date: string;
+};
+
+export type LoansToday = {
+  overdue: LoanTodayBucket[];
+  dueToday: LoanTodayBucket[];
+  startingToday: LoanTodayBucket[];
+};
+
 export type ContactRow = {
   id: string;
   name: string;
@@ -537,10 +550,19 @@ export const apiClient = {
       api<{ ok: true }>(`/api/loans/${loanId}/items/${itemId}`, { method: 'DELETE' }),
     forAsset: (code: string) =>
       api<{ items: LoanForAssetRow[] }>(`/api/loans/for-asset/${encodeURIComponent(code)}`),
-    calendar: (q?: string) =>
-      api<{ items: LoanCalendarAsset[] }>(
-        `/api/loans/calendar${q ? `?q=${encodeURIComponent(q)}` : ''}`,
-      ),
+    calendar: (
+      params: { q?: string; freeFrom?: string; freeTo?: string; limit?: number; offset?: number } = {},
+    ) => {
+      const qs = new URLSearchParams();
+      if (params.q) qs.set('q', params.q);
+      if (params.freeFrom) qs.set('freeFrom', params.freeFrom);
+      if (params.freeTo) qs.set('freeTo', params.freeTo);
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
+      const suffix = qs.toString() ? `?${qs}` : '';
+      return api<{ items: LoanCalendarAsset[]; total: number }>(`/api/loans/calendar${suffix}`);
+    },
+    today: () => api<LoansToday>('/api/loans/today'),
     schedule: (params: { from?: string; to?: string } = {}) => {
       const qs = new URLSearchParams();
       if (params.from) qs.set('from', params.from);

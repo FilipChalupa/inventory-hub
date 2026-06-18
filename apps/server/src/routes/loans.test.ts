@@ -778,6 +778,71 @@ describe('loans API', () => {
       const afterBody = (await after.json()) as { items: { borrowerName: string }[] };
       expect(afterBody.items.map((i) => i.borrowerName)).toEqual(['Plán']);
     });
+
+    it('calendar paginates with limit/offset and reports the total', async () => {
+      await makeAsset(server, cookie, 'A');
+      await makeAsset(server, cookie, 'B');
+      await makeAsset(server, cookie, 'C');
+
+      const res = await server.authRequest('/api/loans/calendar?limit=2', { cookie });
+      const body = (await res.json()) as { items: unknown[]; total: number };
+      expect(body.total).toBe(3);
+      expect(body.items).toHaveLength(2);
+    });
+
+    it('calendar freeFrom/freeTo keeps only assets free in the whole window', async () => {
+      const busy = await makeAsset(server, cookie, 'Obsazený');
+      const free = await makeAsset(server, cookie, 'Volný');
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        expectedReturnAt: inDays(5),
+        assetCodes: [busy],
+      });
+
+      const from = new Date().toISOString();
+      const to = inDays(10);
+      const res = await server.authRequest(
+        `/api/loans/calendar?freeFrom=${from}&freeTo=${to}`,
+        { cookie },
+      );
+      const body = (await res.json()) as { items: { code: string }[]; total: number };
+      expect(body.items.map((i) => i.code)).toEqual([free]);
+      expect(body.total).toBe(1);
+    });
+
+    it('today groups overdue, due-today and starting-today loans', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      const cc = await makeAsset(server, cookie, 'C');
+      const hours = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Po termínu',
+        expectedReturnAt: yesterday,
+        assetCodes: [a],
+      });
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Dnes vrátit',
+        expectedReturnAt: hours(2),
+        assetCodes: [b],
+      });
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Začíná dnes',
+        loanedAt: hours(2),
+        assetCodes: [cc],
+      });
+
+      const res = await server.authRequest('/api/loans/today', { cookie });
+      const body = (await res.json()) as {
+        overdue: { borrowerName: string }[];
+        dueToday: { borrowerName: string }[];
+        startingToday: { borrowerName: string }[];
+      };
+      expect(body.overdue.map((x) => x.borrowerName)).toEqual(['Po termínu']);
+      expect(body.dueToday.map((x) => x.borrowerName)).toEqual(['Dnes vrátit']);
+      expect(body.startingToday.map((x) => x.borrowerName)).toEqual(['Začíná dnes']);
+    });
   });
 
   describe('return flow', () => {

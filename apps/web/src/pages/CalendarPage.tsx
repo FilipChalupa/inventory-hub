@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
-import { loanWindowsOverlap } from '@inventory-hub/shared';
 import { apiClient, type LoanCalendarAsset } from '../lib/api.js';
 import { Button, Input } from '../components/ui.js';
 import { CalendarLegend } from '../components/AvailabilityCalendar.js';
@@ -45,41 +44,38 @@ export function CalendarPage() {
   const [search, setSearch] = useState('');
   const [rangeFrom, setRangeFrom] = useState('');
   const [rangeTo, setRangeTo] = useState('');
+  const [limit, setLimit] = useState(100);
 
-  const calendar = useQuery({
-    queryKey: ['loan-calendar'],
-    queryFn: () => apiClient.loans.calendar(),
-  });
-
-  const days = useMemo(() => daysInMonth(cursor.year, cursor.month), [cursor]);
-
-  // "Free in the whole window" filter: keep only loanable assets with no
-  // commitment overlapping [from, to] (end made inclusive of the `to` day).
+  // "Free in the whole window" filter, evaluated server-side: [from, to) with
+  // the `to` day made inclusive.
   const freeRange = useMemo(() => {
     if (!rangeFrom || !rangeTo) return null;
     const from = new Date(rangeFrom);
     const to = new Date(rangeTo);
     to.setDate(to.getDate() + 1);
     if (to.getTime() <= from.getTime()) return null;
-    return { from, to };
+    return { from: from.toISOString(), to: to.toISOString() };
   }, [rangeFrom, rangeTo]);
 
-  const rows = useMemo(() => {
-    const items = calendar.data?.items ?? [];
-    const q = search.trim().toLowerCase();
-    const filtered = q
-      ? items.filter(
-          (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
-        )
-      : items;
-    const mapped = filtered.map((a) => ({ asset: a, windows: toWindows(a) }));
-    if (!freeRange) return mapped;
-    return mapped.filter(
-      (row) =>
-        !nonLoanableReason(row.asset.status) &&
-        !row.windows.some((w) => loanWindowsOverlap(freeRange.from, freeRange.to, w.start, w.end)),
-    );
-  }, [calendar.data, search, freeRange]);
+  const calendar = useQuery({
+    queryKey: ['loan-calendar', { search, freeRange, limit }],
+    queryFn: () =>
+      apiClient.loans.calendar({
+        q: search.trim() || undefined,
+        freeFrom: freeRange?.from,
+        freeTo: freeRange?.to,
+        limit,
+      }),
+    placeholderData: keepPreviousData,
+  });
+
+  const days = useMemo(() => daysInMonth(cursor.year, cursor.month), [cursor]);
+
+  const rows = useMemo(
+    () => (calendar.data?.items ?? []).map((a) => ({ asset: a, windows: toWindows(a) })),
+    [calendar.data],
+  );
+  const total = calendar.data?.total ?? 0;
 
   function shift(delta: number) {
     setCursor((c) => {
@@ -156,8 +152,8 @@ export function CalendarPage() {
 
       {freeRange && (
         <p className="text-sm text-slate-500">
-          Volné v celém termínu: <span className="font-medium">{rows.length}</span>{' '}
-          {rows.length === 1 ? 'asset' : 'assetů'}.
+          Volné v celém termínu: <span className="font-medium">{total}</span>{' '}
+          {total === 1 ? 'asset' : 'assetů'}.
         </p>
       )}
 
@@ -245,6 +241,21 @@ export function CalendarPage() {
               })}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {rows.length < total && (
+        <div className="flex items-center gap-3">
+          <Button
+            variant="secondary"
+            disabled={calendar.isFetching}
+            onClick={() => setLimit((l) => l + 100)}
+          >
+            {calendar.isFetching ? 'Načítám…' : 'Načíst další'}
+          </Button>
+          <span className="text-xs text-slate-500">
+            zobrazeno {rows.length} z {total}
+          </span>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createLoanInput,
@@ -203,6 +203,14 @@ export const loanRoutes = new Hono<AppContext>()
   .get('/calendar', (c) => {
     const db = c.get('db');
     const q = c.req.query('q')?.trim().toLowerCase();
+    // Optional "free in the whole window" filter: keep only loanable assets
+    // with no open commitment overlapping [freeFrom, freeTo).
+    const freeFromRaw = c.req.query('freeFrom');
+    const freeToRaw = c.req.query('freeTo');
+    const freeFrom = freeFromRaw ? new Date(freeFromRaw) : null;
+    const freeTo = freeToRaw ? new Date(freeToRaw) : null;
+    const limit = Math.min(Number(c.req.query('limit') ?? '100') || 100, 500);
+    const offset = Math.max(Number(c.req.query('offset') ?? '0') || 0, 0);
 
     let candidates = db
       .select({ id: assets.id, code: assets.code, name: assets.name, status: assets.status })
@@ -217,6 +225,8 @@ export const loanRoutes = new Hono<AppContext>()
       );
     }
 
+    // Open commitments (active + planned) of the matched assets — bounded by
+    // the number of live loans, not by loan history.
     const ids = candidates.map((a) => a.id);
     const rows = ids.length
       ? db
@@ -255,11 +265,90 @@ export const loanRoutes = new Hono<AppContext>()
       windowsByAsset.set(r.assetId, list);
     }
 
-    const items = candidates.map((a) => ({
+    if (freeFrom && freeTo) {
+      const loanable = new Set<string>(LOANABLE_STATUSES);
+      candidates = candidates.filter(
+        (a) =>
+          loanable.has(a.status) &&
+          !(windowsByAsset.get(a.id) ?? []).some((w) =>
+            loanWindowsOverlap(freeFrom, freeTo, w.start, w.end),
+          ),
+      );
+    }
+
+    const total = candidates.length;
+    const items = candidates.slice(offset, offset + limit).map((a) => ({
       ...a,
       windows: windowsByAsset.get(a.id) ?? [],
     }));
-    return c.json({ items });
+    return c.json({ items, total });
+  })
+  // Operational "today" buckets for the dashboard, computed server-side so
+  // nothing is silently capped: overdue returns, returns due today, and
+  // reservations starting today.
+  .get('/today', (c) => {
+    const db = c.get('db');
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+
+    // Only loans that could land in a bucket: active ones due on/before today,
+    // or planned ones starting today.
+    const candidates = db
+      .select()
+      .from(loans)
+      .where(
+        or(
+          and(
+            isNotNull(loans.startedAt),
+            isNotNull(loans.expectedReturnAt),
+            lt(loans.expectedReturnAt, endOfToday),
+          ),
+          and(
+            isNull(loans.startedAt),
+            gte(loans.loanedAt, startOfToday),
+            lt(loans.loanedAt, endOfToday),
+          ),
+        ),
+      )
+      .all();
+
+    const itemRows = candidates.length
+      ? db
+          .select()
+          .from(loanItems)
+          .where(inArray(loanItems.loanId, candidates.map((l) => l.id)))
+          .all()
+      : [];
+    const itemsByLoan = new Map<string, typeof itemRows>();
+    for (const it of itemRows) {
+      const list = itemsByLoan.get(it.loanId) ?? [];
+      list.push(it);
+      itemsByLoan.set(it.loanId, list);
+    }
+
+    type Bucket = { id: string; borrowerName: string; itemCount: number; date: Date };
+    const overdue: Bucket[] = [];
+    const dueToday: Bucket[] = [];
+    const startingToday: Bucket[] = [];
+
+    for (const loan of candidates) {
+      const its = itemsByLoan.get(loan.id) ?? [];
+      const status = deriveLoanStatus({ startedAt: loan.startedAt, items: its });
+      const base = { id: loan.id, borrowerName: loan.borrowerName, itemCount: its.length };
+      if (status === 'planned') {
+        startingToday.push({ ...base, date: loan.loanedAt });
+      } else if (status !== 'fully_returned' && loan.expectedReturnAt) {
+        if (loan.expectedReturnAt.getTime() < startOfToday.getTime()) {
+          overdue.push({ ...base, date: loan.expectedReturnAt });
+        } else {
+          dueToday.push({ ...base, date: loan.expectedReturnAt });
+        }
+      }
+    }
+
+    overdue.sort((a, b) => a.date.getTime() - b.date.getTime());
+    return c.json({ overdue, dueToday, startingToday });
   })
   // Loan-centric schedule for the "what's happening" calendar: live loans
   // (planned + open + partially returned) whose window touches [from, to).
