@@ -78,3 +78,26 @@ export function monthTitle(year: number, month: number): string {
     year: 'numeric',
   });
 }
+
+// Statuses that block a loan regardless of the time window (mirrors the
+// server's LOANABLE_STATUSES / STATUS_UNAVAILABLE_REASON). in_stock and
+// on_loan are loanable, so they map to null.
+const NON_LOANABLE_REASON: Record<string, string> = {
+  assigned: 'přiřazeno uživateli',
+  in_repair: 'v opravě',
+  damaged: 'poškozeno',
+  sold: 'prodáno',
+  lost: 'ztraceno',
+  retired: 'vyřazeno',
+};
+
+/** Why an asset can't be loaned based purely on its status, or null if it can. */
+export function nonLoanableReason(status: string): string | null {
+  return NON_LOANABLE_REASON[status] ?? null;
+}
+
+/** Diagonal hatch overlay marking days where availability doesn't apply. */
+export const HATCH_STYLE: Record<string, string> = {
+  backgroundImage:
+    'repeating-linear-gradient(45deg, rgba(100,116,139,0.30) 0, rgba(100,116,139,0.30) 2px, transparent 2px, transparent 6px)',
+};

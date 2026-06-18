@@ -6,10 +6,13 @@ import { apiClient, type LoanCalendarAsset } from '../lib/api.js';
 import { Input } from '../components/ui.js';
 import { CalendarLegend } from '../components/AvailabilityCalendar.js';
 import {
+  HATCH_STYLE,
+  dayBounds,
   dayState,
   daysInMonth,
   isSameDay,
   monthTitle,
+  nonLoanableReason,
   type BusyWindow,
   type DayStatus,
 } from '../lib/availability.js';
@@ -33,6 +36,7 @@ function toWindows(asset: LoanCalendarAsset): BusyWindow[] {
 
 export function CalendarPage() {
   const today = new Date();
+  const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const [cursor, setCursor] = useState(() => ({
     year: today.getFullYear(),
     month: today.getMonth(),
@@ -142,43 +146,58 @@ export function CalendarPage() {
               </tr>
             </thead>
             <tbody>
-              {rows.map(({ asset, windows }) => (
-                <tr key={asset.id} className="border-b border-slate-100 dark:border-slate-700/50">
-                  <th className="sticky left-0 z-10 bg-white dark:bg-slate-800 px-3 py-1.5 text-left font-normal whitespace-nowrap">
-                    <Link
-                      to={`/a/${encodeURIComponent(asset.code)}`}
-                      className="hover:underline"
-                    >
-                      <span className="font-mono text-slate-500 dark:text-slate-400">
-                        {asset.code}
-                      </span>{' '}
-                      {asset.name}
-                    </Link>
-                  </th>
-                  {days.map((day) => {
-                    const state = dayState(windows, day);
-                    const isToday = isSameDay(day, today);
-                    const title = state.windows.map((w) => w.label).filter(Boolean).join(', ');
-                    return (
-                      <td
-                        key={day.toISOString()}
-                        title={title || undefined}
-                        className={clsx(
-                          'h-7 border-l border-slate-100 dark:border-slate-700/50',
-                          cellClasses[state.status],
-                          isToday && state.status === 'free' && 'bg-slate-100 dark:bg-slate-700/40',
-                        )}
-                      />
-                    );
-                  })}
-                </tr>
-              ))}
+              {rows.map(({ asset, windows }) => {
+                const blockReason = nonLoanableReason(asset.status);
+                return (
+                  <tr key={asset.id} className="border-b border-slate-100 dark:border-slate-700/50">
+                    <th className="sticky left-0 z-10 bg-white dark:bg-slate-800 px-3 py-1.5 text-left font-normal whitespace-nowrap">
+                      <Link
+                        to={`/a/${encodeURIComponent(asset.code)}`}
+                        className="hover:underline"
+                      >
+                        <span className="font-mono text-slate-500 dark:text-slate-400">
+                          {asset.code}
+                        </span>{' '}
+                        {asset.name}
+                      </Link>
+                      {blockReason && (
+                        <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                          {blockReason}
+                        </span>
+                      )}
+                    </th>
+                    {days.map((day) => {
+                      const state = dayState(windows, day);
+                      const isToday = isSameDay(day, today);
+                      const isBlocked =
+                        !!blockReason &&
+                        state.status === 'free' &&
+                        dayBounds(day)[0].getTime() >= todayStart.getTime();
+                      const title = isBlocked
+                        ? blockReason
+                        : state.windows.map((w) => w.label).filter(Boolean).join(', ');
+                      return (
+                        <td
+                          key={day.toISOString()}
+                          title={title || undefined}
+                          style={isBlocked ? HATCH_STYLE : undefined}
+                          className={clsx(
+                            'h-7 border-l border-slate-100 dark:border-slate-700/50',
+                            cellClasses[state.status],
+                            isToday && state.status === 'free' && 'bg-slate-100 dark:bg-slate-700/40',
+                          )}
+                        />
+                      );
+                    })}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       )}
 
-      <CalendarLegend />
+      <CalendarLegend blocked={rows.some((r) => nonLoanableReason(r.asset.status))} />
     </section>
   );
 }

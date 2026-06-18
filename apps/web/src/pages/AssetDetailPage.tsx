@@ -15,7 +15,7 @@ import {
 } from '../components/ui.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { AvailabilityCalendar } from '../components/AvailabilityCalendar.js';
-import type { BusyWindow } from '../lib/availability.js';
+import { nonLoanableReason, type BusyWindow } from '../lib/availability.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
@@ -316,6 +316,9 @@ export function AssetDetailPage() {
               label: loan.borrowerName,
             }),
           )}
+          blocked={
+            nonLoanableReason(a.status) ? { reason: nonLoanableReason(a.status)! } : undefined
+          }
         />
         <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700" />
         {assetLoans.data?.items.length === 0 && (
