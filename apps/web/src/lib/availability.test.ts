@@ -1,8 +1,10 @@
 import { describe, it, expect } from 'vitest';
 import {
+  clampLoanRange,
   dayBounds,
   dayState,
   daysInMonth,
+  isLoanDayFree,
   isSameDay,
   monthGridDays,
   monthGridRange,
@@ -118,6 +120,34 @@ describe('nextFreeAt', () => {
   it('is "never" when an open-ended window covers the start', () => {
     const open: BusyWindow = { start: d(2026, 0, 1), end: null, status: 'active' };
     expect(nextFreeAt([open], from).kind).toBe('never');
+  });
+});
+
+describe('isLoanDayFree', () => {
+  const busy: BusyWindow = { start: d(2026, 0, 12), end: d(2026, 0, 13), status: 'active' };
+
+  it('is true for an uncommitted day and false for a covered one', () => {
+    expect(isLoanDayFree([busy], d(2026, 0, 11))).toBe(true);
+    expect(isLoanDayFree([busy], d(2026, 0, 12))).toBe(false);
+  });
+});
+
+describe('clampLoanRange', () => {
+  it('returns the target when every day in between is free', () => {
+    expect(clampLoanRange([], d(2026, 0, 10), d(2026, 0, 15))).toEqual(d(2026, 0, 15));
+  });
+
+  it('stops on the last free day before a busy one', () => {
+    const busy: BusyWindow = { start: d(2026, 0, 12), end: d(2026, 0, 13), status: 'active' };
+    expect(clampLoanRange([busy], d(2026, 0, 10), d(2026, 0, 20))).toEqual(d(2026, 0, 11));
+  });
+
+  it('collapses to the start for a single free day', () => {
+    expect(clampLoanRange([], d(2026, 0, 10), d(2026, 0, 10))).toEqual(d(2026, 0, 10));
+  });
+
+  it('never extends past the target even if more free days follow', () => {
+    expect(clampLoanRange([], d(2026, 0, 10), d(2026, 0, 12))).toEqual(d(2026, 0, 12));
   });
 });
 

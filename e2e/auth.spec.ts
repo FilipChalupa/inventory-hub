@@ -9,10 +9,10 @@ test.describe('auth', () => {
     await expect(page.getByRole('heading', { name: 'Inventory Hub' })).toBeVisible();
   });
 
-  test('dev-login lands on the assets page', async ({ page }) => {
+  test('dev-login lands on the home dashboard', async ({ page }) => {
     await devLogin(page);
     await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole('heading', { name: 'Assety' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Dnes' })).toBeVisible();
   });
 
   test('logout sends the user back to /login', async ({ page }) => {

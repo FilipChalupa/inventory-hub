@@ -110,7 +110,8 @@
       "Bash(echo \"shared exit $?\")",
       "Bash(echo \"web exit $?\")",
       "Bash(echo \"server exit $?\")",
-      "Bash(echo \"exit $?\")"
+      "Bash(echo \"exit $?\")",
+      "Bash(grep -rn \"to=\\\\\"/\\\\\"\\\\|to={'/'}\\\\|navigate\\('/'\\)\\\\|navigate\\(\\\\\"/\\\\\"\\)\\\\|to={\\\\`/\\\\`}\" apps/web/src)"
     ],
     "additionalDirectories": [
       "/tmp"

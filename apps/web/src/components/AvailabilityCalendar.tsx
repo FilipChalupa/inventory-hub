@@ -4,6 +4,7 @@ import { Button } from './ui.js';
 import {
   HATCH_STYLE,
   WEEKDAY_LABELS,
+  clampLoanRange,
   dayBounds,
   dayState,
   isSameDay,
@@ -69,33 +70,13 @@ export function AvailabilityCalendar({
     });
   }
 
-  // A day that can be part of a loan window: free (no commitment) and not
-  // hatched out by a blocking status.
-  function isFreeForLoan(day: Date): boolean {
-    const st = dayState(windows, day);
-    if (st.status !== 'free') return false;
-    if (blocked && dayBounds(day)[0].getTime() >= todayStart.getTime()) return false;
-    return true;
-  }
-
-  // Clamp the range end to the last day reachable from `start` without
-  // crossing a busy/blocked day, so a selection can never span a commitment.
-  function clampEnd(start: Date, target: Date): Date {
-    let end = start;
-    const cursorDay = new Date(start);
-    while (cursorDay.getTime() <= target.getTime()) {
-      if (!isFreeForLoan(cursorDay)) break;
-      end = new Date(cursorDay);
-      cursorDay.setDate(cursorDay.getDate() + 1);
-    }
-    return end;
-  }
-
   function pick(day: Date) {
     setSel((cur) => {
       if (!cur || cur.end) return { start: day, end: null };
       if (day.getTime() < cur.start.getTime()) return { start: day, end: null };
-      return { start: cur.start, end: clampEnd(cur.start, day) };
+      // Selection is only enabled for loanable assets, so window-freeness is
+      // the only thing that can break a range.
+      return { start: cur.start, end: clampLoanRange(windows, cur.start, day) };
     });
   }
 

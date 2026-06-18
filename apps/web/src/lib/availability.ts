@@ -40,6 +40,27 @@ export function dayState(windows: BusyWindow[], day: Date): DayState {
   return { status, windows: hits };
 }
 
+/** Whether a calendar day carries no commitment (free to be part of a loan). */
+export function isLoanDayFree(windows: BusyWindow[], day: Date): boolean {
+  return dayState(windows, day).status === 'free';
+}
+
+/**
+ * The furthest day reachable from `start` without crossing a busy day, so a
+ * range selection can never span an existing commitment. `start` is assumed
+ * free; the result is always >= start and <= target.
+ */
+export function clampLoanRange(windows: BusyWindow[], start: Date, target: Date): Date {
+  let end = start;
+  const cursor = new Date(start);
+  while (cursor.getTime() <= target.getTime()) {
+    if (!isLoanDayFree(windows, cursor)) break;
+    end = new Date(cursor);
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  return end;
+}
+
 export type NextFree =
   | { kind: 'now' }
   | { kind: 'date'; date: Date }

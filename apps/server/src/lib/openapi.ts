@@ -164,6 +164,74 @@ export function openApiDocument() {
           responses: { 200: ok('Loan windows for the asset') },
         },
       },
+      '/api/loans/calendar': {
+        get: {
+          summary: 'Per-asset availability for the calendar (paginated)',
+          parameters: [
+            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Code/name contains' },
+            {
+              name: 'freeFrom',
+              in: 'query',
+              schema: { type: 'string', format: 'date-time' },
+              description: 'Keep only assets free across the whole window [freeFrom, freeTo)',
+            },
+            { name: 'freeTo', in: 'query', schema: { type: 'string', format: 'date-time' } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: 500 } },
+            { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
+          ],
+          responses: {
+            200: ok('Assets with their open windows', {
+              type: 'object',
+              properties: {
+                items: { type: 'array', items: { type: 'object' } },
+                total: { type: 'integer' },
+              },
+            }),
+          },
+        },
+      },
+      '/api/loans/schedule': {
+        get: {
+          summary: 'Live loans whose window overlaps [from, to)',
+          parameters: [
+            { name: 'from', in: 'query', schema: { type: 'string', format: 'date-time' } },
+            { name: 'to', in: 'query', schema: { type: 'string', format: 'date-time' } },
+          ],
+          responses: { 200: ok('Loan start/return windows (fully returned excluded)') },
+        },
+      },
+      '/api/loans/today': {
+        get: {
+          summary: 'Operational buckets: overdue, due today, starting today',
+          responses: { 200: ok('Today buckets (overdue / dueToday / startingToday)') },
+        },
+      },
+      '/feeds/loans.ics': {
+        get: {
+          summary: 'Subscribable iCalendar feed of loan deadlines',
+          description:
+            'Public calendar feed (return deadlines + planned starts) for Google/Apple ' +
+            'Calendar. Authenticated with an API key passed as the `token` query parameter, ' +
+            'because calendar clients fetch server-to-server and cannot send headers.',
+          security: [],
+          parameters: [
+            {
+              name: 'token',
+              in: 'query',
+              required: true,
+              schema: { type: 'string' },
+              description: 'API key',
+            },
+          ],
+          responses: {
+            200: {
+              description: 'iCalendar (VCALENDAR)',
+              content: { 'text/calendar': { schema: { type: 'string' } } },
+            },
+            401: ok('Invalid or missing token', ref('Error')),
+          },
+        },
+      },
       '/api/loans/{id}': {
         get: {
           summary: 'Get a loan',

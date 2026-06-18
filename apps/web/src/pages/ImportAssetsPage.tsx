@@ -98,7 +98,7 @@ export function ImportAssetsPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
         ← zpět
       </Link>
       <h1 className="text-2xl font-bold">Import z CSV</h1>

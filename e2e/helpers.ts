@@ -4,14 +4,14 @@ const SERVER_PORT = process.env.E2E_SERVER_PORT ?? '3101';
 export const SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
 
 /**
- * Logs in via the dev-login form. Waits for the assets header to be
- * visible — that's the strongest signal that the auth state propagated.
+ * Logs in via the dev-login form. Waits for the home dashboard ("Dnes")
+ * header — that's the strongest signal that the auth state propagated.
  */
 export async function devLogin(page: Page, email = 'admin@example.com'): Promise<void> {
   await page.goto('/login');
   await page.getByPlaceholder('admin@example.com').fill(email);
   await page.getByRole('button', { name: /Dev login/i }).click();
-  await page.getByRole('heading', { name: 'Assety' }).waitFor({ timeout: 15_000 });
+  await page.getByRole('heading', { name: 'Dnes' }).waitFor({ timeout: 15_000 });
 }
 
 /**

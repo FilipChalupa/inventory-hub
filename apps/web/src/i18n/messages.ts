@@ -14,7 +14,6 @@
 export const cs = {
   nav: {
     assets: 'Assety',
-    today: 'Dnes',
     scan: 'Sken',
     loans: 'Výpůjčky',
     calendar: 'Kalendář',

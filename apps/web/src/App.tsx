@@ -28,8 +28,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext.js';
 
 // Primary workflow — always visible in the bar.
 const mainNav: { to: string; label: string; end?: boolean }[] = [
-  { to: '/', label: t.nav.assets, end: true },
-  { to: '/today', label: t.nav.today },
+  { to: '/assets', label: t.nav.assets },
   { to: '/scan', label: t.nav.scan },
   { to: '/loans', label: t.nav.loans },
   { to: '/calendar', label: t.nav.calendar },
@@ -123,7 +122,8 @@ function Shell() {
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-6">
           <Routes>
-            <Route path="/" element={<AssetsPage />} />
+            <Route path="/" element={<TodayPage />} />
+            <Route path="/assets" element={<AssetsPage />} />
             <Route path="/assets/new" element={<NewAssetPage />} />
             <Route path="/assets/import" element={<ImportAssetsPage />} />
             <Route path="/scan" element={<ScanPage />} />
@@ -134,7 +134,6 @@ function Shell() {
             <Route path="/loans/new" element={<NewLoanPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/today" element={<TodayPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/inventory/:id" element={<InventorySessionPage />} />
             <Route path="/labels" element={<LabelsPage />} />

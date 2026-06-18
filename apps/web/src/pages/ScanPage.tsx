@@ -69,7 +69,7 @@ export function ScanPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
         ← zpět na seznam
       </Link>
       <h1 className="text-2xl font-bold">Skenovat QR</h1>

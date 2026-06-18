@@ -115,7 +115,7 @@ export function AssetDetailPage() {
 
   return (
     <article className="space-y-6">
-      <Link to="/" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
         ← zpět na seznam
       </Link>
 
