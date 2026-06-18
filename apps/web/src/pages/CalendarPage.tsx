@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
+import { loanWindowsOverlap } from '@inventory-hub/shared';
 import { apiClient, type LoanCalendarAsset } from '../lib/api.js';
-import { Input } from '../components/ui.js';
+import { Button, Input } from '../components/ui.js';
 import { CalendarLegend } from '../components/AvailabilityCalendar.js';
 import {
   HATCH_STYLE,
@@ -42,6 +43,8 @@ export function CalendarPage() {
     month: today.getMonth(),
   }));
   const [search, setSearch] = useState('');
+  const [rangeFrom, setRangeFrom] = useState('');
+  const [rangeTo, setRangeTo] = useState('');
 
   const calendar = useQuery({
     queryKey: ['loan-calendar'],
@@ -49,6 +52,17 @@ export function CalendarPage() {
   });
 
   const days = useMemo(() => daysInMonth(cursor.year, cursor.month), [cursor]);
+
+  // "Free in the whole window" filter: keep only loanable assets with no
+  // commitment overlapping [from, to] (end made inclusive of the `to` day).
+  const freeRange = useMemo(() => {
+    if (!rangeFrom || !rangeTo) return null;
+    const from = new Date(rangeFrom);
+    const to = new Date(rangeTo);
+    to.setDate(to.getDate() + 1);
+    if (to.getTime() <= from.getTime()) return null;
+    return { from, to };
+  }, [rangeFrom, rangeTo]);
 
   const rows = useMemo(() => {
     const items = calendar.data?.items ?? [];
@@ -58,8 +72,14 @@ export function CalendarPage() {
           (a) => a.code.toLowerCase().includes(q) || a.name.toLowerCase().includes(q),
         )
       : items;
-    return filtered.map((a) => ({ asset: a, windows: toWindows(a) }));
-  }, [calendar.data, search]);
+    const mapped = filtered.map((a) => ({ asset: a, windows: toWindows(a) }));
+    if (!freeRange) return mapped;
+    return mapped.filter(
+      (row) =>
+        !nonLoanableReason(row.asset.status) &&
+        !row.windows.some((w) => loanWindowsOverlap(freeRange.from, freeRange.to, w.start, w.end)),
+    );
+  }, [calendar.data, search, freeRange]);
 
   function shift(delta: number) {
     setCursor((c) => {
@@ -102,13 +122,44 @@ export function CalendarPage() {
         </div>
       </div>
 
-      <Input
-        type="search"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        placeholder="Hledat asset podle kódu / názvu…"
-        className="max-w-sm"
-      />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex-1 min-w-[200px]">
+          <label className="text-xs text-slate-500 block mb-0.5">Hledat</label>
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Kód / název assetu…"
+          />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 block mb-0.5">Volné od</label>
+          <Input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
+        </div>
+        <div>
+          <label className="text-xs text-slate-500 block mb-0.5">do</label>
+          <Input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
+        </div>
+        {(rangeFrom || rangeTo) && (
+          <Button
+            variant="ghost"
+            className="text-xs"
+            onClick={() => {
+              setRangeFrom('');
+              setRangeTo('');
+            }}
+          >
+            Vyčistit termín
+          </Button>
+        )}
+      </div>
+
+      {freeRange && (
+        <p className="text-sm text-slate-500">
+          Volné v celém termínu: <span className="font-medium">{rows.length}</span>{' '}
+          {rows.length === 1 ? 'asset' : 'assetů'}.
+        </p>
+      )}
 
       {calendar.isLoading && <p className="text-slate-500">Načítám…</p>}
       {calendar.error && (

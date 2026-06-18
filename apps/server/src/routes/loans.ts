@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, desc, eq, inArray, isNull, ne, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createLoanInput,
@@ -259,6 +259,59 @@ export const loanRoutes = new Hono<AppContext>()
       ...a,
       windows: windowsByAsset.get(a.id) ?? [],
     }));
+    return c.json({ items });
+  })
+  // Loan-centric schedule for the "what's happening" calendar: live loans
+  // (planned + open + partially returned) whose window touches [from, to).
+  // Fully returned loans are history and are left out.
+  .get('/schedule', (c) => {
+    const db = c.get('db');
+    const fromRaw = c.req.query('from');
+    const toRaw = c.req.query('to');
+    const from = fromRaw ? new Date(fromRaw) : null;
+    const to = toRaw ? new Date(toRaw) : null;
+
+    // SQL pre-filter on the stored window; the effective start used for
+    // display is startedAt ?? loanedAt.
+    const conds = [];
+    if (from) conds.push(or(isNull(loans.expectedReturnAt), gte(loans.expectedReturnAt, from)));
+    if (to) conds.push(lte(loans.loanedAt, to));
+
+    const rows = db
+      .select()
+      .from(loans)
+      .where(conds.length ? and(...conds) : undefined)
+      .orderBy(asc(loans.loanedAt))
+      .all();
+
+    const itemRows = rows.length
+      ? db
+          .select()
+          .from(loanItems)
+          .where(inArray(loanItems.loanId, rows.map((l) => l.id)))
+          .all()
+      : [];
+    const itemsByLoan = new Map<string, typeof itemRows>();
+    for (const it of itemRows) {
+      const list = itemsByLoan.get(it.loanId) ?? [];
+      list.push(it);
+      itemsByLoan.set(it.loanId, list);
+    }
+
+    const items = rows
+      .map((loan) => {
+        const its = itemsByLoan.get(loan.id) ?? [];
+        return {
+          id: loan.id,
+          borrowerName: loan.borrowerName,
+          start: loan.startedAt ?? loan.loanedAt,
+          end: loan.expectedReturnAt,
+          status: deriveLoanStatus({ startedAt: loan.startedAt, items: its }),
+          itemCount: its.length,
+        };
+      })
+      .filter((l) => l.status !== 'fully_returned');
+
     return c.json({ items });
   })
   .get('/:id', (c) => {

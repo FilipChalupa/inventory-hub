@@ -18,7 +18,11 @@ export function NewLoanPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromLoanId = searchParams.get('from');
-  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
+  // Deep link from an asset's availability calendar: prefill the asset + window.
+  const assetParam = searchParams.get('asset');
+  const [selectedCodes, setSelectedCodes] = useState<string[]>(() =>
+    assetParam ? [assetParam.toUpperCase()] : [],
+  );
   const [search, setSearch] = useState('');
   const [contactId, setContactId] = useState<string>('');
   const [prefilled, setPrefilled] = useState(false);
@@ -28,8 +32,8 @@ export function NewLoanPage() {
       borrowerName: '',
       borrowerContact: '',
       purpose: '',
-      loanedAt: '',
-      expectedReturnAt: '',
+      loanedAt: searchParams.get('start') ?? '',
+      expectedReturnAt: searchParams.get('end') ?? '',
     },
   });
 

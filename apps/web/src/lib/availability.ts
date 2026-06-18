@@ -55,10 +55,25 @@ export function monthGridDays(year: number, month: number): Date[] {
   );
 }
 
+/** Half-open `[start, end)` range covered by the 6×7 month grid. */
+export function monthGridRange(year: number, month: number): [Date, Date] {
+  const days = monthGridDays(year, month);
+  const first = days[0]!;
+  const last = days[days.length - 1]!;
+  return [first, new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1)];
+}
+
 /** Day numbers `1…n` of the given month. */
 export function daysInMonth(year: number, month: number): Date[] {
   const count = new Date(year, month + 1, 0).getDate();
   return Array.from({ length: count }, (_, i) => new Date(year, month, i + 1));
+}
+
+/** Local `YYYY-MM-DD` (for `<input type="date">` / deep-link params). */
+export function toISODate(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${d.getFullYear()}-${mm}-${dd}`;
 }
 
 export function isSameDay(a: Date, b: Date): boolean {

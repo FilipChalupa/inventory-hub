@@ -14,6 +14,7 @@ import { LoansPage } from './pages/LoansPage.js';
 import { LoanDetailPage } from './pages/LoanDetailPage.js';
 import { NewLoanPage } from './pages/NewLoanPage.js';
 import { CalendarPage } from './pages/CalendarPage.js';
+import { TodayPage } from './pages/TodayPage.js';
 import { LabelsPage } from './pages/LabelsPage.js';
 import { InventoryPage } from './pages/InventoryPage.js';
 import { InventorySessionPage } from './pages/InventorySessionPage.js';
@@ -28,6 +29,7 @@ import { AuthProvider, useAuth } from './auth/AuthContext.js';
 // Primary workflow — always visible in the bar.
 const mainNav: { to: string; label: string; end?: boolean }[] = [
   { to: '/', label: t.nav.assets, end: true },
+  { to: '/today', label: t.nav.today },
   { to: '/scan', label: t.nav.scan },
   { to: '/loans', label: t.nav.loans },
   { to: '/calendar', label: t.nav.calendar },
@@ -132,6 +134,7 @@ function Shell() {
             <Route path="/loans/new" element={<NewLoanPage />} />
             <Route path="/loans/:id" element={<LoanDetailPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
+            <Route path="/today" element={<TodayPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
             <Route path="/inventory/:id" element={<InventorySessionPage />} />
             <Route path="/labels" element={<LabelsPage />} />

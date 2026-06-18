@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
+import { Button } from './ui.js';
 import {
   HATCH_STYLE,
   WEEKDAY_LABELS,
@@ -31,9 +32,12 @@ const blockedDayClass = 'bg-slate-100 text-slate-400 dark:bg-slate-700/40 dark:t
 export function AvailabilityCalendar({
   windows,
   blocked,
+  onCreateLoan,
 }: {
   windows: BusyWindow[];
   blocked?: { reason: string };
+  /** When set, free days from today on can be range-selected to start a loan. */
+  onCreateLoan?: (from: Date, to: Date) => void;
 }) {
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -41,6 +45,7 @@ export function AvailabilityCalendar({
     year: today.getFullYear(),
     month: today.getMonth(),
   }));
+  const [sel, setSel] = useState<{ start: Date; end: Date | null } | null>(null);
 
   const grid = useMemo(() => monthGridDays(cursor.year, cursor.month), [cursor]);
 
@@ -49,6 +54,22 @@ export function AvailabilityCalendar({
       const d = new Date(c.year, c.month + delta, 1);
       return { year: d.getFullYear(), month: d.getMonth() };
     });
+  }
+
+  function pick(day: Date) {
+    setSel((cur) => {
+      if (!cur || cur.end) return { start: day, end: null };
+      if (day.getTime() < cur.start.getTime()) return { start: day, end: null };
+      return { start: cur.start, end: day };
+    });
+  }
+
+  function inSelection(day: Date): boolean {
+    if (!sel) return false;
+    const t = day.getTime();
+    const s = sel.start.getTime();
+    const e = (sel.end ?? sel.start).getTime();
+    return t >= s && t <= e;
   }
 
   return (
@@ -103,24 +124,36 @@ export function AvailabilityCalendar({
           const state = dayState(windows, day);
           const inMonth = day.getMonth() === cursor.month;
           const isToday = isSameDay(day, today);
+          const dayStart = dayBounds(day)[0];
           // A blocking status hatches out otherwise-free days from today on.
           const isBlocked =
-            !!blocked &&
+            !!blocked && state.status === 'free' && dayStart.getTime() >= todayStart.getTime();
+          const selectable =
+            !!onCreateLoan &&
             state.status === 'free' &&
-            dayBounds(day)[0].getTime() >= todayStart.getTime();
+            !isBlocked &&
+            dayStart.getTime() >= todayStart.getTime();
+          const selected = inSelection(day);
           const title = isBlocked
             ? blocked.reason
             : state.windows.map((w) => w.label).filter(Boolean).join(', ');
+          const ring = selected
+            ? 'ring-2 ring-inset ring-blue-500 font-semibold'
+            : isToday
+              ? 'ring-2 ring-inset ring-slate-900 dark:ring-slate-100 font-semibold'
+              : undefined;
           return (
             <div
               key={day.toISOString()}
               title={title || undefined}
               style={isBlocked ? HATCH_STYLE : undefined}
+              onClick={selectable ? () => pick(day) : undefined}
               className={clsx(
                 'aspect-square rounded flex items-center justify-center text-xs',
                 isBlocked ? blockedDayClass : dayClasses[state.status],
                 !inMonth && 'opacity-40',
-                isToday && 'ring-2 ring-inset ring-slate-900 dark:ring-slate-100 font-semibold',
+                selectable && 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-400',
+                ring,
               )}
             >
               {day.getDate()}
@@ -128,6 +161,27 @@ export function AvailabilityCalendar({
           );
         })}
       </div>
+
+      {onCreateLoan && sel && (
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-blue-200 bg-blue-50 p-2 text-sm dark:border-blue-800 dark:bg-blue-900/30">
+          <span className="text-slate-700 dark:text-slate-200">
+            {sel.end ? (
+              <>
+                Termín {sel.start.toLocaleDateString('cs-CZ')} – {sel.end.toLocaleDateString('cs-CZ')}
+              </>
+            ) : (
+              <>Začátek {sel.start.toLocaleDateString('cs-CZ')} — vyber konec (nebo půjč na jeden den)</>
+            )}
+          </span>
+          <span className="flex-1" />
+          <Button onClick={() => onCreateLoan(sel.start, sel.end ?? sel.start)}>
+            Vytvořit výpůjčku
+          </Button>
+          <Button variant="ghost" onClick={() => setSel(null)}>
+            Zrušit
+          </Button>
+        </div>
+      )}
 
       <CalendarLegend blocked={!!blocked} />
     </div>

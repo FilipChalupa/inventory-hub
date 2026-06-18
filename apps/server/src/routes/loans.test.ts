@@ -745,6 +745,39 @@ describe('loans API', () => {
       const body = (await res.json()) as { items: { code: string }[] };
       expect(body.items.map((i) => i.code)).toEqual([a]);
     });
+
+    it('schedule lists live loans in the window and drops fully returned ones', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const b = await makeAsset(server, cookie, 'B');
+      const active = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Aktivní',
+        expectedReturnAt: inDays(5),
+        assetCodes: [a],
+      });
+      const { id: activeId } = (await active.json()) as { id: string };
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Plán',
+        loanedAt: inDays(10),
+        expectedReturnAt: inDays(12),
+        assetCodes: [b],
+      });
+
+      const from = new Date().toISOString();
+      const to = inDays(30);
+      const before = await server.authRequest(`/api/loans/schedule?from=${from}&to=${to}`, {
+        cookie,
+      });
+      const beforeBody = (await before.json()) as { items: { borrowerName: string }[] };
+      expect(beforeBody.items.map((i) => i.borrowerName).sort()).toEqual(['Aktivní', 'Plán']);
+
+      await jsonPost(server, cookie, `/api/loans/${activeId}/return-all`, {});
+
+      const after = await server.authRequest(`/api/loans/schedule?from=${from}&to=${to}`, {
+        cookie,
+      });
+      const afterBody = (await after.json()) as { items: { borrowerName: string }[] };
+      expect(afterBody.items.map((i) => i.borrowerName)).toEqual(['Plán']);
+    });
   });
 
   describe('return flow', () => {

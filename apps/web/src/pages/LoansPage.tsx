@@ -1,8 +1,9 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
-import { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState, type ReactNode } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient, type LoanRow } from '../lib/api.js';
 import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
+import { LoansCalendar } from '../components/LoansCalendar.js';
 import clsx from 'clsx';
 
 const statusLabels = {
@@ -23,6 +24,8 @@ type StatusFilter = '' | keyof typeof statusLabels | 'overdue';
 
 export function LoansPage() {
   const now = new Date();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'list';
   const [status, setStatus] = useState<StatusFilter>('');
   const [borrower, setBorrower] = useState('');
   const [from, setFrom] = useState('');
@@ -35,6 +38,7 @@ export function LoansPage() {
     queryKey: ['loans', { q: borrower, limit }],
     queryFn: () => apiClient.loans.list({ q: borrower || undefined, limit }),
     placeholderData: keepPreviousData,
+    enabled: view === 'list',
   });
   const total = list.data?.total ?? 0;
   const loadedCount = list.data?.items.length ?? 0;
@@ -81,7 +85,18 @@ export function LoansPage() {
         </Link>
       </div>
 
-      {(loadedCount > 0 || borrower || status || from || to) && (
+      <div className="inline-flex rounded border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
+        <ViewTab active={view === 'list'} onClick={() => setSearchParams({})}>
+          Seznam
+        </ViewTab>
+        <ViewTab active={view === 'calendar'} onClick={() => setSearchParams({ view: 'calendar' })}>
+          Kalendář
+        </ViewTab>
+      </div>
+
+      {view === 'calendar' && <LoansCalendar />}
+
+      {view === 'list' && (loadedCount > 0 || borrower || status || from || to) && (
         <div className="flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[160px]">
             <label className="text-xs text-slate-500 block mb-0.5">Borrower</label>
@@ -128,7 +143,7 @@ export function LoansPage() {
         </div>
       )}
 
-      {loadedCount === 0 && !borrower && (
+      {view === 'list' && loadedCount === 0 && !borrower && (
         <Card>
           <h2 className="font-semibold mb-1">Zatím žádné výpůjčky</h2>
           <p className="text-slate-600 text-sm mb-3">
@@ -142,11 +157,12 @@ export function LoansPage() {
         </Card>
       )}
 
-      {((loadedCount > 0 && filtered.length === 0) || (loadedCount === 0 && !!borrower)) && (
-        <p className="text-sm text-slate-500">Žádné výpůjčky neodpovídají filtru.</p>
-      )}
+      {view === 'list' &&
+        ((loadedCount > 0 && filtered.length === 0) || (loadedCount === 0 && !!borrower)) && (
+          <p className="text-sm text-slate-500">Žádné výpůjčky neodpovídají filtru.</p>
+        )}
 
-      {upcoming.length > 0 && (
+      {view === 'list' && upcoming.length > 0 && (
         <div className="space-y-1">
           <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
             Nadcházející rezervace
@@ -159,7 +175,7 @@ export function LoansPage() {
         </div>
       )}
 
-      {others.length > 0 && (
+      {view === 'list' && others.length > 0 && (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {others.map((loan) => (
             <LoanRowItem key={loan.id} loan={loan} now={now} />
@@ -167,7 +183,7 @@ export function LoansPage() {
         </ul>
       )}
 
-      {loadedCount < total && (
+      {view === 'list' && loadedCount < total && (
         <div className="flex items-center gap-3">
           <Button
             variant="secondary"
@@ -182,6 +198,31 @@ export function LoansPage() {
         </div>
       )}
     </section>
+  );
+}
+
+function ViewTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={clsx(
+        'px-3 py-1.5 transition-colors',
+        active
+          ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+          : 'bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700',
+      )}
+    >
+      {children}
+    </button>
   );
 }
 

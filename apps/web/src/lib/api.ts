@@ -157,6 +157,15 @@ export type LoanCalendarAsset = {
   windows: LoanCalendarWindow[];
 };
 
+export type LoanScheduleRow = {
+  id: string;
+  borrowerName: string;
+  start: string;
+  end: string | null;
+  status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
+  itemCount: number;
+};
+
 export type ContactRow = {
   id: string;
   name: string;
@@ -532,6 +541,13 @@ export const apiClient = {
       api<{ items: LoanCalendarAsset[] }>(
         `/api/loans/calendar${q ? `?q=${encodeURIComponent(q)}` : ''}`,
       ),
+    schedule: (params: { from?: string; to?: string } = {}) => {
+      const qs = new URLSearchParams();
+      if (params.from) qs.set('from', params.from);
+      if (params.to) qs.set('to', params.to);
+      const suffix = qs.toString() ? `?${qs}` : '';
+      return api<{ items: LoanScheduleRow[] }>(`/api/loans/schedule${suffix}`);
+    },
     availability: (params: { from?: string; to?: string; q?: string } = {}) => {
       const qs = new URLSearchParams();
       if (params.q) qs.set('q', params.q);

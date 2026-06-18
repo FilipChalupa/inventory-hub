@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, uploadFile } from '../lib/api.js';
 import {
   Button,
@@ -15,7 +15,7 @@ import {
 } from '../components/ui.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { AvailabilityCalendar } from '../components/AvailabilityCalendar.js';
-import { nonLoanableReason, type BusyWindow } from '../lib/availability.js';
+import { nonLoanableReason, toISODate, type BusyWindow } from '../lib/availability.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
@@ -23,6 +23,7 @@ import { MAX_DAMAGE_PHOTOS, type CustomFieldsSchema, type DamageSeverity } from 
 
 export function AssetDetailPage() {
   const { code = '' } = useParams<{ code: string }>();
+  const navigate = useNavigate();
   const qc = useQueryClient();
 
   const asset = useQuery({
@@ -318,6 +319,16 @@ export function AssetDetailPage() {
           )}
           blocked={
             nonLoanableReason(a.status) ? { reason: nonLoanableReason(a.status)! } : undefined
+          }
+          onCreateLoan={
+            nonLoanableReason(a.status)
+              ? undefined
+              : (fromDay, toDay) =>
+                  navigate(
+                    `/loans/new?asset=${encodeURIComponent(a.code)}&start=${toISODate(
+                      fromDay,
+                    )}&end=${toISODate(toDay)}`,
+                  )
           }
         />
         <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700" />
