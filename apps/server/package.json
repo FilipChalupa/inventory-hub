@@ -13,7 +13,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx src/db/migrate.ts",
     "db:seed": "tsx src/db/seed.ts",
-    "db:seed:e2e": "tsx src/db/seed.ts --e2e"
+    "db:seed:e2e": "tsx src/db/seed.ts --e2e",
+    "db:migrate-from-kilomayo": "tsx src/db/migrate-from-kilomayo.ts"
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
