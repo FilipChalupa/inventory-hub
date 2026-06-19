@@ -23,6 +23,7 @@ import { feedRoutes } from './routes/feeds.js';
 import { inventoryRoutes } from './routes/inventory.js';
 import { uploadRoutes } from './routes/uploads.js';
 import { exportRoutes } from './routes/export.js';
+import { importRoutes } from './routes/import.js';
 import { invitationRoutes } from './routes/invitations.js';
 import { userRoutes } from './routes/users.js';
 import { contactRoutes } from './routes/contacts.js';
@@ -127,6 +128,7 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/inventory', inventoryRoutes);
   app.route('/api/uploads', uploadRoutes);
   app.route('/api/export', exportRoutes);
+  app.route('/api/import', importRoutes);
   app.route('/api/invitations', invitationRoutes);
   app.route('/api/users', userRoutes);
   app.route('/api/contacts', contactRoutes);

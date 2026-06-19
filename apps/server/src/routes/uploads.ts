@@ -1,34 +1,9 @@
 import { Hono } from 'hono';
 import { mkdir, stat, writeFile, readFile } from 'node:fs/promises';
-import { resolve, join, normalize, sep } from 'node:path';
+import { resolve, join, normalize } from 'node:path';
 import type { AppContext } from '../app.js';
 import { rateLimit } from '../lib/rate-limit.js';
-
-const ALLOWED_MIME = new Map<string, string>([
-  ['image/jpeg', 'jpg'],
-  ['image/png', 'png'],
-  ['image/webp', 'webp'],
-  ['image/gif', 'gif'],
-  ['application/pdf', 'pdf'],
-]);
-
-/**
- * Returns a path like `2026/05/<uuid>.jpg` rooted inside UPLOAD_DIR.
- * The returned path is what we persist in DB; we resolve it against
- * UPLOAD_DIR at serve time and validate it stays under the upload root.
- */
-function generateRelativePath(extension: string): string {
-  const now = new Date();
-  const yyyy = String(now.getUTCFullYear());
-  const mm = String(now.getUTCMonth() + 1).padStart(2, '0');
-  return `${yyyy}/${mm}/${crypto.randomUUID()}.${extension}`;
-}
-
-function isInside(parent: string, child: string): boolean {
-  const p = resolve(parent) + sep;
-  const c = resolve(child);
-  return c.startsWith(p);
-}
+import { ALLOWED_MIME, generateRelativePath, isInside } from '../lib/uploads.js';
 
 export const uploadRoutes = new Hono<AppContext>()
   .post('/', rateLimit({ bucket: 'uploads', windowMs: 60_000, max: 60 }), async (c) => {
@@ -66,7 +41,9 @@ export const uploadRoutes = new Hono<AppContext>()
       return c.json(
         {
           error: {
-            message: `Nepodporovaný typ souboru (${file.type || 'neznámý'}). Povoleno: JPEG, PNG, WebP, GIF, PDF`,
+            message: `Nepodporovaný typ souboru (${
+              file.type || 'neznámý'
+            }). Povoleno: JPEG, PNG, WebP, GIF, PDF`,
           },
         },
         415,
@@ -114,14 +91,14 @@ export const uploadRoutes = new Hono<AppContext>()
       ext === 'jpg' || ext === 'jpeg'
         ? 'image/jpeg'
         : ext === 'png'
-          ? 'image/png'
-          : ext === 'webp'
-            ? 'image/webp'
-            : ext === 'gif'
-              ? 'image/gif'
-              : ext === 'pdf'
-                ? 'application/pdf'
-                : 'application/octet-stream';
+        ? 'image/png'
+        : ext === 'webp'
+        ? 'image/webp'
+        : ext === 'gif'
+        ? 'image/gif'
+        : ext === 'pdf'
+        ? 'application/pdf'
+        : 'application/octet-stream';
 
     const data = await readFile(absolute);
     return new Response(data, {
