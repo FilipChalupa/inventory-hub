@@ -37,6 +37,28 @@ import {
 const MIGRATION_USER_ID = '00000000-0000-0000-0000-0000000000aa';
 const MIGRATION_USER_EMAIL = 'migration@inventory-hub.local';
 
+// Type for assets that had no type in the source. Needed so their migrated
+// custom fields (below) have a schema to render against in the UI.
+const FALLBACK_TYPE_NAME = 'Ostatní';
+
+// The Inventory Hub has no native columns for condition / purchase price /
+// warranty, and the asset detail page only renders custom fields that are
+// declared on the asset type's schema. So we attach this schema to every
+// migrated type and store the values under matching (snake_case) keys —
+// otherwise the data would be stored but invisible. Keys must match
+// /^[a-z][a-z0-9_]*$/ (see packages/shared custom-fields).
+const MIGRATION_CUSTOM_FIELDS: {
+  key: string;
+  label: string;
+  type: 'text' | 'number' | 'date' | 'boolean' | 'select';
+  required?: boolean;
+  options?: string[];
+}[] = [
+  { key: 'condition', label: 'Stav', type: 'select', options: ['new', 'used', 'trash'] },
+  { key: 'purchase_price', label: 'Pořizovací cena', type: 'text' },
+  { key: 'warranty_expires_at', label: 'Záruka do', type: 'date' },
+];
+
 const EXT_BY_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -213,9 +235,29 @@ function importStructured(
       }
       const id = crypto.randomUUID();
       const codePrefix = derivePrefix(t.name, usedPrefixes);
-      tx.insert(assetTypes).values({ id, name: t.name, codePrefix }).run();
+      tx.insert(assetTypes)
+        .values({ id, name: t.name, codePrefix, customFieldsSchema: MIGRATION_CUSTOM_FIELDS })
+        .run();
       existingTypeByName.set(t.name, id);
       typeIdBySourceId.set(t.id, id);
+    }
+
+    // Fallback type for assets with no type in the source, so their migrated
+    // custom fields still have a schema to render against. Created only when
+    // needed.
+    let fallbackTypeId: string | null = existingTypeByName.get(FALLBACK_TYPE_NAME) ?? null;
+    if (!fallbackTypeId && data.assets.some((a) => !a.type_id)) {
+      fallbackTypeId = crypto.randomUUID();
+      const codePrefix = derivePrefix('MISC', usedPrefixes);
+      tx.insert(assetTypes)
+        .values({
+          id: fallbackTypeId,
+          name: FALLBACK_TYPE_NAME,
+          codePrefix,
+          customFieldsSchema: MIGRATION_CUSTOM_FIELDS,
+        })
+        .run();
+      existingTypeByName.set(FALLBACK_TYPE_NAME, fallbackTypeId);
     }
 
     // Storage locations → flat locations.
@@ -233,7 +275,7 @@ function importStructured(
 
     // Assets (exploded by quantity).
     for (const a of data.assets) {
-      const typeId = a.type_id ? typeIdBySourceId.get(a.type_id) ?? null : null;
+      const typeId = a.type_id ? typeIdBySourceId.get(a.type_id) ?? fallbackTypeId : fallbackTypeId;
       const typeName = a.type_id ? typeNameBySourceId.get(a.type_id) ?? null : null;
       const locationId = a.storage_location_id
         ? locationIdBySourceId.get(a.storage_location_id) ?? null
@@ -249,20 +291,25 @@ function importStructured(
       const codes: string[] = [];
 
       for (let unit = 0; unit < qty; unit++) {
-        const code =
-          qty === 1 ? a.identifier : `${a.identifier}-${String(unit + 1).padStart(2, '0')}`;
+        // Codes are stored uppercase — every REST/UI lookup uppercases the
+        // code, so a lower/mixed-case code would be unreachable in the app.
+        const code = (
+          qty === 1 ? a.identifier : `${a.identifier}-${String(unit + 1).padStart(2, '0')}`
+        ).toUpperCase();
         if (existingCodes.has(code)) {
           codes.push(code); // already imported — keep the mapping, skip insert
           continue;
         }
         existingCodes.add(code);
 
+        // Keys match MIGRATION_CUSTOM_FIELDS so the values render in the UI;
+        // legacyId/unit are metadata (not in the schema → not shown).
         const customFields: Record<string, unknown> = {
           condition: a.condition,
           legacyId: a.id,
         };
-        if (a.purchase_price) customFields.purchasePrice = a.purchase_price;
-        if (a.warranty_expires_at) customFields.warrantyExpiresAt = a.warranty_expires_at;
+        if (a.purchase_price) customFields.purchase_price = a.purchase_price;
+        if (a.warranty_expires_at) customFields.warranty_expires_at = a.warranty_expires_at;
         if (qty > 1) customFields.unit = `${unit + 1}/${qty}`;
 
         const id = crypto.randomUUID();
