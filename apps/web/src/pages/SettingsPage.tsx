@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
-import type { AllowedDomain, UserRole } from '@inventory-hub/shared';
+import type { AllowedDomain, ApiKeyScope, UserRole } from '@inventory-hub/shared';
 
 type SettingsForm = { name: string; codePrefix: string };
 
@@ -141,16 +141,33 @@ export function SettingsPage() {
   );
 }
 
+const SCOPE_PRESETS = [
+  { value: 'api+feeds', label: 'Plný přístup k API + kalendář', scopes: ['api', 'feeds'] },
+  { value: 'api', label: 'Jen API (integrace, skripty)', scopes: ['api'] },
+  { value: 'feeds', label: 'Jen kalendář (.ics odběr)', scopes: ['feeds'] },
+] as const satisfies ReadonlyArray<{ value: string; label: string; scopes: ApiKeyScope[] }>;
+
+type ScopePreset = (typeof SCOPE_PRESETS)[number]['value'];
+
+const SCOPE_LABELS: Record<ApiKeyScope, string> = { api: 'API', feeds: 'Kalendář' };
+
 function ApiKeysSection() {
   const qc = useQueryClient();
   const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.apiKeys.list() });
   const [name, setName] = useState('');
-  const [created, setCreated] = useState<{ name: string; token: string } | null>(null);
+  const [preset, setPreset] = useState<ScopePreset>('api+feeds');
+  const [created, setCreated] = useState<{ name: string; token: string; scopes: ApiKeyScope[] } | null>(
+    null,
+  );
 
   const create = useMutation({
-    mutationFn: () => apiClient.apiKeys.create({ name: name.trim() }),
+    mutationFn: () =>
+      apiClient.apiKeys.create({
+        name: name.trim(),
+        scopes: SCOPE_PRESETS.find((p) => p.value === preset)!.scopes,
+      }),
     onSuccess: (res) => {
-      setCreated({ name: res.name, token: res.token });
+      setCreated({ name: res.name, token: res.token, scopes: res.scopes });
       setName('');
       qc.invalidateQueries({ queryKey: ['api-keys'] });
     },
@@ -171,7 +188,9 @@ function ApiKeysSection() {
       <p className="text-xs text-slate-500 mb-3">
         Pro integrace a skripty. Klíč se posílá jako{' '}
         <span className="font-mono">Authorization: Bearer …</span> a má práva admina, který ho
-        vytvořil. Slouží i pro odběr kalendáře výpůjček (.ics). Token uvidíš jen jednou.
+        vytvořil. Pro odběr kalendáře (.ics) vytvoř raději klíč{' '}
+        <strong>jen pro kalendář</strong> — jeho token sice cestuje v URL, ale k API se s ním
+        nedostaneš. Token uvidíš jen jednou.
       </p>
 
       {created && (
@@ -180,15 +199,19 @@ function ApiKeysSection() {
           <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {created.token}
           </code>
-          <p className="text-sm font-medium mt-3 mb-1">
-            Odběr kalendáře (termíny vrácení a začátky rezervací):
-          </p>
-          <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
-            {`${window.location.origin}/feeds/loans.ics?token=${created.token}`}
-          </code>
-          <p className="text-xs text-slate-500 mt-1">
-            Vlož jako odebíraný kalendář v Google / Apple kalendáři (URL veřejné adresy).
-          </p>
+          {created.scopes.includes('feeds') && (
+            <>
+              <p className="text-sm font-medium mt-3 mb-1">
+                Odběr kalendáře (termíny vrácení a začátky rezervací):
+              </p>
+              <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
+                {`${window.location.origin}/feeds/loans.ics?token=${created.token}`}
+              </code>
+              <p className="text-xs text-slate-500 mt-1">
+                Vlož jako odebíraný kalendář v Google / Apple kalendáři (URL veřejné adresy).
+              </p>
+            </>
+          )}
           <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
             Mám zkopírováno
           </Button>
@@ -207,6 +230,17 @@ function ApiKeysSection() {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="např. Zapier" />
           </Field>
         </div>
+        <div className="min-w-[200px]">
+          <Field label="Oprávnění">
+            <Select value={preset} onChange={(e) => setPreset(e.target.value as ScopePreset)}>
+              {SCOPE_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>
+                  {p.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
         <Button type="submit" disabled={create.isPending || !name.trim()}>
           {create.isPending ? 'Vytvářím…' : 'Vytvořit klíč'}
         </Button>
@@ -221,7 +255,15 @@ function ApiKeysSection() {
             <li key={k.id} className="flex items-center justify-between gap-3 py-2 text-sm">
               <div>
                 <span className="font-medium">{k.name}</span>{' '}
-                <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>
+                <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>{' '}
+                {k.scopes.map((s) => (
+                  <span
+                    key={s}
+                    className="ml-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                  >
+                    {SCOPE_LABELS[s]}
+                  </span>
+                ))}
                 <div className="text-xs text-slate-500">
                   {k.lastUsedAt ? `naposledy ${formatDate(k.lastUsedAt)}` : 'nepoužitý'}
                   {k.expiresAt && ` · platí do ${formatDate(k.expiresAt)}`}

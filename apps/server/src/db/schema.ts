@@ -73,6 +73,11 @@ export const sessions = sqliteTable(
  * API keys for programmatic / integration access to the REST API. The raw
  * token is shown once at creation; only its sha256 hash is stored. A key
  * authenticates as `userId` (the admin who created it) with that user's role.
+ *
+ * `scopes` narrows what the key can do (see `apiKeyScopes` in @inventory-hub/
+ * shared): `api` grants REST `/api/*` access, `feeds` grants calendar feeds.
+ * A calendar-only key carries `['feeds']` so a leaked feed URL can't reach the
+ * REST API.
  */
 export const apiKeys = sqliteTable(
   'api_keys',
@@ -84,6 +89,10 @@ export const apiKeys = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    scopes: text('scopes', { mode: 'json' })
+      .$type<('api' | 'feeds')[]>()
+      .notNull()
+      .default(['api']),
     lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
     ...timestamps,

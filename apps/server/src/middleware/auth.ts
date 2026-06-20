@@ -28,7 +28,9 @@ export const authLoader = createMiddleware<AppContext>(async (c, next) => {
       .where(eq(apiKeys.tokenHash, hashApiKey(presented)))
       .get();
     const now = new Date();
-    if (key && (!key.expiresAt || key.expiresAt > now)) {
+    // Only keys scoped for the REST API may authenticate here; a `feeds`-only
+    // calendar key is intentionally powerless against `/api/*`.
+    if (key && key.scopes.includes('api') && (!key.expiresAt || key.expiresAt > now)) {
       const user = db.select().from(users).where(eq(users.id, key.userId)).get();
       if (user && !user.disabledAt) {
         c.set('user', user);

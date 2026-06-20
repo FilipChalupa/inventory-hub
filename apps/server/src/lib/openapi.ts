@@ -419,7 +419,9 @@ export function openApiDocument() {
           description:
             'Public calendar feed (return deadlines + planned starts) for Google/Apple ' +
             'Calendar. Authenticated with an API key passed as the `token` query parameter, ' +
-            'because calendar clients fetch server-to-server and cannot send headers.',
+            'because calendar clients fetch server-to-server and cannot send headers. The key ' +
+            'must carry the `feeds` scope; create a feeds-only key so a leaked URL cannot reach ' +
+            'the REST API.',
           security: [],
           parameters: [
             {
@@ -427,7 +429,7 @@ export function openApiDocument() {
               in: 'query',
               required: true,
               schema: { type: 'string' },
-              description: 'API key',
+              description: 'API key with the `feeds` scope',
             },
           ],
           responses: {
@@ -436,6 +438,7 @@ export function openApiDocument() {
               content: { 'text/calendar': { schema: { type: 'string' } } },
             },
             401: ok('Invalid or missing token', ref('Error')),
+            403: ok('Key lacks the feeds scope', ref('Error')),
           },
         },
       },
@@ -630,6 +633,7 @@ export function openApiDocument() {
                 id: { type: 'string' },
                 token: { type: 'string' },
                 prefix: { type: 'string' },
+                scopes: { type: 'array', items: { type: 'string', enum: ['api', 'feeds'] } },
               },
             }),
           },

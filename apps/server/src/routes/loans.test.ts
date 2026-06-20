@@ -851,7 +851,10 @@ describe('loans API', () => {
         expectedReturnAt: inDays(3),
         assetCodes: [a],
       });
-      const keyRes = await jsonPost(server, cookie, '/api/api-keys', { name: 'cal' });
+      const keyRes = await jsonPost(server, cookie, '/api/api-keys', {
+        name: 'cal',
+        scopes: ['feeds'],
+      });
       const { token } = (await keyRes.json()) as { token: string };
 
       const ok = await server.authRequest(`/feeds/loans.ics?token=${encodeURIComponent(token)}`, {

@@ -18,6 +18,7 @@ export const apiKeyRoutes = new Hono<AppContext>()
         id: apiKeys.id,
         name: apiKeys.name,
         prefix: apiKeys.prefix,
+        scopes: apiKeys.scopes,
         lastUsedAt: apiKeys.lastUsedAt,
         expiresAt: apiKeys.expiresAt,
         createdAt: apiKeys.createdAt,
@@ -40,11 +41,12 @@ export const apiKeyRoutes = new Hono<AppContext>()
         prefix,
         tokenHash: hash,
         userId: user.id,
+        scopes: input.scopes,
         expiresAt: input.expiresAt ?? null,
       })
       .run();
     // The raw token is returned exactly once — it is not recoverable later.
-    return c.json({ id, name: input.name, prefix, token }, 201);
+    return c.json({ id, name: input.name, prefix, scopes: input.scopes, token }, 201);
   })
   .delete('/:id', (c) => {
     const db = c.get('db');

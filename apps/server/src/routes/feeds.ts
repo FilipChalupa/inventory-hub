@@ -36,6 +36,11 @@ export const feedRoutes = new Hono<AppContext>().get('/loans.ics', (c) => {
   if (!key || (key.expiresAt && key.expiresAt <= now)) {
     return c.json({ error: { message: 'Neplatný token' } }, 401);
   }
+  // The key must be scoped for calendar feeds. A REST-only (`api`) key can't
+  // read the feed, and a `feeds` key can't do anything else.
+  if (!key.scopes.includes('feeds')) {
+    return c.json({ error: { message: 'Klíč nemá oprávnění ke kalendáři' } }, 403);
+  }
   const user = db.select().from(users).where(eq(users.id, key.userId)).get();
   if (!user || user.disabledAt) return c.json({ error: { message: 'Neplatný token' } }, 401);
 

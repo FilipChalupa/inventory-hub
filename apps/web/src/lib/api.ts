@@ -14,6 +14,7 @@ import type {
   UpdateInventorySessionInput,
   InventorySessionStatus,
   ScanResultKind,
+  ApiKeyScope,
 } from '@inventory-hub/shared';
 
 type ApiOptions = {
@@ -110,6 +111,7 @@ export type ApiKeyRow = {
   id: string;
   name: string;
   prefix: string;
+  scopes: ApiKeyScope[];
   lastUsedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
@@ -631,11 +633,11 @@ export const apiClient = {
 
   apiKeys: {
     list: () => api<{ items: ApiKeyRow[] }>('/api/api-keys'),
-    create: (input: { name: string; expiresAt?: Date | null }) =>
-      api<{ id: string; name: string; prefix: string; token: string }>('/api/api-keys', {
-        method: 'POST',
-        body: input,
-      }),
+    create: (input: { name: string; scopes: ApiKeyScope[]; expiresAt?: Date | null }) =>
+      api<{ id: string; name: string; prefix: string; scopes: ApiKeyScope[]; token: string }>(
+        '/api/api-keys',
+        { method: 'POST', body: input },
+      ),
     remove: (id: string) => api<{ ok: true }>(`/api/api-keys/${id}`, { method: 'DELETE' }),
   },
 

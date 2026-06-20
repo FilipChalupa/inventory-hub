@@ -65,6 +65,49 @@ describe('API keys', () => {
     expect(list.status).toBe(403);
   });
 
+  it('scopes a key: feeds-only cannot reach /api/*, api-only cannot read the feed', async () => {
+    // A feeds-only key — the safe kind for a calendar URL.
+    const feedRes = await jsonPost(server, adminCookie, '/api/api-keys', {
+      name: 'Kalendář',
+      scopes: ['feeds'],
+    });
+    expect(feedRes.status).toBe(201);
+    const feedKey = (await feedRes.json()) as { token: string; scopes: string[] };
+    expect(feedKey.scopes).toEqual(['feeds']);
+
+    // It is powerless against the REST API…
+    const api = await server.authRequest('/api/assets', {
+      headers: { authorization: `Bearer ${feedKey.token}` },
+    });
+    expect(api.status).toBe(401);
+
+    // …but can read the calendar feed.
+    const feed = await server.authRequest(`/feeds/loans.ics?token=${feedKey.token}`, {});
+    expect(feed.status).toBe(200);
+    expect(feed.headers.get('content-type')).toMatch(/text\/calendar/);
+
+    // An api-only key is the mirror image: REST works, the feed is forbidden.
+    const apiRes = await jsonPost(server, adminCookie, '/api/api-keys', {
+      name: 'Skript',
+      scopes: ['api'],
+    });
+    const apiKey = (await apiRes.json()) as { token: string };
+    const rest = await server.authRequest('/api/assets', {
+      headers: { authorization: `Bearer ${apiKey.token}` },
+    });
+    expect(rest.status).toBe(200);
+    const forbidden = await server.authRequest(`/feeds/loans.ics?token=${apiKey.token}`, {});
+    expect(forbidden.status).toBe(403);
+  });
+
+  it('defaults a key with no scopes to api-only', async () => {
+    const res = await jsonPost(server, adminCookie, '/api/api-keys', { name: 'default' });
+    const { token, scopes } = (await res.json()) as { token: string; scopes: string[] };
+    expect(scopes).toEqual(['api']);
+    const feed = await server.authRequest(`/feeds/loans.ics?token=${token}`, {});
+    expect(feed.status).toBe(403);
+  });
+
   it('allows a bearer POST without tripping CSRF', async () => {
     const created = await jsonPost(server, adminCookie, '/api/api-keys', { name: 'writer' });
     const { token } = (await created.json()) as { token: string };
