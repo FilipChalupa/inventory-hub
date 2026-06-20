@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, type LoanEventRow, type LoanItemRow, type LoanRow } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea, formatDate } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 
 export function LoanDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -61,9 +63,18 @@ export function LoanDetailPage() {
               <Button
                 variant="danger"
                 disabled={cancel.isPending}
-                onClick={() => {
-                  if (window.confirm('Zrušit tuto rezervaci? Akci nelze vrátit.')) {
-                    cancel.mutate();
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: 'Zrušit tuto rezervaci?',
+                      message: 'Akci nelze vrátit.',
+                      confirmLabel: 'Zrušit rezervaci',
+                      danger: true,
+                    })
+                  ) {
+                    cancel.mutate(undefined, {
+                      onSuccess: () => toast.success('Rezervace zrušena'),
+                    });
                   }
                 }}
               >
@@ -448,8 +459,18 @@ function LoanItemRowComp({
                 variant="ghost"
                 className="text-red-600 text-xs"
                 disabled={remove.isPending}
-                onClick={() => {
-                  if (window.confirm(`Odebrat ${item.assetCode} z výpůjčky?`)) remove.mutate();
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: `Odebrat ${item.assetCode} z výpůjčky?`,
+                      confirmLabel: 'Odebrat',
+                      danger: true,
+                    })
+                  ) {
+                    remove.mutate(undefined, {
+                      onSuccess: () => toast.success('Položka odebrána'),
+                    });
+                  }
                 }}
               >
                 Odebrat

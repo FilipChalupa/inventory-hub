@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 import type { AllowedDomain, ApiKeyScope, UserRole } from '@inventory-hub/shared';
 
 type SettingsForm = { name: string; codePrefix: string };
@@ -277,11 +279,16 @@ function CalendarFeedSection() {
                 variant="ghost"
                 className="text-red-600 text-xs"
                 disabled={remove.isPending}
-                onClick={() => {
+                onClick={async () => {
                   if (
-                    window.confirm(`Zrušit odkaz „${k.name}"? Odběr okamžitě přestane fungovat.`)
+                    await confirm({
+                      title: `Zrušit odkaz „${k.name}"?`,
+                      message: 'Odběr kalendáře okamžitě přestane fungovat.',
+                      confirmLabel: 'Zrušit odkaz',
+                      danger: true,
+                    })
                   ) {
-                    remove.mutate(k.id);
+                    remove.mutate(k.id, { onSuccess: () => toast.success('Odkaz zrušen') });
                   }
                 }}
               >
@@ -391,9 +398,16 @@ function ApiKeysSection() {
                 variant="ghost"
                 className="text-red-600 text-xs"
                 disabled={remove.isPending}
-                onClick={() => {
-                  if (window.confirm(`Zrušit klíč „${k.name}"? Přestane okamžitě fungovat.`)) {
-                    remove.mutate(k.id);
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: `Zrušit klíč „${k.name}"?`,
+                      message: 'Klíč přestane okamžitě fungovat.',
+                      confirmLabel: 'Zrušit klíč',
+                      danger: true,
+                    })
+                  ) {
+                    remove.mutate(k.id, { onSuccess: () => toast.success('Klíč zrušen') });
                   }
                 }}
               >

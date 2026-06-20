@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Field, Input, Select } from '../components/ui.js';
+import { toast } from '../components/Toast.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 
@@ -47,6 +48,7 @@ export function NewAssetPage() {
       }),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: ['assets'] });
+      toast.success(`Asset ${res.code} vytvořen`);
       navigate(`/a/${res.code}`);
     },
   });

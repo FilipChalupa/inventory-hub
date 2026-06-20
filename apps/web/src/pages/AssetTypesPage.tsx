@@ -4,6 +4,8 @@ import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 import { CustomFieldsSchemaEditor } from '../components/CustomFieldsSchemaEditor.js';
 import type { CustomFieldsSchema } from '@inventory-hub/shared';
 
@@ -87,8 +89,16 @@ export function AssetTypesPage() {
             name={t.name}
             codePrefix={t.codePrefix}
             customFieldsSchema={t.customFieldsSchema ?? []}
-            onRemove={() => {
-              if (confirm(`Smazat typ "${t.name}"?`)) remove.mutate(t.id);
+            onRemove={async () => {
+              if (
+                await confirm({
+                  title: `Smazat typ „${t.name}"?`,
+                  confirmLabel: 'Smazat',
+                  danger: true,
+                })
+              ) {
+                remove.mutate(t.id, { onSuccess: () => toast.success('Typ smazán') });
+              }
             }}
             onSavedSchema={() => qc.invalidateQueries({ queryKey: ['asset-types'] })}
           />

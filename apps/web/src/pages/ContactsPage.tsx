@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient, type ContactInput } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 
 export function ContactsPage() {
   const qc = useQueryClient();
@@ -107,8 +109,16 @@ export function ContactsPage() {
               <Button
                 variant="ghost"
                 className="text-red-600 text-xs"
-                onClick={() => {
-                  if (confirm(`Smazat kontakt "${c.name}"?`)) remove.mutate(c.id);
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: `Smazat kontakt „${c.name}"?`,
+                      confirmLabel: 'Smazat',
+                      danger: true,
+                    })
+                  ) {
+                    remove.mutate(c.id, { onSuccess: () => toast.success('Kontakt smazán') });
+                  }
                 }}
               >
                 Smazat

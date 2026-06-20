@@ -13,6 +13,7 @@ import {
   Textarea,
   formatDate,
 } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { AvailabilityCalendar } from '../components/AvailabilityCalendar.js';
 import { nextFreeAt, nonLoanableReason, toISODate, type BusyWindow } from '../lib/availability.js';
@@ -489,7 +490,8 @@ function AssetDocumentsCard({
   }
 
   async function remove(path: string) {
-    if (!confirm('Odebrat dokument?')) return;
+    if (!(await confirm({ title: 'Odebrat dokument?', confirmLabel: 'Odebrat', danger: true })))
+      return;
     try {
       await apiClient.assets.removeDocument(code, path);
       onChanged();
@@ -586,7 +588,8 @@ function ExternalIdsCard({
   }
 
   async function remove(id: string) {
-    if (!confirm('Odebrat identifikátor?')) return;
+    if (!(await confirm({ title: 'Odebrat identifikátor?', confirmLabel: 'Odebrat', danger: true })))
+      return;
     try {
       await apiClient.assets.removeExternalId(code, id);
       onChanged();
@@ -675,7 +678,7 @@ function AssetPhotosCard({
   }
 
   async function removePhoto(path: string) {
-    if (!confirm('Odebrat fotku?')) return;
+    if (!(await confirm({ title: 'Odebrat fotku?', confirmLabel: 'Odebrat', danger: true }))) return;
     try {
       await apiClient.assets.removePhoto(code, path);
       onChanged();

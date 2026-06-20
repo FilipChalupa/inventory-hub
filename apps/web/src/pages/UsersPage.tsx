@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Select, formatDate } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 import { USER_ROLES, type UserRole } from '@inventory-hub/shared';
 import { useCurrentUser } from '../auth/AuthContext.js';
 
@@ -81,9 +83,19 @@ export function UsersPage() {
                     variant="ghost"
                     className="text-red-600"
                     disabled={isMe}
-                    onClick={() => {
-                      if (confirm(`Deaktivovat uživatele ${u.email}?`)) {
-                        update.mutate({ id: u.id, input: { disabled: true } });
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: `Deaktivovat uživatele ${u.email}?`,
+                          message: 'Ztratí přístup do aplikace. Lze ho později znovu aktivovat.',
+                          confirmLabel: 'Deaktivovat',
+                          danger: true,
+                        })
+                      ) {
+                        update.mutate(
+                          { id: u.id, input: { disabled: true } },
+                          { onSuccess: () => toast.success('Uživatel deaktivován') },
+                        );
                       }
                     }}
                   >

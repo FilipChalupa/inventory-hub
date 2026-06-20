@@ -1,8 +1,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App.js';
+import { ToastViewport, toast } from './components/Toast.js';
+import { ConfirmViewport } from './components/ConfirmDialog.js';
+import { errorMessage } from './lib/errors.js';
 import './index.css';
 
 // Register service worker in production builds only. In dev, Vite serves
@@ -16,6 +19,12 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
 }
 
 const queryClient = new QueryClient({
+  // Surface every failed mutation as an error toast, so an action never fails
+  // silently. Pages may still show their own inline error; the toast is the
+  // safety net (especially for confirm-driven deletes with no inline slot).
+  mutationCache: new MutationCache({
+    onError: (error) => toast.error(errorMessage(error)),
+  }),
   defaultOptions: {
     queries: {
       staleTime: 30_000,
@@ -32,6 +41,8 @@ createRoot(rootEl).render(
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <App />
+        <ToastViewport />
+        <ConfirmViewport />
       </BrowserRouter>
     </QueryClientProvider>
   </StrictMode>,

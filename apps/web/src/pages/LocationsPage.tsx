@@ -15,6 +15,8 @@ import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath, locationsAsTree } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
@@ -50,9 +52,7 @@ export function LocationsPage() {
     mutationFn: ({ id, parentId }: { id: string; parentId: string | null }) =>
       apiClient.locations.update(id, { parentId }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['locations'] }),
-    onError: (err: Error) => {
-      window.alert(err.message);
-    },
+    // Errors (e.g. would-create-a-cycle) surface via the global toast handler.
   });
 
   const rows = list.data?.items ?? [];
@@ -136,8 +136,19 @@ export function LocationsPage() {
                 row={row}
                 depth={depth}
                 allRows={rows}
-                onDelete={() => {
-                  if (confirm(`Smazat lokaci "${row.name}"?`)) remove.mutate(row.id);
+                onDelete={async () => {
+                  if (
+                    await confirm({
+                      title: `Smazat lokaci „${row.name}"?`,
+                      message: 'Assety v lokaci zůstanou, jen ztratí přiřazení.',
+                      confirmLabel: 'Smazat',
+                      danger: true,
+                    })
+                  ) {
+                    remove.mutate(row.id, {
+                      onSuccess: () => toast.success('Lokace smazána'),
+                    });
+                  }
                 }}
                 onReparent={(parentId) => reparent.mutate({ id: row.id, parentId })}
               />

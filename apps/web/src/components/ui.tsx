@@ -15,16 +15,24 @@ const buttonVariants: Record<ButtonVariant, string> = {
     'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700',
 };
 
-export function Button({
-  variant = 'primary',
-  className,
-  // Default to "button" so action buttons placed inside a <form> don't
-  // accidentally submit it. Submit buttons set type="submit" explicitly.
-  type = 'button',
-  ...rest
-}: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
+// forwardRef so callers (e.g. the confirm dialog) can focus a button.
+export const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }
+>(function Button(
+  {
+    variant = 'primary',
+    className,
+    // Default to "button" so action buttons placed inside a <form> don't
+    // accidentally submit it. Submit buttons set type="submit" explicitly.
+    type = 'button',
+    ...rest
+  },
+  ref,
+) {
   return (
     <button
+      ref={ref}
       type={type}
       className={clsx(
         'inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium transition-colors',
@@ -34,7 +42,7 @@ export function Button({
       {...rest}
     />
   );
-}
+});
 
 const formControl =
   'block w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';

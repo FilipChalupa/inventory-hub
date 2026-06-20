@@ -10,6 +10,8 @@ import {
   type ScanResult,
 } from '../lib/api.js';
 import { Button, Card, Input, StatusBadge, Textarea, formatDate } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
 import { parseScannedValue } from '../lib/scan.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
@@ -216,15 +218,20 @@ export function InventorySessionPage() {
             <Button
               variant="danger"
               disabled={markLost.isPending}
-              onClick={() => {
+              onClick={async () => {
                 const losable = report.missing.filter((m) => m.status !== 'on_loan');
                 if (losable.length === 0) return;
                 if (
-                  window.confirm(
-                    `Označit ${losable.length} chybějících assetů jako ztracené? Přejdou do archivu.`,
-                  )
+                  await confirm({
+                    title: `Označit ${losable.length} chybějících assetů jako ztracené?`,
+                    message: 'Přejdou do archivu.',
+                    confirmLabel: 'Označit jako ztracené',
+                    danger: true,
+                  })
                 ) {
-                  markLost.mutate(losable.map((m) => m.code));
+                  markLost.mutate(losable.map((m) => m.code), {
+                    onSuccess: () => toast.success('Chybějící assety označeny jako ztracené'),
+                  });
                 }
               }}
             >
