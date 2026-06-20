@@ -18,6 +18,8 @@ import {
   addLoanItemsInput,
   returnLoanItemInput,
   createApiKeyInput,
+  createInventorySessionInput,
+  updateInventorySessionInput,
   importPayloadSchema,
   importResultSchema,
 } from '@inventory-hub/shared';
@@ -77,8 +79,48 @@ export function openApiDocument() {
         // The route omits loanItemId (it's in the URL path).
         ReturnLoanItem: j(returnLoanItemInput.omit({ loanItemId: true })),
         CreateApiKey: j(createApiKeyInput),
+        CreateInventorySession: j(createInventorySessionInput),
+        UpdateInventorySession: j(updateInventorySessionInput),
         ImportPayload: j(importPayloadSchema),
         ImportResult: j(importResultSchema),
+        CreateAssetType: {
+          type: 'object',
+          required: ['name', 'codePrefix'],
+          properties: {
+            name: { type: 'string' },
+            codePrefix: { type: 'string' },
+            customFieldsSchema: { type: 'array', items: { type: 'object' } },
+          },
+        },
+        CreateLocation: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: { type: 'string' },
+            parentId: { type: 'string', nullable: true },
+          },
+        },
+        CreateContact: {
+          type: 'object',
+          required: ['name'],
+          properties: {
+            name: { type: 'string' },
+            email: { type: 'string', nullable: true },
+            phone: { type: 'string', nullable: true },
+            organization: { type: 'string', nullable: true },
+            note: { type: 'string', nullable: true },
+          },
+        },
+        CreateDamage: {
+          type: 'object',
+          required: ['occurredAt', 'description', 'severity'],
+          properties: {
+            occurredAt: { type: 'string', format: 'date-time' },
+            description: { type: 'string' },
+            severity: { type: 'string', enum: ['minor', 'major', 'total'] },
+            photoPaths: { type: 'array', items: { type: 'string' } },
+          },
+        },
       },
     },
     paths: {
@@ -142,6 +184,128 @@ export function openApiDocument() {
           parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }],
           requestBody: jsonBody({ type: 'object' }),
           responses: { 200: ok('Updated') },
+        },
+      },
+      '/api/asset-types': {
+        get: { summary: 'List asset types', responses: { 200: ok('Asset types') } },
+        post: {
+          summary: 'Create an asset type',
+          requestBody: jsonBody(ref('CreateAssetType')),
+          responses: {
+            201: ok('Created', { type: 'object', properties: { id: { type: 'string' } } }),
+            409: ok('Code prefix already exists', ref('Error')),
+          },
+        },
+      },
+      '/api/asset-types/{id}': {
+        patch: {
+          summary: 'Update an asset type',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody({ type: 'object' }),
+          responses: { 200: ok('Updated'), 404: ok('Not found', ref('Error')) },
+        },
+        delete: {
+          summary: 'Delete an asset type (must have no assets)',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Deleted'), 409: ok('Type still in use', ref('Error')) },
+        },
+      },
+      '/api/locations': {
+        get: { summary: 'List locations', responses: { 200: ok('Locations') } },
+        post: {
+          summary: 'Create a location',
+          requestBody: jsonBody(ref('CreateLocation')),
+          responses: {
+            201: ok('Created', { type: 'object', properties: { id: { type: 'string' } } }),
+          },
+        },
+      },
+      '/api/locations/{id}': {
+        patch: {
+          summary: 'Update a location',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody({ type: 'object' }),
+          responses: { 200: ok('Updated'), 404: ok('Not found', ref('Error')) },
+        },
+        delete: {
+          summary: 'Delete a location (must have no assets)',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Deleted'), 409: ok('Location still in use', ref('Error')) },
+        },
+      },
+      '/api/inventory': {
+        get: {
+          summary: 'List inventory (stocktaking) sessions',
+          responses: { 200: ok('Sessions') },
+        },
+        post: {
+          summary: 'Open an inventory session',
+          requestBody: jsonBody(ref('CreateInventorySession')),
+          responses: {
+            201: ok('Created', { type: 'object', properties: { id: { type: 'string' } } }),
+          },
+        },
+      },
+      '/api/inventory/{id}': {
+        get: {
+          summary: 'Session detail (expected vs scanned)',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Session'), 404: ok('Not found', ref('Error')) },
+        },
+        patch: {
+          summary: 'Update a session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody(ref('UpdateInventorySession')),
+          responses: { 200: ok('Updated') },
+        },
+      },
+      '/api/inventory/{id}/scan': {
+        post: {
+          summary: 'Record a scan of an asset within the session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody({
+            type: 'object',
+            required: ['code'],
+            properties: { code: { type: 'string' } },
+          }),
+          responses: { 200: ok('Scanned'), 404: ok('Asset/session not found', ref('Error')) },
+        },
+      },
+      '/api/inventory/{id}/close': {
+        post: {
+          summary: 'Close a session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Closed') },
+        },
+      },
+      '/api/inventory/{id}/reopen': {
+        post: {
+          summary: 'Reopen a closed session',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Reopened') },
+        },
+      },
+      '/api/damages/by-asset/{code}': {
+        get: {
+          summary: 'Damage reports for an asset',
+          parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Reports'), 404: ok('Asset not found', ref('Error')) },
+        },
+        post: {
+          summary: 'File a damage report against an asset',
+          parameters: [{ name: 'code', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody(ref('CreateDamage')),
+          responses: {
+            201: ok('Created', { type: 'object', properties: { id: { type: 'string' } } }),
+            400: ok('Validation error', ref('Error')),
+          },
+        },
+      },
+      '/api/damages/{id}/resolve': {
+        post: {
+          summary: 'Mark a damage report resolved',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Resolved'), 404: ok('Not found', ref('Error')) },
         },
       },
       '/api/loans': {
@@ -352,6 +516,85 @@ export function openApiDocument() {
       },
       '/api/contacts': {
         get: { summary: 'List contacts', responses: { 200: ok('Contacts') } },
+        post: {
+          summary: 'Create a contact (external borrower)',
+          requestBody: jsonBody(ref('CreateContact')),
+          responses: {
+            201: ok('Created', { type: 'object', properties: { id: { type: 'string' } } }),
+          },
+        },
+      },
+      '/api/contacts/{id}': {
+        get: {
+          summary: 'Get a contact',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Contact'), 404: ok('Not found', ref('Error')) },
+        },
+        patch: {
+          summary: 'Update a contact',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody({ type: 'object' }),
+          responses: { 200: ok('Updated') },
+        },
+        delete: {
+          summary: 'Delete a contact',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Deleted') },
+        },
+      },
+      '/api/users': {
+        get: { summary: 'List users', responses: { 200: ok('Users') } },
+      },
+      '/api/users/{id}': {
+        patch: {
+          summary: 'Update a user (role / disabled state) — admin',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: jsonBody({ type: 'object' }),
+          responses: { 200: ok('Updated'), 403: ok('Not an admin', ref('Error')) },
+        },
+      },
+      '/api/org': {
+        get: { summary: 'Organization settings', responses: { 200: ok('Org settings') } },
+      },
+      '/api/uploads': {
+        post: {
+          summary: 'Upload an image/PDF (multipart) → returns a stored path',
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: { file: { type: 'string', format: 'binary' } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: ok('Stored', {
+              type: 'object',
+              properties: {
+                path: { type: 'string' },
+                url: { type: 'string' },
+                size: { type: 'integer' },
+                contentType: { type: 'string' },
+              },
+            }),
+            413: ok('Too large / unsupported type', ref('Error')),
+          },
+        },
+      },
+      '/api/export/assets.csv': {
+        get: { summary: 'Export all assets as CSV', responses: { 200: ok('CSV file') } },
+      },
+      '/api/export/loans.csv': {
+        get: { summary: 'Export all loans as CSV', responses: { 200: ok('CSV file') } },
+      },
+      '/api/export/damages.csv': {
+        get: { summary: 'Export all damage reports as CSV', responses: { 200: ok('CSV file') } },
+      },
+      '/api/export/contacts.csv': {
+        get: { summary: 'Export all contacts as CSV', responses: { 200: ok('CSV file') } },
       },
       '/api/api-keys': {
         get: { summary: 'List API keys (admin)', responses: { 200: ok('Keys (no token)') } },
