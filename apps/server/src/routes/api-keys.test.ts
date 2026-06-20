@@ -106,6 +106,29 @@ describe('API keys', () => {
     expect(forbidden.status).toBe(403);
   });
 
+  it('rejects an expired key on both /api/* and the feed', async () => {
+    const past = new Date(Date.now() - 1000).toISOString();
+    const apiRes = await jsonPost(server, adminCookie, '/api/api-keys', {
+      name: 'expired-api',
+      scopes: ['api'],
+      expiresAt: past,
+    });
+    const apiKey = (await apiRes.json()) as { token: string };
+    const rest = await server.authRequest('/api/assets', {
+      headers: { authorization: `Bearer ${apiKey.token}` },
+    });
+    expect(rest.status).toBe(401);
+
+    const feedRes = await jsonPost(server, adminCookie, '/api/api-keys', {
+      name: 'expired-feed',
+      scopes: ['feeds'],
+      expiresAt: past,
+    });
+    const feedKey = (await feedRes.json()) as { token: string };
+    const feed = await server.authRequest(`/feeds/loans.ics?token=${feedKey.token}`, {});
+    expect(feed.status).toBe(401);
+  });
+
   it('defaults a key with no scopes to api-only', async () => {
     const res = await jsonPost(server, adminCookie, '/api/api-keys', { name: 'default' });
     const { token, scopes } = (await res.json()) as { token: string; scopes: string[] };

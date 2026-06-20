@@ -150,6 +150,32 @@ function calendarFeedUrl(token: string) {
   return `${window.location.origin}/feeds/loans.ics?token=${token}`;
 }
 
+/** End-of-day Date for a `YYYY-MM-DD` picker value, or null when empty. */
+function parseExpiry(value: string): Date | null {
+  return value ? new Date(`${value}T23:59:59`) : null;
+}
+
+/** `YYYY-MM-DD` for today, used as the earliest selectable expiry. */
+function todayInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Optional expiry date picker shared by the key/feed creation forms. */
+function ExpiryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <div className="min-w-[150px]">
+      <Field label="Platí do (volitelné)">
+        <Input
+          type="date"
+          value={value}
+          min={todayInputValue()}
+          onChange={(e) => onChange(e.target.value)}
+        />
+      </Field>
+    </div>
+  );
+}
+
 /**
  * End-user friendly calendar subscription. Each link is backed by a
  * `feeds`-only key, so its token (which travels in the URL) grants read-only
@@ -161,13 +187,20 @@ function CalendarFeedSection() {
   const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.apiKeys.list() });
   const links = keys.data?.items.filter((k) => k.scopes.includes('feeds')) ?? [];
   const [name, setName] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null);
 
   const create = useMutation({
-    mutationFn: () => apiClient.apiKeys.create({ name: name.trim(), scopes: ['feeds'] }),
+    mutationFn: () =>
+      apiClient.apiKeys.create({
+        name: name.trim(),
+        scopes: ['feeds'],
+        expiresAt: parseExpiry(expiresAt),
+      }),
     onSuccess: (res) => {
       setCreated({ name: res.name, token: res.token });
       setName('');
+      setExpiresAt('');
       qc.invalidateQueries({ queryKey: ['api-keys'] });
     },
   });
@@ -219,6 +252,7 @@ function CalendarFeedSection() {
             />
           </Field>
         </div>
+        <ExpiryField value={expiresAt} onChange={setExpiresAt} />
         <Button type="submit" disabled={create.isPending || !name.trim()}>
           {create.isPending ? 'Vytvářím…' : 'Vytvořit odkaz'}
         </Button>
@@ -267,13 +301,20 @@ function ApiKeysSection() {
   // REST keys only; calendar links live in their own section.
   const apiKeys = keys.data?.items.filter((k) => k.scopes.includes('api')) ?? [];
   const [name, setName] = useState('');
+  const [expiresAt, setExpiresAt] = useState('');
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null);
 
   const create = useMutation({
-    mutationFn: () => apiClient.apiKeys.create({ name: name.trim(), scopes: ['api'] }),
+    mutationFn: () =>
+      apiClient.apiKeys.create({
+        name: name.trim(),
+        scopes: ['api'],
+        expiresAt: parseExpiry(expiresAt),
+      }),
     onSuccess: (res) => {
       setCreated({ name: res.name, token: res.token });
       setName('');
+      setExpiresAt('');
       qc.invalidateQueries({ queryKey: ['api-keys'] });
     },
   });
@@ -320,6 +361,7 @@ function ApiKeysSection() {
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="např. Zapier" />
           </Field>
         </div>
+        <ExpiryField value={expiresAt} onChange={setExpiresAt} />
         <Button type="submit" disabled={create.isPending || !name.trim()}>
           {create.isPending ? 'Vytvářím…' : 'Vytvořit klíč'}
         </Button>
