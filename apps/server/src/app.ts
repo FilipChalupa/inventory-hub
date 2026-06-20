@@ -54,7 +54,16 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   const app = new Hono<AppContext>();
   const emailSender = deps.emailSender ?? createEmailSender(deps.env);
 
-  app.use('*', logger());
+  // The calendar feed carries its API key as `?token=…` (calendar clients
+  // can't send headers), and hono's logger prints the full request path. Redact
+  // the token so it never lands in access logs. Bearer keys live in headers,
+  // which aren't logged.
+  app.use(
+    '*',
+    logger((message, ...rest) =>
+      console.log(message.replace(/([?&]token=)[^&\s]+/gi, '$1[redacted]'), ...rest),
+    ),
+  );
   app.use('*', cors({ origin: deps.env.PUBLIC_APP_URL, credentials: true }));
   // CSRF: rejects state-changing requests whose Origin/Sec-Fetch-Site
   // doesn't match our public URL. Cookies are SameSite=Lax which already
