@@ -1,8 +1,7 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq } from 'drizzle-orm';
-import { z } from 'zod';
-import { ASSET_STATUSES, damageSeverities } from '@inventory-hub/shared';
+import { type ImportPayload, importPayloadSchema } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import type { Db } from '../db/client.js';
 import {
@@ -19,92 +18,18 @@ import { storeRemoteFile } from '../lib/uploads.js';
 
 /**
  * Generic bulk import in the Inventory Hub's own vocabulary — not tied to any
- * source system. Entities cross-reference each other by caller-provided
- * natural keys (`key` for types/locations, `code` for assets), and the
- * endpoint assigns real ids. Unlike the granular REST API it accepts explicit
- * `status` / `createdAt` / `archivedAt`, so historical data migrates
- * faithfully. Admin-only; idempotent on re-run (assets by code, types by code
- * prefix / name, locations by name).
+ * source system. The payload shape lives in `@inventory-hub/shared`
+ * (`importPayloadSchema`) so the route validation and the OpenAPI docs can't
+ * drift. Entities cross-reference each other by caller-provided natural keys
+ * (`key` for types/locations, `code` for assets), and the endpoint assigns
+ * real ids. Unlike the granular REST API it accepts explicit `status` /
+ * `createdAt` / `archivedAt`, so historical data migrates faithfully.
+ * Admin-only; idempotent on re-run (assets by code, types by code prefix /
+ * name, locations by name).
  *
  * A source-specific adapter (e.g. the Kilomayo export in the monorepo) is
  * responsible for mapping its data into this format.
  */
-
-const customFieldDef = z.object({
-  key: z.string().min(1),
-  label: z.string().min(1),
-  type: z.enum(['text', 'number', 'date', 'boolean', 'select']),
-  required: z.boolean().optional(),
-  options: z.array(z.string()).optional(),
-});
-
-const importType = z.object({
-  key: z.string().min(1),
-  name: z.string().min(1),
-  codePrefix: z.string().min(1),
-  customFieldsSchema: z.array(customFieldDef).optional(),
-});
-
-const importLocation = z.object({
-  key: z.string().min(1),
-  name: z.string().min(1),
-  parentKey: z.string().nullish(),
-});
-
-const importAsset = z.object({
-  code: z.string().min(1),
-  name: z.string().min(1),
-  typeKey: z.string().nullish(),
-  locationKey: z.string().nullish(),
-  status: z.enum(ASSET_STATUSES).optional(),
-  archivedAt: z.coerce.date().nullish(),
-  createdAt: z.coerce.date().nullish(),
-  customFields: z.record(z.string(), z.unknown()).optional(),
-  notes: z.string().nullish(),
-  externalIds: z.array(z.object({ kind: z.string().min(1), value: z.string().min(1) })).optional(),
-  photoUrls: z.array(z.string().url()).optional(),
-});
-
-const importLoan = z.object({
-  borrowerName: z.string().min(1),
-  borrowerContact: z.string().nullish(),
-  purpose: z.string().nullish(),
-  loanedAt: z.coerce.date().optional(),
-  startedAt: z.coerce.date().nullish(),
-  expectedReturnAt: z.coerce.date().nullish(),
-  createdAt: z.coerce.date().optional(),
-  items: z
-    .array(
-      z.object({
-        assetCode: z.string().min(1),
-        returnedAt: z.coerce.date().nullish(),
-        returnCondition: z.enum(['ok', 'damaged']).nullish(),
-        returnNotes: z.string().nullish(),
-      }),
-    )
-    .min(1),
-});
-
-const importDamage = z.object({
-  assetCode: z.string().min(1),
-  occurredAt: z.coerce.date(),
-  reportedAt: z.coerce.date().optional(),
-  description: z.string().min(1),
-  severity: z.enum(damageSeverities),
-  resolvedAt: z.coerce.date().nullish(),
-  photoUrls: z.array(z.string().url()).optional(),
-});
-
-const importBody = z.object({
-  version: z.literal(1),
-  assetTypes: z.array(importType).default([]),
-  locations: z.array(importLocation).default([]),
-  assets: z.array(importAsset).default([]),
-  loans: z.array(importLoan).default([]),
-  damages: z.array(importDamage).default([]),
-});
-
-type ImportBody = z.infer<typeof importBody>;
 
 type StructuredResult = {
   typeIdByKey: Map<string, string>;
@@ -123,7 +48,7 @@ type StructuredResult = {
   };
 };
 
-function importStructured(db: Db, body: ImportBody, actorUserId: string): StructuredResult {
+function importStructured(db: Db, body: ImportPayload, actorUserId: string): StructuredResult {
   const typeIdByCodePrefix = new Map<string, string>();
   const typeIdByName = new Map<string, string>();
   for (const t of db.select().from(assetTypes).all()) {
@@ -323,7 +248,7 @@ function importStructured(db: Db, body: ImportBody, actorUserId: string): Struct
 
 export const importRoutes = new Hono<AppContext>().post(
   '/',
-  zValidator('json', importBody),
+  zValidator('json', importPayloadSchema),
   async (c) => {
     const user = c.get('user')!;
     if (user.role !== 'admin') {

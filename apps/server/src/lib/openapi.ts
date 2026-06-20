@@ -18,6 +18,8 @@ import {
   addLoanItemsInput,
   returnLoanItemInput,
   createApiKeyInput,
+  importPayloadSchema,
+  importResultSchema,
 } from '@inventory-hub/shared';
 
 /** Directory of the bundled Swagger UI static assets. */
@@ -75,9 +77,29 @@ export function openApiDocument() {
         // The route omits loanItemId (it's in the URL path).
         ReturnLoanItem: j(returnLoanItemInput.omit({ loanItemId: true })),
         CreateApiKey: j(createApiKeyInput),
+        ImportPayload: j(importPayloadSchema),
+        ImportResult: j(importResultSchema),
       },
     },
     paths: {
+      '/api/import': {
+        post: {
+          summary: 'Bulk import (generic, source-agnostic)',
+          description:
+            'Admin-only. Imports types, locations, assets, loans and damage ' +
+            'reports in one call, cross-referenced by caller-provided keys ' +
+            '(`key` for types/locations, `code` for assets). Accepts explicit ' +
+            '`status`/`createdAt`/`archivedAt` and downloads any `photoUrls` ' +
+            'into storage. Idempotent: re-running skips assets whose code ' +
+            'already exists, and reuses types by code prefix/name and ' +
+            'locations by name.',
+          requestBody: jsonBody(ref('ImportPayload')),
+          responses: {
+            200: ok('Import summary (counts per entity)', ref('ImportResult')),
+            403: ok('Caller is not an admin', ref('Error')),
+          },
+        },
+      },
       '/api/assets': {
         get: {
           summary: 'List assets',
@@ -126,14 +148,22 @@ export function openApiDocument() {
         get: {
           summary: 'List loans (paginated)',
           parameters: [
-            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Borrower name contains' },
+            {
+              name: 'q',
+              in: 'query',
+              schema: { type: 'string' },
+              description: 'Borrower name contains',
+            },
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 100, maximum: 200 } },
             { name: 'offset', in: 'query', schema: { type: 'integer', default: 0 } },
           ],
           responses: {
             200: ok('Loans', {
               type: 'object',
-              properties: { items: { type: 'array', items: ref('Loan') }, total: { type: 'integer' } },
+              properties: {
+                items: { type: 'array', items: ref('Loan') },
+                total: { type: 'integer' },
+              },
             }),
           },
         },
@@ -168,7 +198,12 @@ export function openApiDocument() {
         get: {
           summary: 'Per-asset availability for the calendar (paginated)',
           parameters: [
-            { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Code/name contains' },
+            {
+              name: 'q',
+              in: 'query',
+              schema: { type: 'string' },
+              description: 'Code/name contains',
+            },
             {
               name: 'freeFrom',
               in: 'query',
@@ -274,11 +309,16 @@ export function openApiDocument() {
           requestBody: {
             content: {
               'application/json': {
-                schema: { type: 'object', properties: { returnedAt: { type: 'string', format: 'date-time' } } },
+                schema: {
+                  type: 'object',
+                  properties: { returnedAt: { type: 'string', format: 'date-time' } },
+                },
               },
             },
           },
-          responses: { 200: ok('Returned', { type: 'object', properties: { returned: { type: 'integer' } } }) },
+          responses: {
+            200: ok('Returned', { type: 'object', properties: { returned: { type: 'integer' } } }),
+          },
         },
       },
       '/api/loans/{id}/items': {
@@ -321,7 +361,11 @@ export function openApiDocument() {
           responses: {
             201: ok('Created', {
               type: 'object',
-              properties: { id: { type: 'string' }, token: { type: 'string' }, prefix: { type: 'string' } },
+              properties: {
+                id: { type: 'string' },
+                token: { type: 'string' },
+                prefix: { type: 'string' },
+              },
             }),
           },
         },
