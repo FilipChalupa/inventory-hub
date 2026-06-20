@@ -44,6 +44,12 @@ export const feedRoutes = new Hono<AppContext>().get('/loans.ics', (c) => {
   const user = db.select().from(users).where(eq(users.id, key.userId)).get();
   if (!user || user.disabledAt) return c.json({ error: { message: 'Neplatný token' } }, 401);
 
+  // Throttled last-used stamp so a calendar client polling every few minutes
+  // doesn't write on every fetch — mirrors the Bearer path in auth.ts.
+  if (!key.lastUsedAt || now.getTime() - key.lastUsedAt.getTime() > 60_000) {
+    db.update(apiKeys).set({ lastUsedAt: now }).where(eq(apiKeys.id, key.id)).run();
+  }
+
   const allLoans = db.select().from(loans).all();
   const allItems = db.select().from(loanItems).all();
   const itemsByLoan = new Map<string, typeof allItems>();

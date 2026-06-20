@@ -86,6 +86,12 @@ describe('API keys', () => {
     expect(feed.status).toBe(200);
     expect(feed.headers.get('content-type')).toMatch(/text\/calendar/);
 
+    // Reading the feed stamps last-used, so the UI doesn't show it as unused.
+    const list = await server.authRequest('/api/api-keys', { cookie: adminCookie });
+    const calRow = ((await list.json()) as { items: { name: string; lastUsedAt: string | null }[] })
+      .items.find((k) => k.name === 'Kalendář')!;
+    expect(calRow.lastUsedAt).not.toBeNull();
+
     // An api-only key is the mirror image: REST works, the feed is forbidden.
     const apiRes = await jsonPost(server, adminCookie, '/api/api-keys', {
       name: 'Skript',
