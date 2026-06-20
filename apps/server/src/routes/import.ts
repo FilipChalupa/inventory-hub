@@ -1,7 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { and, eq } from 'drizzle-orm';
-import { type ImportPayload, importPayloadSchema } from '@inventory-hub/shared';
+import {
+  type ImportPayload,
+  type UnresolvedReference,
+  importPayloadSchema,
+} from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import type { Db } from '../db/client.js';
 import {
@@ -44,6 +48,7 @@ type StructuredResult = {
   /** Assets actually inserted this run → eligible for photo download. */
   insertedAssetIdByCode: Map<string, string>;
   damageIdByAssetCode: Map<string, string>;
+  unresolvedReferences: UnresolvedReference[];
   counts: {
     types: number;
     locations: number;
@@ -83,6 +88,7 @@ function importStructured(
   const assetIdByCode = new Map<string, string>();
   const insertedAssetIdByCode = new Map<string, string>();
   const damageIdByAssetCode = new Map<string, string>();
+  const unresolvedReferences: UnresolvedReference[] = [];
   const counts = { types: 0, locations: 0, assets: 0, skippedAssets: 0, loans: 0, damages: 0 };
 
   const locationDefByKey = new Map(body.locations.map((l) => [l.key, l]));
@@ -152,7 +158,17 @@ function importStructured(
         }
         existingCodes.add(code);
         const typeId = a.typeKey ? typeIdByKey.get(a.typeKey) ?? null : null;
+        if (a.typeKey && !typeId) {
+          unresolvedReferences.push({ kind: 'type', value: a.typeKey, context: `asset ${code}` });
+        }
         const locationId = a.locationKey ? locationIdByKey.get(a.locationKey) ?? null : null;
+        if (a.locationKey && !locationId) {
+          unresolvedReferences.push({
+            kind: 'location',
+            value: a.locationKey,
+            context: `asset ${code}`,
+          });
+        }
         const id = crypto.randomUUID();
         tx.insert(assets)
           .values({
@@ -212,7 +228,14 @@ function importStructured(
           .run();
         for (const item of loan.items) {
           const assetId = assetIdByCode.get(item.assetCode.toUpperCase());
-          if (!assetId) continue;
+          if (!assetId) {
+            unresolvedReferences.push({
+              kind: 'asset',
+              value: item.assetCode,
+              context: `loan ${loan.borrowerName}`,
+            });
+            continue;
+          }
           tx.insert(loanItems)
             .values({
               id: crypto.randomUUID(),
@@ -230,7 +253,14 @@ function importStructured(
       // Damage reports.
       for (const d of body.damages) {
         const assetId = assetIdByCode.get(d.assetCode.toUpperCase());
-        if (!assetId) continue;
+        if (!assetId) {
+          unresolvedReferences.push({
+            kind: 'asset',
+            value: d.assetCode,
+            context: `damage ${d.assetCode}`,
+          });
+          continue;
+        }
         const id = crypto.randomUUID();
         tx.insert(damageReports)
           .values({
@@ -263,6 +293,7 @@ function importStructured(
     assetIdByCode,
     insertedAssetIdByCode,
     damageIdByAssetCode,
+    unresolvedReferences,
     counts,
   };
 }
@@ -283,7 +314,14 @@ export const importRoutes = new Hono<AppContext>().post(
     const result = importStructured(db, body, user.id, dryRun);
 
     if (dryRun) {
-      return c.json({ ok: true, dryRun: true, ...result.counts, photos: 0, photoFailures: [] });
+      return c.json({
+        ok: true,
+        dryRun: true,
+        ...result.counts,
+        photos: 0,
+        photoFailures: [],
+        unresolvedReferences: result.unresolvedReferences,
+      });
     }
 
     // Photo pass — download every `photoUrls` entry across all inserted assets
@@ -352,6 +390,13 @@ export const importRoutes = new Hono<AppContext>().post(
       photos += paths.length;
     }
 
-    return c.json({ ok: true, dryRun: false, ...result.counts, photos, photoFailures });
+    return c.json({
+      ok: true,
+      dryRun: false,
+      ...result.counts,
+      photos,
+      photoFailures,
+      unresolvedReferences: result.unresolvedReferences,
+    });
   },
 );

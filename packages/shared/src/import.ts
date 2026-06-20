@@ -83,6 +83,20 @@ export const importPayloadSchema = z.object({
 });
 export type ImportPayload = z.infer<typeof importPayloadSchema>;
 
+/**
+ * A cross-reference in the payload that pointed at something that didn't
+ * exist — a `typeKey`/`locationKey` not among the payload's types/locations,
+ * or an `assetCode` (on a loan item or damage) with no matching asset. The row
+ * is skipped rather than failing the whole import; reporting it surfaces
+ * adapter mapping bugs, especially under `dryRun`.
+ */
+export const unresolvedReferenceSchema = z.object({
+  kind: z.enum(['type', 'location', 'asset']),
+  value: z.string(),
+  context: z.string(),
+});
+export type UnresolvedReference = z.infer<typeof unresolvedReferenceSchema>;
+
 export const importResultSchema = z.object({
   ok: z.literal(true),
   // When true the payload was validated and counted but nothing was written.
@@ -96,5 +110,7 @@ export const importResultSchema = z.object({
   photos: z.number().int(),
   // photoUrls that could not be downloaded (reported, never fatal).
   photoFailures: z.array(z.string()),
+  // Dangling cross-references that were skipped (reported, never fatal).
+  unresolvedReferences: z.array(unresolvedReferenceSchema),
 });
 export type ImportResult = z.infer<typeof importResultSchema>;

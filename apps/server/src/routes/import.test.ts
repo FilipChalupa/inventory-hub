@@ -154,6 +154,40 @@ describe('import API', () => {
     expect(asset.photoPaths).toEqual(['2024/01/abc.jpg']);
   });
 
+  it('reports dangling references instead of silently dropping rows', async () => {
+    const res = await server.authRequest('/api/import?dryRun=true', {
+      cookie: adminCookie,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        version: 1,
+        assets: [{ code: 'A-1', name: 'A', typeKey: 'ghost-type', locationKey: 'ghost-loc' }],
+        loans: [
+          { borrowerName: 'Eva', items: [{ assetCode: 'A-1' }, { assetCode: 'DOES-NOT-EXIST' }] },
+        ],
+        damages: [
+          {
+            assetCode: 'NOPE',
+            occurredAt: '2024-01-01T00:00:00Z',
+            description: 'x',
+            severity: 'minor',
+          },
+        ],
+      }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { unresolvedReferences: { kind: string; value: string }[] };
+    const refs = body.unresolvedReferences;
+    expect(refs).toContainEqual(expect.objectContaining({ kind: 'type', value: 'ghost-type' }));
+    expect(refs).toContainEqual(expect.objectContaining({ kind: 'location', value: 'ghost-loc' }));
+    expect(refs).toContainEqual(
+      expect.objectContaining({ kind: 'asset', value: 'DOES-NOT-EXIST' }),
+    );
+    expect(refs).toContainEqual(expect.objectContaining({ kind: 'asset', value: 'NOPE' }));
+    // A-1 resolves (it's in the payload), so it must NOT be flagged.
+    expect(refs.find((r) => r.value === 'A-1')).toBeUndefined();
+  });
+
   it('round-trips through the full JSON export into a fresh instance', async () => {
     await postImport(server, adminCookie, sampleBody);
 
