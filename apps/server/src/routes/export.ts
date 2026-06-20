@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { asc, eq } from 'drizzle-orm';
 import type { AppContext } from '../app.js';
 import {
+  assetExternalIds,
   assetTypes,
   assets,
   contacts,
@@ -132,9 +133,129 @@ export const exportRoutes = new Hono<AppContext>()
       { key: 'createdAt', header: 'Vytvořeno' },
     ]);
     return csvResponse(`contacts-${todayStamp()}.csv`, csv);
+  })
+  // Full machine-readable dump in the generic import format (`POST /api/import`
+  // accepts exactly this shape). Enables hub→hub migration, backup/restore and
+  // round-trip testing. Media is referenced by `photoPaths`; copy UPLOAD_DIR
+  // alongside the JSON when restoring to another instance. Admin-only.
+  .get('/full.json', (c) => {
+    const user = c.get('user')!;
+    if (user.role !== 'admin') {
+      return c.json({ error: { message: 'Pouze admin může exportovat plný dump' } }, 403);
+    }
+    const db = c.get('db');
+
+    const extByAsset = new Map<string, { kind: string; value: string }[]>();
+    for (const e of db.select().from(assetExternalIds).all()) {
+      const list = extByAsset.get(e.assetId) ?? [];
+      list.push({ kind: e.kind, value: e.value });
+      extByAsset.set(e.assetId, list);
+    }
+
+    const itemsByLoan = new Map<
+      string,
+      {
+        assetCode: string;
+        returnedAt: Date | null;
+        returnCondition: 'ok' | 'damaged' | null;
+        returnNotes: string | null;
+      }[]
+    >();
+    for (const it of db
+      .select({
+        loanId: loanItems.loanId,
+        assetCode: assets.code,
+        returnedAt: loanItems.returnedAt,
+        returnCondition: loanItems.returnCondition,
+        returnNotes: loanItems.returnNotes,
+      })
+      .from(loanItems)
+      .innerJoin(assets, eq(assets.id, loanItems.assetId))
+      .all()) {
+      const list = itemsByLoan.get(it.loanId) ?? [];
+      list.push({
+        assetCode: it.assetCode,
+        returnedAt: it.returnedAt,
+        returnCondition: it.returnCondition,
+        returnNotes: it.returnNotes,
+      });
+      itemsByLoan.set(it.loanId, list);
+    }
+
+    const payload = {
+      version: 1 as const,
+      assetTypes: db
+        .select()
+        .from(assetTypes)
+        .all()
+        .map((t) => ({
+          key: t.id,
+          name: t.name,
+          codePrefix: t.codePrefix,
+          customFieldsSchema: t.customFieldsSchema,
+        })),
+      locations: db
+        .select()
+        .from(locations)
+        .all()
+        .map((l) => ({ key: l.id, name: l.name, parentKey: l.parentId })),
+      assets: db
+        .select()
+        .from(assets)
+        .orderBy(asc(assets.code))
+        .all()
+        .map((a) => ({
+          code: a.code,
+          name: a.name,
+          typeKey: a.typeId,
+          locationKey: a.locationId,
+          status: a.status,
+          archivedAt: a.archivedAt,
+          createdAt: a.createdAt,
+          customFields: a.customFields,
+          notes: a.notes,
+          photoPaths: a.photoPaths,
+          externalIds: extByAsset.get(a.id) ?? [],
+        })),
+      loans: db
+        .select()
+        .from(loans)
+        .all()
+        .map((l) => ({
+          borrowerName: l.borrowerName,
+          borrowerContact: l.borrowerContact,
+          purpose: l.purpose,
+          loanedAt: l.loanedAt,
+          startedAt: l.startedAt,
+          expectedReturnAt: l.expectedReturnAt,
+          createdAt: l.createdAt,
+          items: itemsByLoan.get(l.id) ?? [],
+        }))
+        // A loan with no items can't be re-imported (items is required min 1).
+        .filter((l) => l.items.length > 0),
+      damages: db
+        .select({
+          assetCode: assets.code,
+          occurredAt: damageReports.occurredAt,
+          reportedAt: damageReports.reportedAt,
+          description: damageReports.description,
+          severity: damageReports.severity,
+          resolvedAt: damageReports.resolvedAt,
+          photoPaths: damageReports.photoPaths,
+        })
+        .from(damageReports)
+        .innerJoin(assets, eq(assets.id, damageReports.assetId))
+        .orderBy(asc(damageReports.occurredAt))
+        .all(),
+    };
+
+    c.header('Content-Disposition', `attachment; filename="inventory-hub-${todayStamp()}.json"`);
+    return c.json(payload);
   });
 
 function todayStamp(): string {
   const d = new Date();
-  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(d.getUTCDate()).padStart(2, '0')}`;
+  return `${d.getUTCFullYear()}${String(d.getUTCMonth() + 1).padStart(2, '0')}${String(
+    d.getUTCDate(),
+  ).padStart(2, '0')}`;
 }

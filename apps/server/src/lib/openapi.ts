@@ -135,6 +135,14 @@ export function openApiDocument() {
             'into storage. Idempotent: re-running skips assets whose code ' +
             'already exists, and reuses types by code prefix/name and ' +
             'locations by name.',
+          parameters: [
+            {
+              name: 'dryRun',
+              in: 'query',
+              schema: { type: 'boolean' },
+              description: 'Validate and count only — roll everything back, write nothing.',
+            },
+          ],
           requestBody: jsonBody(ref('ImportPayload')),
           responses: {
             200: ok('Import summary (counts per entity)', ref('ImportResult')),
@@ -595,6 +603,20 @@ export function openApiDocument() {
       },
       '/api/export/contacts.csv': {
         get: { summary: 'Export all contacts as CSV', responses: { 200: ok('CSV file') } },
+      },
+      '/api/export/full.json': {
+        get: {
+          summary: 'Full data dump in the import format (admin)',
+          description:
+            'Everything (types, locations, assets, loans, damages) in the exact ' +
+            'shape `POST /api/import` accepts — for hub→hub migration, backup ' +
+            'and round-trip. Media is referenced by `photoPaths`; copy the ' +
+            'upload directory alongside the JSON when restoring elsewhere.',
+          responses: {
+            200: ok('Import-shaped dump', ref('ImportPayload')),
+            403: ok('Caller is not an admin', ref('Error')),
+          },
+        },
       },
       '/api/api-keys': {
         get: { summary: 'List API keys (admin)', responses: { 200: ok('Keys (no token)') } },

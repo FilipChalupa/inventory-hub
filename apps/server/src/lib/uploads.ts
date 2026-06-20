@@ -53,16 +53,49 @@ export async function saveUploadBuffer(
  * Downloads a remote image/document URL into UPLOAD_DIR and returns the stored
  * relative path, or null on any failure (never throws). Size-capped by
  * UPLOAD_MAX_BYTES. Used by the bulk import to pull source-system media.
+ *
+ * Transient failures (network error, non-2xx) are retried up to `retries`
+ * times; a deterministic failure (unsupported type, too large) returns null
+ * immediately without burning retries.
  */
-export async function storeRemoteFile(env: Env, url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const mime = (res.headers.get('content-type') ?? '').split(';')[0]!.trim();
-    const buffer = Buffer.from(await res.arrayBuffer());
-    if (buffer.byteLength > env.UPLOAD_MAX_BYTES) return null;
-    return await saveUploadBuffer(env, buffer, mime);
-  } catch {
-    return null;
+export async function storeRemoteFile(env: Env, url: string, retries = 1): Promise<string | null> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) {
+        if (attempt < retries) continue;
+        return null;
+      }
+      const mime = (res.headers.get('content-type') ?? '').split(';')[0]!.trim();
+      const buffer = Buffer.from(await res.arrayBuffer());
+      // Deterministic outcomes — don't retry.
+      if (buffer.byteLength > env.UPLOAD_MAX_BYTES) return null;
+      return await saveUploadBuffer(env, buffer, mime);
+    } catch {
+      if (attempt < retries) continue;
+      return null;
+    }
   }
+}
+
+/**
+ * Runs `fn` over `items` with at most `limit` in flight at once, preserving
+ * input order in the result. Never rejects on a single failure — `fn` is
+ * expected to resolve (e.g. to null) rather than throw.
+ */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async (): Promise<void> => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await fn(items[index]!, index);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
 }

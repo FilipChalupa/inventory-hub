@@ -35,7 +35,11 @@ export const importAssetSchema = z.object({
   customFields: z.record(z.string(), z.unknown()).optional(),
   notes: z.string().nullish(),
   externalIds: z.array(z.object({ kind: z.string().min(1), value: z.string().min(1) })).optional(),
+  // Remote URLs the server downloads into storage…
   photoUrls: z.array(z.string().url()).optional(),
+  // …or relative paths already present in UPLOAD_DIR (used by the symmetric
+  // JSON export for hub→hub restore, where the upload dir is copied alongside).
+  photoPaths: z.array(z.string()).optional(),
 });
 
 export const importLoanSchema = z.object({
@@ -66,6 +70,7 @@ export const importDamageSchema = z.object({
   severity: z.enum(damageSeverities),
   resolvedAt: z.coerce.date().nullish(),
   photoUrls: z.array(z.string().url()).optional(),
+  photoPaths: z.array(z.string()).optional(),
 });
 
 export const importPayloadSchema = z.object({
@@ -80,6 +85,8 @@ export type ImportPayload = z.infer<typeof importPayloadSchema>;
 
 export const importResultSchema = z.object({
   ok: z.literal(true),
+  // When true the payload was validated and counted but nothing was written.
+  dryRun: z.boolean(),
   types: z.number().int(),
   locations: z.number().int(),
   assets: z.number().int(),
@@ -87,5 +94,7 @@ export const importResultSchema = z.object({
   loans: z.number().int(),
   damages: z.number().int(),
   photos: z.number().int(),
+  // photoUrls that could not be downloaded (reported, never fatal).
+  photoFailures: z.array(z.string()),
 });
 export type ImportResult = z.infer<typeof importResultSchema>;

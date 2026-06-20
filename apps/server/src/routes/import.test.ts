@@ -126,4 +126,64 @@ describe('import API', () => {
     const res = await postImport(server, memberCookie, { version: 1, assets: [] });
     expect(res.status).toBe(403);
   });
+
+  it('dryRun validates and counts but writes nothing', async () => {
+    const res = await server.authRequest('/api/import?dryRun=true', {
+      cookie: adminCookie,
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(sampleBody),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as Record<string, unknown>;
+    expect(body.dryRun).toBe(true);
+    expect(body.assets).toBe(2);
+    expect(body.loans).toBe(1);
+    // Nothing persisted.
+    expect(server.db.select().from(assets).all()).toHaveLength(0);
+    expect(server.db.select().from(loans).all()).toHaveLength(0);
+  });
+
+  it('stores already-uploaded photoPaths directly on the asset', async () => {
+    const res = await postImport(server, adminCookie, {
+      version: 1,
+      assets: [{ code: 'PIC-1', name: 'WithPhoto', photoPaths: ['2024/01/abc.jpg'] }],
+    });
+    expect(res.status).toBe(200);
+    const asset = server.db.select().from(assets).where(eq(assets.code, 'PIC-1')).get()!;
+    expect(asset.photoPaths).toEqual(['2024/01/abc.jpg']);
+  });
+
+  it('round-trips through the full JSON export into a fresh instance', async () => {
+    await postImport(server, adminCookie, sampleBody);
+
+    const exportRes = await server.authRequest('/api/export/full.json', {
+      cookie: adminCookie,
+      method: 'GET',
+    });
+    expect(exportRes.status).toBe(200);
+    const dump = await exportRes.json();
+
+    const fresh = setupTestServer();
+    try {
+      const freshAdmin = fresh.loginAs(fresh.createUser({ role: 'admin' }));
+      const importRes = await postImport(fresh, freshAdmin, dump);
+      expect(importRes.status).toBe(200);
+
+      // Same assets land in the fresh instance, with status/code preserved.
+      const codes = fresh.db
+        .select({ code: assets.code })
+        .from(assets)
+        .all()
+        .map((r) => r.code)
+        .sort();
+      expect(codes).toEqual(['NB-001', 'NB-002']);
+      const a1 = fresh.db.select().from(assets).where(eq(assets.code, 'NB-001')).get()!;
+      expect(a1.status).toBe('retired');
+      expect(fresh.db.select().from(loanItems).all()).toHaveLength(1);
+      expect(fresh.db.select().from(damageReports).all()).toHaveLength(1);
+    } finally {
+      fresh.close();
+    }
+  });
 });
