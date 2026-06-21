@@ -6,6 +6,7 @@ import { apiClient, type LoanEventRow, type LoanItemRow, type LoanRow } from '..
 import { Button, Card, Field, Input, Select, SkeletonList, Textarea, formatDate } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 
 export function LoanDetailPage() {
   const { id = '' } = useParams<{ id: string }>();
@@ -305,11 +306,12 @@ function AddLoanItems({
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
+  const debouncedSearch = useDebouncedValue(search);
 
   const avail = useQuery({
-    queryKey: ['loan-availability', { loanId, q: search, from, to }],
+    queryKey: ['loan-availability', { loanId, q: debouncedSearch, from, to }],
     queryFn: () =>
-      apiClient.loans.availability({ from, to: to ?? undefined, q: search || undefined }),
+      apiClient.loans.availability({ from, to: to ?? undefined, q: debouncedSearch || undefined }),
     enabled: open,
   });
 

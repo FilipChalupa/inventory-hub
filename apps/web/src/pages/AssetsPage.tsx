@@ -1,11 +1,12 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../lib/errors.js';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import type { AssetStatus } from '@inventory-hub/shared';
 import { Button, Card, Input, Select, SkeletonList, StatusBadge } from '../components/ui.js';
 import { locationPath } from '../lib/locations.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 
 const PAGE = 100;
 
@@ -15,12 +16,19 @@ export function AssetsPage() {
   const [includeArchived, setIncludeArchived] = useState(false);
   // Server-side paging so the list isn't silently capped; "load more" grows it.
   const [limit, setLimit] = useState(PAGE);
+  const dq = useDebouncedValue(q);
+
+  // Reset paging whenever the effective query changes, so a new search starts
+  // from the first page (and we don't refetch the old query at PAGE size first).
+  useEffect(() => {
+    setLimit(PAGE);
+  }, [dq, status, includeArchived]);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['assets', { q, status, includeArchived, limit }],
+    queryKey: ['assets', { q: dq, status, includeArchived, limit }],
     queryFn: () =>
       apiClient.assets.list({
-        q: q || undefined,
+        q: dq || undefined,
         status: status || undefined,
         includeArchived,
         limit,
@@ -62,19 +70,13 @@ export function AssetsPage() {
         <Input
           type="search"
           value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setLimit(PAGE);
-          }}
+          onChange={(e) => setQ(e.target.value)}
           placeholder="Hledat kód nebo název…"
           className="flex-1 min-w-[200px]"
         />
         <Select
           value={status}
-          onChange={(e) => {
-            setStatus(e.target.value as AssetStatus | '');
-            setLimit(PAGE);
-          }}
+          onChange={(e) => setStatus(e.target.value as AssetStatus | '')}
           className="w-48"
         >
           <option value="">Všechny stavy</option>
@@ -91,10 +93,7 @@ export function AssetsPage() {
           <input
             type="checkbox"
             checked={includeArchived}
-            onChange={(e) => {
-              setIncludeArchived(e.target.checked);
-              setLimit(PAGE);
-            }}
+            onChange={(e) => setIncludeArchived(e.target.checked)}
           />
           archivované
         </label>

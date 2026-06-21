@@ -6,13 +6,15 @@ import { apiClient, type ContactInput } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 
 export function ContactsPage() {
   const qc = useQueryClient();
   const [q, setQ] = useState('');
+  const dq = useDebouncedValue(q);
   const list = useQuery({
-    queryKey: ['contacts', q],
-    queryFn: () => apiClient.contacts.list(q || undefined),
+    queryKey: ['contacts', dq],
+    queryFn: () => apiClient.contacts.list(dq || undefined),
   });
 
   const { register, handleSubmit, reset, formState } = useForm<ContactInput>({

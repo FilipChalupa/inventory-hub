@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { apiClient, type LoanCalendarAsset } from '../lib/api.js';
 import { Button, Input } from '../components/ui.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { CalendarLegend } from '../components/AvailabilityCalendar.js';
 import {
   HATCH_STYLE,
@@ -58,11 +59,12 @@ export function CalendarPage() {
     return { from: from.toISOString(), to: to.toISOString() };
   }, [rangeFrom, rangeTo]);
 
+  const debouncedSearch = useDebouncedValue(search);
   const calendar = useQuery({
-    queryKey: ['loan-calendar', { search, freeRange, limit }],
+    queryKey: ['loan-calendar', { search: debouncedSearch, freeRange, limit }],
     queryFn: () =>
       apiClient.loans.calendar({
-        q: search.trim() || undefined,
+        q: debouncedSearch.trim() || undefined,
         freeFrom: freeRange?.from,
         freeTo: freeRange?.to,
         limit,

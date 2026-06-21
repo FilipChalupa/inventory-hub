@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type InventorySessionRow } from '../lib/api.js';
 import { Button, Card, Field, Input, SkeletonList, Textarea, formatDate } from '../components/ui.js';
 import { LocationSelect } from '../components/LocationSelect.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { locationPath } from '../lib/locations.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 
@@ -33,9 +34,10 @@ export function InventoryPage() {
     queryKey: ['asset-types'],
     queryFn: () => apiClient.assetTypes.list(),
   });
+  const debouncedAssetSearch = useDebouncedValue(assetSearch);
   const assetList = useQuery({
-    queryKey: ['assets', { q: assetSearch }],
-    queryFn: () => apiClient.assets.list({ q: assetSearch || undefined }),
+    queryKey: ['assets', { q: debouncedAssetSearch }],
+    queryFn: () => apiClient.assets.list({ q: debouncedAssetSearch || undefined }),
     enabled: creating,
   });
 

@@ -4,6 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient, type LoanRow } from '../lib/api.js';
 import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
 import { LoansCalendar } from '../components/LoansCalendar.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import clsx from 'clsx';
 
 const statusLabels = {
@@ -31,12 +32,13 @@ export function LoansPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [limit, setLimit] = useState(100);
+  const debouncedBorrower = useDebouncedValue(borrower);
 
   // Borrower search and paging are server-side (so the list isn't silently
   // capped); status/date/overdue refine the loaded page client-side.
   const list = useQuery({
-    queryKey: ['loans', { q: borrower, limit }],
-    queryFn: () => apiClient.loans.list({ q: borrower || undefined, limit }),
+    queryKey: ['loans', { q: debouncedBorrower, limit }],
+    queryFn: () => apiClient.loans.list({ q: debouncedBorrower || undefined, limit }),
     placeholderData: keepPreviousData,
     enabled: view === 'list',
   });

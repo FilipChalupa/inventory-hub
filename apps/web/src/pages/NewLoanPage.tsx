@@ -5,6 +5,7 @@ import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui.js';
+import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import clsx from 'clsx';
 
 type FormValues = {
@@ -43,11 +44,15 @@ export function NewLoanPage() {
   const loanedAtValue = watch('loanedAt');
   const expectedReturnValue = watch('expectedReturnAt');
 
+  const debouncedSearch = useDebouncedValue(search);
   const assets = useQuery({
-    queryKey: ['loan-availability', { q: search, from: loanedAtValue, to: expectedReturnValue }],
+    queryKey: [
+      'loan-availability',
+      { q: debouncedSearch, from: loanedAtValue, to: expectedReturnValue },
+    ],
     queryFn: () =>
       apiClient.loans.availability({
-        q: search || undefined,
+        q: debouncedSearch || undefined,
         from: loanedAtValue || undefined,
         to: expectedReturnValue || undefined,
       }),
