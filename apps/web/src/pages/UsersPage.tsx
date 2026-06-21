@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Select, formatDate } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
@@ -107,7 +108,7 @@ export function UsersPage() {
           })}
         </ul>
         {update.error && (
-          <p className="text-sm text-red-600 mt-2">{(update.error as Error).message}</p>
+          <p className="text-sm text-red-600 mt-2">{errorMessage(update.error)}</p>
         )}
       </Card>
     </section>

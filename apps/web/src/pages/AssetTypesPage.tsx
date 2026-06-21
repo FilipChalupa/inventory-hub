@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link } from 'react-router-dom';
@@ -74,7 +75,7 @@ export function AssetTypesPage() {
           </Button>
         </form>
         {create.error && (
-          <p className="text-sm text-red-600 mt-2">{(create.error as Error).message}</p>
+          <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>
         )}
       </Card>
 
@@ -161,7 +162,7 @@ function AssetTypeRow({
             </Button>
           </div>
           {save.error && (
-            <p className="text-xs text-red-600">{(save.error as Error).message}</p>
+            <p className="text-xs text-red-600">{errorMessage(save.error)}</p>
           )}
         </div>
       )}

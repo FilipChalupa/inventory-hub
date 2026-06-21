@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, type LoanEventRow, type LoanItemRow, type LoanRow } from '../lib/api.js';
@@ -31,7 +32,7 @@ export function LoanDetailPage() {
   });
 
   if (loan.isLoading) return <p className="text-slate-500">Načítám…</p>;
-  if (loan.error) return <p className="text-red-600">{(loan.error as Error).message}</p>;
+  if (loan.error) return <p className="text-red-600">{errorMessage(loan.error)}</p>;
   if (!loan.data) return null;
 
   const l = loan.data.loan;
@@ -84,7 +85,7 @@ export function LoanDetailPage() {
           </div>
         </div>
         {cancel.error && (
-          <p className="text-sm text-red-600 mt-1">{(cancel.error as Error).message}</p>
+          <p className="text-sm text-red-600 mt-1">{errorMessage(cancel.error)}</p>
         )}
         {l.borrowerContact && <p className="text-sm text-slate-600">{l.borrowerContact}</p>}
         {l.purpose && <p className="text-sm mt-2">Účel: {l.purpose}</p>}
@@ -190,7 +191,7 @@ function ReturnAllButton({
       </Button>
       {returnAll.error && (
         <p className="w-full text-right text-sm text-red-600">
-          {(returnAll.error as Error).message}
+          {errorMessage(returnAll.error)}
         </p>
       )}
     </div>
@@ -262,7 +263,7 @@ function EditLoanForm({
             Zrušit
           </Button>
         </div>
-        {save.error && <p className="text-sm text-red-600">{(save.error as Error).message}</p>}
+        {save.error && <p className="text-sm text-red-600">{errorMessage(save.error)}</p>}
       </div>
     </Card>
   );
@@ -282,7 +283,7 @@ function StartLoanBar({ loanId, onStarted }: { loanId: string; onStarted: () => 
         {start.isPending ? 'Zahajuji…' : 'Zahájit výpůjčku'}
       </Button>
       {start.error && (
-        <p className="text-sm text-red-600">{(start.error as Error).message}</p>
+        <p className="text-sm text-red-600">{errorMessage(start.error)}</p>
       )}
     </div>
   );
@@ -398,7 +399,7 @@ function AddLoanItems({
           Zrušit
         </Button>
       </div>
-      {add.error && <p className="text-sm text-red-600">{(add.error as Error).message}</p>}
+      {add.error && <p className="text-sm text-red-600">{errorMessage(add.error)}</p>}
     </div>
   );
 }
@@ -483,7 +484,7 @@ function LoanItemRowComp({
         )}
       </div>
       {remove.error && (
-        <p className="text-sm text-red-600 mt-1">{(remove.error as Error).message}</p>
+        <p className="text-sm text-red-600 mt-1">{errorMessage(remove.error)}</p>
       )}
 
       {open && (
@@ -514,7 +515,7 @@ function LoanItemRowComp({
             </Button>
           </div>
           {mutate.error && (
-            <p className="text-sm text-red-600">{(mutate.error as Error).message}</p>
+            <p className="text-sm text-red-600">{errorMessage(mutate.error)}</p>
           )}
         </div>
       )}

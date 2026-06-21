@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { useSearchParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
@@ -90,7 +91,7 @@ export function LabelsPage() {
             )}
           </div>
           {labels.error && (
-            <p className="text-sm text-red-600 mt-2">{(labels.error as Error).message}</p>
+            <p className="text-sm text-red-600 mt-2">{errorMessage(labels.error)}</p>
           )}
         </Card>
 
@@ -166,7 +167,7 @@ export function LabelsPage() {
               <span className="text-xs text-emerald-600">Uloženo pro celou organizaci.</span>
             )}
             {saveDefaults.error && (
-              <span className="text-xs text-red-600">{(saveDefaults.error as Error).message}</span>
+              <span className="text-xs text-red-600">{errorMessage(saveDefaults.error)}</span>
             )}
           </div>
         )}

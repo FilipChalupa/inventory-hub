@@ -2,6 +2,7 @@ import { type ReactNode, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
+import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { t } from './i18n/messages.js';
 import { AssetsPage } from './pages/AssetsPage.js';
 import { AssetDetailPage } from './pages/AssetDetailPage.js';
@@ -121,6 +122,9 @@ function Shell() {
       </header>
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-6">
+          {/* key on the path remounts the boundary on navigation, so a crashed
+              page doesn't keep showing its fallback after you move away. */}
+          <ErrorBoundary key={location.pathname}>
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/assets" element={<AssetsPage />} />
@@ -143,6 +147,7 @@ function Shell() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
           </Routes>
+          </ErrorBoundary>
         </div>
       </main>
     </div>

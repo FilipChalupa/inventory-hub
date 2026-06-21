@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { Link, useNavigate, useParams } from 'react-router-dom';
@@ -97,7 +98,7 @@ export function AssetDetailPage() {
   const [showEditForm, setShowEditForm] = useState(false);
 
   if (asset.isLoading) return <p className="text-slate-500">Načítám…</p>;
-  if (asset.error) return <p className="text-red-600">{(asset.error as Error).message}</p>;
+  if (asset.error) return <p className="text-red-600">{errorMessage(asset.error)}</p>;
   if (!asset.data) return null;
 
   const a = asset.data.asset;
@@ -483,7 +484,7 @@ function AssetDocumentsCard({
       }
       onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -496,7 +497,7 @@ function AssetDocumentsCard({
       await apiClient.assets.removeDocument(code, path);
       onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     }
   }
 
@@ -581,7 +582,7 @@ function ExternalIdsCard({
       setValue('');
       onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -594,7 +595,7 @@ function ExternalIdsCard({
       await apiClient.assets.removeExternalId(code, id);
       onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     }
   }
 
@@ -671,7 +672,7 @@ function AssetPhotosCard({
       }
       onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -683,7 +684,7 @@ function AssetPhotosCard({
       await apiClient.assets.removePhoto(code, path);
       onChanged();
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     }
   }
 
@@ -771,7 +772,7 @@ function EditAssetForm({
           try {
             await onSubmit({ ...v, customFields: customFieldValues });
           } catch (err) {
-            setSubmitError((err as Error).message);
+            setSubmitError(errorMessage(err));
           } finally {
             setSaving(false);
           }
@@ -890,7 +891,7 @@ function NewDamageForm({
         );
       }
     } catch (err) {
-      setUploadError((err as Error).message);
+      setUploadError(errorMessage(err));
     } finally {
       setUploading(false);
     }
@@ -910,7 +911,7 @@ function NewDamageForm({
               photoPaths: photos.map((p) => p.path),
             });
           } catch (err) {
-            setSubmitError((err as Error).message);
+            setSubmitError(errorMessage(err));
           } finally {
             setSaving(false);
           }

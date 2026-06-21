@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Card } from '../components/ui.js';
@@ -40,7 +41,7 @@ export function ScanPage() {
         setScanning(true);
       } catch (err) {
         setError(
-          (err as Error).message ||
+          errorMessage(err) ||
             'Kameru nelze otevřít — povol přístup nebo zadej kód ručně.',
         );
       }

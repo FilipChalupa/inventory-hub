@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { Link } from 'react-router-dom';
 import { apiClient, type LoanTodayBucket } from '../lib/api.js';
 import { Card, formatDate } from '../components/ui.js';
@@ -23,7 +24,7 @@ export function TodayPage() {
       </div>
 
       {today.isLoading && <p className="text-slate-500">Načítám…</p>}
-      {today.error && <p className="text-red-600">{(today.error as Error).message}</p>}
+      {today.error && <p className="text-red-600">{errorMessage(today.error)}</p>}
 
       {today.data && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
@@ -35,7 +36,7 @@ export function AcceptInvitePage() {
 
         {invite.isLoading && <p className="text-sm text-slate-500">Načítám pozvánku…</p>}
         {invite.error && (
-          <p className="text-sm text-red-600">{(invite.error as Error).message}</p>
+          <p className="text-sm text-red-600">{errorMessage(invite.error)}</p>
         )}
 
         {invite.data && (
@@ -55,7 +56,7 @@ export function AcceptInvitePage() {
                 <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jan Novák" />
               </Field>
               {accept.error && (
-                <p className="text-sm text-red-600">{(accept.error as Error).message}</p>
+                <p className="text-sm text-red-600">{errorMessage(accept.error)}</p>
               )}
               <Button type="submit" disabled={accept.isPending || !name.trim()} className="w-full">
                 {accept.isPending ? 'Vytvářím účet…' : 'Přijmout pozvánku'}

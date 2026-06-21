@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
@@ -159,7 +160,7 @@ export function CalendarPage() {
 
       {calendar.isLoading && <p className="text-slate-500">Načítám…</p>}
       {calendar.error && (
-        <p className="text-red-600">{(calendar.error as Error).message}</p>
+        <p className="text-red-600">{errorMessage(calendar.error)}</p>
       )}
 
       {calendar.data && rows.length === 0 && (

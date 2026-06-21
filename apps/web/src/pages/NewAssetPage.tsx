@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, Link } from 'react-router-dom';
@@ -111,7 +112,7 @@ export function NewAssetPage() {
         )}
 
         {create.error && (
-          <p className="text-sm text-red-600">{(create.error as Error).message}</p>
+          <p className="text-sm text-red-600">{errorMessage(create.error)}</p>
         )}
 
         <div className="flex gap-2">

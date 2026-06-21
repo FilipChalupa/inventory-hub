@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
@@ -148,7 +149,7 @@ export function LoansCalendar() {
       </div>
 
       {schedule.error && (
-        <p className="text-sm text-red-600 mb-2">{(schedule.error as Error).message}</p>
+        <p className="text-sm text-red-600 mb-2">{errorMessage(schedule.error)}</p>
       )}
 
       <div className="rounded border border-slate-200 dark:border-slate-700 overflow-hidden">

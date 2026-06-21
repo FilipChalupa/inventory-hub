@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient, type ImportPreviewRow, type ImportResult } from '../lib/api.js';
 import { Button, Card, Select } from '../components/ui.js';
@@ -72,7 +73,7 @@ export function ImportAssetsPage() {
       setPreview(res.preview);
       setHasErrors(res.hasErrors);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }
@@ -88,7 +89,7 @@ export function ImportAssetsPage() {
       setHasErrors(res.hasErrors);
       setCreatedCount(res.created);
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setBusy(false);
     }

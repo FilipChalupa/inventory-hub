@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient, type ContactInput } from '../lib/api.js';
@@ -76,7 +77,7 @@ export function ContactsPage() {
               {create.isPending ? 'Ukládám…' : 'Přidat kontakt'}
             </Button>
             {create.error && (
-              <span className="text-sm text-red-600 ml-3">{(create.error as Error).message}</span>
+              <span className="text-sm text-red-600 ml-3">{errorMessage(create.error)}</span>
             )}
           </div>
         </form>

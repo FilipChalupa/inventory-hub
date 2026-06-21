@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
@@ -22,7 +23,7 @@ export function LoginPage() {
       await qc.invalidateQueries({ queryKey: ['auth', 'me'] });
       navigate('/');
     } catch (err) {
-      setError((err as Error).message);
+      setError(errorMessage(err));
     } finally {
       setSubmitting(false);
     }

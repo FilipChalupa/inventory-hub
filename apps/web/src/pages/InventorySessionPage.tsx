@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { errorMessage } from '../lib/errors.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router-dom';
@@ -406,7 +407,7 @@ function ScanPanel({
           },
         );
       } catch (err) {
-        setError((err as Error).message || 'Kameru nelze otevřít.');
+        setError(errorMessage(err) || 'Kameru nelze otevřít.');
         setScanning(false);
       }
     };

@@ -9,6 +9,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from '@dnd-kit/core';
+import { errorMessage } from '../lib/errors.js';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -119,7 +120,7 @@ export function LocationsPage() {
           </Button>
         </form>
         {create.error && (
-          <p className="text-sm text-red-600 mt-2">{(create.error as Error).message}</p>
+          <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>
         )}
       </Card>
 

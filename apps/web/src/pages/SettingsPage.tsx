@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { errorMessage } from '../lib/errors.js';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { apiClient } from '../lib/api.js';
@@ -88,7 +89,7 @@ export function SettingsPage() {
           <AllowedDomainsEditor value={domains} onChange={setDomains} />
         </Card>
 
-        {save.error && <p className="text-sm text-red-600">{(save.error as Error).message}</p>}
+        {save.error && <p className="text-sm text-red-600">{errorMessage(save.error)}</p>}
         {save.isSuccess && !save.isPending && (
           <p className="text-sm text-emerald-600">Nastavení uloženo.</p>
         )}
@@ -259,7 +260,7 @@ function CalendarFeedSection() {
           {create.isPending ? 'Vytvářím…' : 'Vytvořit odkaz'}
         </Button>
       </form>
-      {create.error && <p className="text-sm text-red-600 mb-2">{(create.error as Error).message}</p>}
+      {create.error && <p className="text-sm text-red-600 mb-2">{errorMessage(create.error)}</p>}
 
       {links.length === 0 ? (
         <p className="text-sm text-slate-500">Zatím žádné kalendářové odkazy.</p>
@@ -373,7 +374,7 @@ function ApiKeysSection() {
           {create.isPending ? 'Vytvářím…' : 'Vytvořit klíč'}
         </Button>
       </form>
-      {create.error && <p className="text-sm text-red-600 mb-2">{(create.error as Error).message}</p>}
+      {create.error && <p className="text-sm text-red-600 mb-2">{errorMessage(create.error)}</p>}
 
       {apiKeys.length === 0 ? (
         <p className="text-sm text-slate-500">Zatím žádné klíče.</p>
@@ -536,7 +537,7 @@ function DemoDataSection() {
       )}
 
       {seed.error && (
-        <p className="text-sm text-red-600 mb-2">{(seed.error as Error).message}</p>
+        <p className="text-sm text-red-600 mb-2">{errorMessage(seed.error)}</p>
       )}
 
       <Button
@@ -612,7 +613,7 @@ function InvitationsSection() {
       </form>
 
       {create.error && (
-        <p className="text-sm text-red-600 mt-2">{(create.error as Error).message}</p>
+        <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>
       )}
 
       {lastUrl && (
