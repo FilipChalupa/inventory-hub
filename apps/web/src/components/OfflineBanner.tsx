@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useT } from '../i18n/index.js';
 
 /**
  * Sticky banner that surfaces the offline state to the user. We only show
@@ -7,6 +8,7 @@ import { useEffect, useState } from 'react';
  * still work from the service-worker cache.
  */
 export function OfflineBanner() {
+  const t = useT();
   const [online, setOnline] = useState<boolean>(() =>
     typeof navigator === 'undefined' ? true : navigator.onLine,
   );
@@ -25,8 +27,7 @@ export function OfflineBanner() {
   if (online) return null;
   return (
     <div className="bg-amber-100 text-amber-900 text-sm py-1 px-4 text-center border-b border-amber-200 dark:bg-amber-900/40 dark:text-amber-100 dark:border-amber-800 print:hidden">
-      Offline režim — uložené stránky a poslední data zůstanou dostupné, ale
-      změny (vytvořit / upravit / vrátit) se uloží až po obnovení připojení.
+      {t.components.offlineMessage}
     </div>
   );
 }

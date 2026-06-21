@@ -21,10 +21,12 @@ import { toast } from '../components/Toast.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath, locationsAsTree } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
+import { useT } from '../i18n/index.js';
 
 const ROOT_DROP_ID = '__root__';
 
 export function LocationsPage() {
+  const t = useT();
   const qc = useQueryClient();
   const list = useQuery({
     queryKey: ['locations'],
@@ -83,40 +85,40 @@ export function LocationsPage() {
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Lokace</h1>
+        <h1 className="text-2xl font-bold">{t.locations.title}</h1>
         <Link
           to="/assets/import?kind=locations"
           className="text-sm text-blue-600 hover:underline"
         >
-          Import CSV
+          {t.locations.importCsv}
         </Link>
       </div>
 
       <Card>
-        <h2 className="font-semibold mb-2">Nová lokace</h2>
+        <h2 className="font-semibold mb-2">{t.locations.newLocation}</h2>
         <form
           className="flex flex-wrap gap-2 items-end"
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
           <div className="flex-1 min-w-[200px]">
-            <Field label="Název" required error={formState.errors.name?.message}>
+            <Field label={t.locations.nameLabel} required error={formState.errors.name?.message}>
               <Input
-                {...register('name', { required: 'Název je povinný' })}
-                placeholder="Kancelář 4.NP"
+                {...register('name', { required: t.locations.nameRequired })}
+                placeholder={t.locations.namePlaceholder}
               />
             </Field>
           </div>
           <div className="flex-1 min-w-[200px]">
-            <Field label="Nadřazená">
+            <Field label={t.locations.parentLabel}>
               <LocationSelect
                 locations={list.data?.items ?? []}
-                placeholder="— žádná (kořenová) —"
+                placeholder={t.locations.parentPlaceholder}
                 {...register('parentId')}
               />
             </Field>
           </div>
           <Button type="submit" disabled={create.isPending}>
-            Přidat
+            {t.common.add}
           </Button>
         </form>
         {create.error && (
@@ -129,7 +131,7 @@ export function LocationsPage() {
           <RootDropZone />
           <ul className="divide-y divide-slate-200 dark:divide-slate-700">
             {tree.length === 0 && (
-              <li className="p-3 text-sm text-slate-500">Žádné lokace.</li>
+              <li className="p-3 text-sm text-slate-500">{t.locations.empty}</li>
             )}
             {tree.map(({ row, depth }) => (
               <LocationRowItem
@@ -140,14 +142,14 @@ export function LocationsPage() {
                 onDelete={async () => {
                   if (
                     await confirm({
-                      title: `Smazat lokaci „${row.name}"?`,
-                      message: 'Assety v lokaci zůstanou, jen ztratí přiřazení.',
-                      confirmLabel: 'Smazat',
+                      title: t.locations.deleteTitle(row.name),
+                      message: t.locations.deleteMessage,
+                      confirmLabel: t.common.delete,
                       danger: true,
                     })
                   ) {
                     remove.mutate(row.id, {
-                      onSuccess: () => toast.success('Lokace smazána'),
+                      onSuccess: () => toast.success(t.locations.deleted),
                     });
                   }
                 }}
@@ -164,14 +166,13 @@ export function LocationsPage() {
           ) : null}
         </DragOverlay>
       </DndContext>
-      <p className="text-xs text-slate-500 dark:text-slate-400">
-        Tip: lokaci přetáhneš pro změnu nadřazené, nebo použij dropdown. Backend hlídá cykly.
-      </p>
+      <p className="text-xs text-slate-500 dark:text-slate-400">{t.locations.tip}</p>
     </section>
   );
 }
 
 function RootDropZone() {
+  const t = useT();
   const { isOver, setNodeRef } = useDroppable({ id: ROOT_DROP_ID });
   return (
     <div
@@ -180,7 +181,7 @@ function RootDropZone() {
         isOver ? 'bg-emerald-50 dark:bg-emerald-900/30' : 'bg-slate-50 dark:bg-slate-900/40'
       }`}
     >
-      ⤴ pusť sem pro přesun do kořene
+      {t.locations.rootDrop}
     </div>
   );
 }
@@ -198,6 +199,7 @@ function LocationRowItem({
   onDelete: () => void;
   onReparent: (parentId: string | null) => void;
 }) {
+  const t = useT();
   const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: row.id,
   });
@@ -221,8 +223,8 @@ function LocationRowItem({
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing text-slate-400 hover:text-slate-600 px-1"
-        aria-label={`Přetáhnout ${row.name}`}
-        title="Přetáhnout"
+        aria-label={t.locations.dragLabel(row.name)}
+        title={t.locations.dragTitle}
       >
         ⋮⋮
       </button>
@@ -238,7 +240,7 @@ function LocationRowItem({
       <div className="flex items-center gap-2">
         <LocationSelect
           locations={allRows.filter((l) => l.id !== row.id)}
-          placeholder="— přesunout pod —"
+          placeholder={t.locations.moveUnderPlaceholder}
           value={row.parentId ?? ''}
           onChange={(e) => {
             const value = e.target.value;
@@ -248,7 +250,7 @@ function LocationRowItem({
           className="text-xs"
         />
         <Button variant="ghost" className="text-red-600 text-xs" onClick={onDelete}>
-          Smazat
+          {t.common.delete}
         </Button>
       </div>
     </li>

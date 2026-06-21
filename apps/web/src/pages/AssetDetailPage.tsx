@@ -28,6 +28,8 @@ import {
   type CustomFieldsSchema,
   type DamageSeverity,
 } from '@inventory-hub/shared';
+import { useT, getLocale } from '../i18n/index.js';
+import { localeTag } from '../i18n/util.js';
 
 /** Placeholder mirroring the detail layout while the asset query loads. */
 function AssetDetailSkeleton() {
@@ -49,6 +51,7 @@ function AssetDetailSkeleton() {
 }
 
 export function AssetDetailPage() {
+  const t = useT();
   const { code = '' } = useParams<{ code: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -128,7 +131,7 @@ export function AssetDetailPage() {
 
   const a = asset.data.asset;
   const isArchived = a.archivedAt !== null;
-  const assetType = types.data?.items.find((t) => t.id === a.typeId);
+  const assetType = types.data?.items.find((type) => type.id === a.typeId);
   const customSchema: CustomFieldsSchema = assetType?.customFieldsSchema ?? [];
 
   const blockReason = nonLoanableReason(a.status);
@@ -143,7 +146,7 @@ export function AssetDetailPage() {
   return (
     <article className="space-y-6">
       <Link to="/assets" className="text-sm text-slate-500 hover:underline">
-        ← zpět na seznam
+        {t.assetDetail.backToList}
       </Link>
 
       <div className="flex items-start justify-between gap-4">
@@ -152,23 +155,23 @@ export function AssetDetailPage() {
           <h1 className="text-2xl font-bold">{a.name}</h1>
           <div className="mt-2 flex items-center gap-2">
             <StatusBadge status={a.status} />
-            {isArchived && <span className="text-xs text-slate-500">archivováno</span>}
+            {isArchived && <span className="text-xs text-slate-500">{t.common.archived}</span>}
           </div>
         </div>
         <div className="flex flex-col items-end gap-2">
           <img
             src={apiClient.assets.qrUrl(a.code)}
-            alt={`QR ${a.code}`}
+            alt={t.assetDetail.qrAlt(a.code)}
             className="w-32 h-32 border rounded bg-white"
           />
           <Link to={`/labels?codes=${encodeURIComponent(a.code)}`} className="text-xs text-blue-600 hover:underline">
-            tisk štítku →
+            {t.assetDetail.printLabel}
           </Link>
         </div>
       </div>
 
       <Card>
-        <h2 className="font-semibold mb-2">Přiřazení uživateli</h2>
+        <h2 className="font-semibold mb-2">{t.assetDetail.assignmentHeading}</h2>
         {a.assignedToUserId ? (
           <div className="flex items-center justify-between gap-2">
             <p className="text-sm">
@@ -182,7 +185,7 @@ export function AssetDetailPage() {
                 invalidateAll();
               }}
             >
-              Odebrat přiřazení
+              {t.assetDetail.removeAssignment}
             </Button>
           </div>
         ) : (
@@ -199,7 +202,7 @@ export function AssetDetailPage() {
               disabled={isArchived || a.status === 'on_loan'}
             >
               <option value="" disabled>
-                — vybrat uživatele —
+                {t.assetDetail.selectUser}
               </option>
               {usersList.data?.items
                 .filter((u) => !u.disabledAt)
@@ -215,40 +218,40 @@ export function AssetDetailPage() {
 
       <div className="flex flex-wrap gap-2">
         <Button variant="secondary" onClick={() => setShowEditForm((v) => !v)}>
-          Upravit
+          {t.common.edit}
         </Button>
         <Button variant="secondary" onClick={() => setShowDamageForm((v) => !v)}>
-          Nahlásit poškození
+          {t.assetDetail.reportDamage}
         </Button>
         {!isArchived ? (
           <>
             {a.status === 'in_repair' ? (
               <Button variant="secondary" onClick={() => repairFinish.mutate()}>
-                Oprava dokončena
+                {t.assetDetail.repairFinish}
               </Button>
             ) : (
               <Button
                 variant="secondary"
                 onClick={() => repairStart.mutate()}
                 disabled={a.status === 'on_loan'}
-                title={a.status === 'on_loan' ? 'Asset je vypůjčen' : undefined}
+                title={a.status === 'on_loan' ? t.assetDetail.onLoanTitle : undefined}
               >
-                Poslat do opravy
+                {t.assetDetail.repairStart}
               </Button>
             )}
             <Button variant="danger" onClick={() => archive.mutate('sold')}>
-              Prodáno
+              {t.assetDetail.markSold}
             </Button>
             <Button variant="danger" onClick={() => archive.mutate('lost')}>
-              Ztraceno
+              {t.assetDetail.markLost}
             </Button>
             <Button variant="danger" onClick={() => archive.mutate('retired')}>
-              Vyřadit
+              {t.assetDetail.retire}
             </Button>
           </>
         ) : (
           <Button variant="secondary" onClick={() => unarchive.mutate()}>
-            Vrátit z archivu
+            {t.assetDetail.unarchive}
           </Button>
         )}
       </div>
@@ -296,29 +299,32 @@ export function AssetDetailPage() {
       )}
 
       <Card>
-        <h2 className="font-semibold mb-2">Detaily</h2>
+        <h2 className="font-semibold mb-2">{t.assetDetail.detailsHeading}</h2>
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm">
-          <dt className="text-slate-500">Typ</dt>
-          <dd>{assetType?.name ?? '—'}</dd>
-          <dt className="text-slate-500">Lokace</dt>
+          <dt className="text-slate-500">{t.assetDetail.type}</dt>
+          <dd>{assetType?.name ?? t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.location}</dt>
           <dd>
             {a.locationId
-              ? locationPath(locations.data?.items ?? [], a.locationId) || '—'
-              : '—'}
+              ? locationPath(locations.data?.items ?? [], a.locationId) || t.common.none
+              : t.common.none}
           </dd>
-          <dt className="text-slate-500">Vytvořeno</dt>
+          <dt className="text-slate-500">{t.assetDetail.createdAt}</dt>
           <dd>{formatDate(a.createdAt)}</dd>
-          <dt className="text-slate-500">Aktualizováno</dt>
+          <dt className="text-slate-500">{t.assetDetail.updatedAt}</dt>
           <dd>{formatDate(a.updatedAt)}</dd>
-          <dt className="text-slate-500">Archivováno</dt>
-          <dd>{a.archivedAt ? formatDate(a.archivedAt) : '—'}</dd>
+          <dt className="text-slate-500">{t.assetDetail.archivedAt}</dt>
+          <dd>{a.archivedAt ? formatDate(a.archivedAt) : t.common.none}</dd>
           {customSchema.map((f) => {
             const value = (a.customFields ?? {})[f.key];
             return (
               <FragmentRow
                 key={f.key}
                 label={f.label}
-                value={formatCustomFieldValue(f.type, value)}
+                value={formatCustomFieldValue(f.type, value, {
+                  yes: t.assetDetail.yes,
+                  no: t.assetDetail.no,
+                })}
               />
             );
           })}
@@ -342,18 +348,21 @@ export function AssetDetailPage() {
 
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-          <h2 className="font-semibold">Rezervace a výpůjčky</h2>
+          <h2 className="font-semibold">{t.assetDetail.reservationsHeading}</h2>
           {nextFree && (
             <span className="text-xs text-slate-500 dark:text-slate-400">
               {nextFree.kind === 'now' && (
                 <>
-                  Volné: <span className="font-medium text-emerald-700 dark:text-emerald-400">teď</span>
+                  {t.assetDetail.freeLabel}{' '}
+                  <span className="font-medium text-emerald-700 dark:text-emerald-400">
+                    {t.assetDetail.freeNow}
+                  </span>
                 </>
               )}
               {nextFree.kind === 'date' && (
-                <>Volné od {nextFree.date.toLocaleDateString('cs-CZ')}</>
+                <>{t.assetDetail.freeFrom(nextFree.date.toLocaleDateString(localeTag(getLocale())))}</>
               )}
-              {nextFree.kind === 'never' && <>Vypůjčeno bez termínu vrácení</>}
+              {nextFree.kind === 'never' && <>{t.assetDetail.loanedNoReturn}</>}
             </span>
           )}
         </div>
@@ -373,7 +382,7 @@ export function AssetDetailPage() {
         />
         <div className="mt-4 border-t border-slate-200 pt-3 dark:border-slate-700" />
         {assetLoans.data?.items.length === 0 && (
-          <p className="text-sm text-slate-500">Žádné aktivní ani plánované výpůjčky.</p>
+          <p className="text-sm text-slate-500">{t.assetDetail.noActiveLoans}</p>
         )}
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
           {assetLoans.data?.items.map((loan) => (
@@ -385,7 +394,7 @@ export function AssetDetailPage() {
                 <span className="text-xs text-slate-500">
                   {formatDate(loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt)}
                   {' – '}
-                  {loan.expectedReturnAt ? formatDate(loan.expectedReturnAt) : 'otevřeno'}
+                  {loan.expectedReturnAt ? formatDate(loan.expectedReturnAt) : t.assetDetail.open}
                 </span>
                 <span
                   className={
@@ -394,7 +403,7 @@ export function AssetDetailPage() {
                       : 'text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800'
                   }
                 >
-                  {loan.status === 'planned' ? 'Naplánováno' : 'Vypůjčeno'}
+                  {loan.status === 'planned' ? t.assetDetail.planned : t.assetDetail.onLoan}
                 </span>
               </span>
             </li>
@@ -403,9 +412,9 @@ export function AssetDetailPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold mb-2">Poškození</h2>
+        <h2 className="font-semibold mb-2">{t.assetDetail.damageHeading}</h2>
         {damages.data?.items.length === 0 && (
-          <p className="text-sm text-slate-500">Žádná hlášená poškození.</p>
+          <p className="text-sm text-slate-500">{t.assetDetail.noDamages}</p>
         )}
         <ul className="divide-y">
           {damages.data?.items.map((d) => (
@@ -416,7 +425,7 @@ export function AssetDetailPage() {
                     <span className="font-medium">{d.description}</span>
                   </p>
                   <p className="text-xs text-slate-500">
-                    {formatDate(d.occurredAt)} · severity:{' '}
+                    {formatDate(d.occurredAt)} · {t.assetDetail.severityLabel}{' '}
                     <span
                       className={
                         d.severity === 'total'
@@ -431,7 +440,9 @@ export function AssetDetailPage() {
                   </p>
                 </div>
                 {d.resolvedAt ? (
-                  <span className="text-xs text-slate-500">opraveno {formatDate(d.resolvedAt)}</span>
+                  <span className="text-xs text-slate-500">
+                    {t.assetDetail.resolvedAt(formatDate(d.resolvedAt))}
+                  </span>
                 ) : (
                   <Button
                     variant="ghost"
@@ -441,7 +452,7 @@ export function AssetDetailPage() {
                       invalidateAll();
                     }}
                   >
-                    označit opravené
+                    {t.assetDetail.markResolved}
                   </Button>
                 )}
               </div>
@@ -470,7 +481,7 @@ export function AssetDetailPage() {
       </Card>
 
       <Card>
-        <h2 className="font-semibold mb-2">Historie</h2>
+        <h2 className="font-semibold mb-2">{t.assetDetail.historyHeading}</h2>
         <ul className="divide-y text-sm">
           {events.data?.items.map((e) => (
             <li key={e.id} className="py-1.5 flex justify-between gap-4">
@@ -495,6 +506,7 @@ function AssetDocumentsCard({
   emphasis: boolean;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -516,7 +528,13 @@ function AssetDocumentsCard({
   }
 
   async function remove(path: string) {
-    if (!(await confirm({ title: 'Odebrat dokument?', confirmLabel: 'Odebrat', danger: true })))
+    if (
+      !(await confirm({
+        title: t.assetDetail.removeDocumentTitle,
+        confirmLabel: t.assetDetail.remove,
+        danger: true,
+      }))
+    )
       return;
     try {
       await apiClient.assets.removeDocument(code, path);
@@ -530,15 +548,15 @@ function AssetDocumentsCard({
     <Card className={emphasis ? 'border-amber-300 dark:border-amber-700' : undefined}>
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-semibold">
-          Dokumenty
+          {t.assetDetail.documentsHeading}
           {emphasis && (
             <span className="ml-2 text-xs font-normal text-amber-700 dark:text-amber-400">
-              (archivováno — vhodné nahrát doklad o prodeji / vyřazení)
+              {t.assetDetail.documentsArchivedHint}
             </span>
           )}
         </h2>
         <label className="inline-flex items-center text-xs cursor-pointer text-blue-600 hover:underline">
-          + nahrát
+          {t.assetDetail.upload}
           <input
             type="file"
             accept="application/pdf,image/jpeg,image/png,image/webp"
@@ -548,10 +566,10 @@ function AssetDocumentsCard({
           />
         </label>
       </div>
-      {uploading && <p className="text-xs text-slate-500">Nahrávám…</p>}
+      {uploading && <p className="text-xs text-slate-500">{t.assetDetail.uploading}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
       {documents.length === 0 ? (
-        <p className="text-sm text-slate-500">Žádné dokumenty.</p>
+        <p className="text-sm text-slate-500">{t.assetDetail.noDocuments}</p>
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
           {documents.map((p) => {
@@ -572,7 +590,7 @@ function AssetDocumentsCard({
                   className="text-red-600 text-xs"
                   onClick={() => remove(p)}
                 >
-                  Odebrat
+                  {t.assetDetail.remove}
                 </Button>
               </li>
             );
@@ -592,6 +610,7 @@ function ExternalIdsCard({
   items: { id: string; kind: string; value: string }[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const [kind, setKind] = useState('serial');
   const [value, setValue] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -614,7 +633,13 @@ function ExternalIdsCard({
   }
 
   async function remove(id: string) {
-    if (!(await confirm({ title: 'Odebrat identifikátor?', confirmLabel: 'Odebrat', danger: true })))
+    if (
+      !(await confirm({
+        title: t.assetDetail.removeExternalIdTitle,
+        confirmLabel: t.assetDetail.remove,
+        danger: true,
+      }))
+    )
       return;
     try {
       await apiClient.assets.removeExternalId(code, id);
@@ -626,12 +651,12 @@ function ExternalIdsCard({
 
   return (
     <Card>
-      <h2 className="font-semibold mb-2">Externí identifikátory</h2>
+      <h2 className="font-semibold mb-2">{t.assetDetail.externalIdsHeading}</h2>
       <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
-        Sériová čísla, EAN, manufacturer SKU. Najdou se z hlavního vyhledávání i ze skeneru.
+        {t.assetDetail.externalIdsHint}
       </p>
       {items.length === 0 ? (
-        <p className="text-sm text-slate-500">Žádné identifikátory.</p>
+        <p className="text-sm text-slate-500">{t.assetDetail.noExternalIds}</p>
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700 mb-3">
           {items.map((eid) => (
@@ -643,7 +668,7 @@ function ExternalIdsCard({
                 <span className="font-mono">{eid.value}</span>
               </span>
               <Button variant="ghost" className="text-red-600 text-xs" onClick={() => remove(eid.id)}>
-                Odebrat
+                {t.assetDetail.remove}
               </Button>
             </li>
           ))}
@@ -651,22 +676,22 @@ function ExternalIdsCard({
       )}
       <form onSubmit={add} className="flex flex-wrap gap-2 items-end">
         <div className="w-32">
-          <Field label="Typ">
+          <Field label={t.assetDetail.type}>
             <Select value={kind} onChange={(e) => setKind(e.target.value)}>
-              <option value="serial">Sériové číslo</option>
-              <option value="ean">EAN / čárový kód</option>
-              <option value="sku">SKU výrobce</option>
-              <option value="other">Jiný</option>
+              <option value="serial">{t.assetDetail.kindSerial}</option>
+              <option value="ean">{t.assetDetail.kindEan}</option>
+              <option value="sku">{t.assetDetail.kindSku}</option>
+              <option value="other">{t.assetDetail.kindOther}</option>
             </Select>
           </Field>
         </div>
         <div className="flex-1 min-w-[180px]">
-          <Field label="Hodnota" required>
+          <Field label={t.assetDetail.valueLabel} required>
             <Input value={value} onChange={(e) => setValue(e.target.value)} className="font-mono" />
           </Field>
         </div>
         <Button type="submit" disabled={busy || !value.trim()}>
-          Přidat
+          {t.common.add}
         </Button>
       </form>
       {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
@@ -683,6 +708,7 @@ function AssetPhotosCard({
   photos: string[];
   onChanged: () => void;
 }) {
+  const t = useT();
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -704,7 +730,14 @@ function AssetPhotosCard({
   }
 
   async function removePhoto(path: string) {
-    if (!(await confirm({ title: 'Odebrat fotku?', confirmLabel: 'Odebrat', danger: true }))) return;
+    if (
+      !(await confirm({
+        title: t.assetDetail.removePhotoTitle,
+        confirmLabel: t.assetDetail.remove,
+        danger: true,
+      }))
+    )
+      return;
     try {
       await apiClient.assets.removePhoto(code, path);
       onChanged();
@@ -716,9 +749,9 @@ function AssetPhotosCard({
   return (
     <Card>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="font-semibold">Fotky</h2>
+        <h2 className="font-semibold">{t.assetDetail.photosHeading}</h2>
         <label className="inline-flex items-center text-xs cursor-pointer text-blue-600 hover:underline">
-          + nahrát
+          {t.assetDetail.upload}
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
@@ -728,10 +761,10 @@ function AssetPhotosCard({
           />
         </label>
       </div>
-      {uploading && <p className="text-xs text-slate-500">Nahrávám…</p>}
+      {uploading && <p className="text-xs text-slate-500">{t.assetDetail.uploading}</p>}
       {error && <p className="text-xs text-red-600">{error}</p>}
       {photos.length === 0 ? (
-        <p className="text-sm text-slate-500">Žádné fotky.</p>
+        <p className="text-sm text-slate-500">{t.assetDetail.noPhotos}</p>
       ) : (
         <div className="flex gap-2 flex-wrap">
           {photos.map((p) => (
@@ -746,7 +779,7 @@ function AssetPhotosCard({
                 type="button"
                 onClick={() => removePhoto(p)}
                 className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-slate-700 text-xs leading-none border opacity-0 group-hover:opacity-100"
-                aria-label="Odebrat"
+                aria-label={t.assetDetail.remove}
               >
                 ×
               </button>
@@ -783,6 +816,7 @@ function EditAssetForm({
   }) => Promise<void>;
   onCancel: () => void;
 }) {
+  const t = useT();
   const { register, handleSubmit, formState } = useForm({ defaultValues: initial });
   const [customFieldValues, setCustomFieldValues] = useState(initial.customFields);
   const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
@@ -810,25 +844,29 @@ function EditAssetForm({
           }
         })}
       >
-        <Field label="Název" required error={formState.errors.name ? 'Název je povinný' : undefined}>
+        <Field
+          label={t.assetDetail.nameLabel}
+          required
+          error={formState.errors.name ? t.assetDetail.nameRequired : undefined}
+        >
           <Input {...register('name', { required: true })} />
         </Field>
-        <Field label="Typ">
+        <Field label={t.assetDetail.type}>
           <Select {...register('typeId')}>
-            <option value="">— bez typu —</option>
-            {types.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
+            <option value="">{t.assetDetail.noType}</option>
+            {types.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name}
               </option>
             ))}
           </Select>
         </Field>
-        <Field label="Lokace">
+        <Field label={t.assetDetail.location}>
           <LocationSelect locations={locationsList} {...register('locationId')} />
         </Field>
         {customSchema.length > 0 && (
           <div className="border-t pt-3">
-            <h3 className="font-medium text-sm text-slate-700 mb-2">Vlastní pole</h3>
+            <h3 className="font-medium text-sm text-slate-700 mb-2">{t.assetDetail.customFields}</h3>
             <CustomFieldsValuesForm
               schema={customSchema}
               values={customFieldValues}
@@ -840,10 +878,10 @@ function EditAssetForm({
         {submitError && <p className="text-sm text-red-600">{submitError}</p>}
         <div className="flex gap-2">
           <Button type="submit" disabled={saving}>
-            {saving ? 'Ukládám…' : 'Uložit'}
+            {saving ? t.common.saving : t.common.save}
           </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Zrušit
+            {t.common.cancel}
           </Button>
         </div>
       </form>
@@ -860,14 +898,18 @@ function FragmentRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-function formatCustomFieldValue(type: string, value: unknown): string {
+function formatCustomFieldValue(
+  type: string,
+  value: unknown,
+  labels: { yes: string; no: string },
+): string {
   if (value === undefined || value === null || value === '') return '';
   switch (type) {
     case 'boolean':
-      return value ? 'Ano' : 'Ne';
+      return value ? labels.yes : labels.no;
     case 'date':
       return typeof value === 'string'
-        ? new Date(value).toLocaleDateString('cs-CZ')
+        ? new Date(value).toLocaleDateString(localeTag(getLocale()))
         : String(value);
     default:
       return String(value);
@@ -886,6 +928,7 @@ function NewDamageForm({
   }) => Promise<void>;
   onCancel: () => void;
 }) {
+  const t = useT();
   const today = new Date().toISOString().slice(0, 16);
   const { register, handleSubmit, formState } = useForm<{
     occurredAt: string;
@@ -905,7 +948,7 @@ function NewDamageForm({
     setUploadError(null);
     const remaining = MAX_DAMAGE_PHOTOS - photos.length;
     if (remaining <= 0) {
-      setUploadError(`Maximálně ${MAX_DAMAGE_PHOTOS} fotek.`);
+      setUploadError(t.assetDetail.maxPhotos(MAX_DAMAGE_PHOTOS));
       return;
     }
     const slice = Array.from(files).slice(0, remaining);
@@ -919,9 +962,7 @@ function NewDamageForm({
       );
       setPhotos((prev) => [...prev, ...uploaded]);
       if (files.length > slice.length) {
-        setUploadError(
-          `Některé soubory nebyly nahrány — limit je ${MAX_DAMAGE_PHOTOS} fotek.`,
-        );
+        setUploadError(t.assetDetail.someNotUploaded(MAX_DAMAGE_PHOTOS));
       }
     } catch (err) {
       setUploadError(errorMessage(err));
@@ -951,23 +992,27 @@ function NewDamageForm({
         })}
       >
         <Field
-          label="Kdy se to stalo"
+          label={t.assetDetail.damageWhenLabel}
           required
-          error={formState.errors.occurredAt ? 'Vyplň datum a čas' : undefined}
+          error={formState.errors.occurredAt ? t.assetDetail.damageWhenRequired : undefined}
         >
           <Input type="datetime-local" {...register('occurredAt', { required: true })} />
         </Field>
-        <Field label="Popis" required error={formState.errors.description ? 'Popis je povinný' : undefined}>
+        <Field
+          label={t.assetDetail.damageDescriptionLabel}
+          required
+          error={formState.errors.description ? t.assetDetail.damageDescriptionRequired : undefined}
+        >
           <Textarea rows={3} {...register('description', { required: true })} />
         </Field>
-        <Field label="Závažnost">
+        <Field label={t.assetDetail.severityHeadingLabel}>
           <Select {...register('severity')}>
-            <option value="minor">Malé (lze používat)</option>
-            <option value="major">Velké (omezené použití)</option>
-            <option value="total">Totální (asset → poškozen + archiv)</option>
+            <option value="minor">{t.assetDetail.severityMinor}</option>
+            <option value="major">{t.assetDetail.severityMajor}</option>
+            <option value="total">{t.assetDetail.severityTotal}</option>
           </Select>
         </Field>
-        <Field label="Fotky (volitelné)">
+        <Field label={t.assetDetail.photosOptionalLabel}>
           <input
             type="file"
             accept="image/jpeg,image/png,image/webp,image/gif"
@@ -988,7 +1033,7 @@ function NewDamageForm({
                   type="button"
                   onClick={() => setPhotos((prev) => prev.filter((_, i) => i !== idx))}
                   className="absolute top-0.5 right-0.5 w-5 h-5 rounded-full bg-white/90 text-slate-700 text-xs leading-none border"
-                  aria-label="Odebrat"
+                  aria-label={t.assetDetail.remove}
                 >
                   ×
                 </button>
@@ -996,15 +1041,15 @@ function NewDamageForm({
             ))}
           </div>
         )}
-        {uploading && <p className="text-xs text-slate-500">Nahrávám fotky…</p>}
+        {uploading && <p className="text-xs text-slate-500">{t.assetDetail.uploadingPhotos}</p>}
         {uploadError && <p className="text-xs text-red-600">{uploadError}</p>}
         {submitError && <p className="text-sm text-red-600">{submitError}</p>}
         <div className="flex gap-2">
           <Button type="submit" disabled={uploading || saving}>
-            {saving ? 'Ukládám…' : 'Zaznamenat'}
+            {saving ? t.common.saving : t.assetDetail.record}
           </Button>
           <Button type="button" variant="ghost" onClick={onCancel}>
-            Zrušit
+            {t.common.cancel}
           </Button>
         </div>
       </form>

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react';
 import clsx from 'clsx';
 import { Button } from './ui.js';
+import { useT, getLocale, type Messages } from '../i18n/index.js';
+import { localeTag } from '../i18n/util.js';
 import {
   HATCH_STYLE,
-  WEEKDAY_LABELS,
+  weekdayLabels,
   clampLoanRange,
   dayBounds,
   dayState,
@@ -22,16 +24,16 @@ const dayClasses: Record<DayStatus, string> = {
 
 const blockedDayClass = 'bg-slate-100 text-slate-400 dark:bg-slate-700/40 dark:text-slate-500';
 
-function statusLabel(status: DayStatus | 'blocked'): string {
+function statusLabel(t: Messages, status: DayStatus | 'blocked'): string {
   switch (status) {
     case 'free':
-      return 'volné';
+      return t.availabilityCalendar.statusFree;
     case 'active':
-      return 'vypůjčeno';
+      return t.availabilityCalendar.statusLoaned;
     case 'planned':
-      return 'rezervováno';
+      return t.availabilityCalendar.statusReserved;
     case 'blocked':
-      return 'nedostupné';
+      return t.availabilityCalendar.statusBlocked;
   }
 }
 
@@ -53,6 +55,7 @@ export function AvailabilityCalendar({
   /** When set, free days from today on can be range-selected to start a loan. */
   onCreateLoan?: (from: Date, to: Date) => void;
 }) {
+  const t = useT();
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const [cursor, setCursor] = useState(() => ({
@@ -82,18 +85,17 @@ export function AvailabilityCalendar({
 
   function inSelection(day: Date): boolean {
     if (!sel) return false;
-    const t = day.getTime();
+    const time = day.getTime();
     const s = sel.start.getTime();
     const e = (sel.end ?? sel.start).getTime();
-    return t >= s && t <= e;
+    return time >= s && time <= e;
   }
 
   return (
     <div>
       {blocked && (
         <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
-          Asset teď nelze půjčit ({blocked.reason}). Volné dny od dneška jsou orientační, dokud se
-          nevrátí mezi dostupné.
+          {t.availabilityCalendar.blockedBanner(blocked.reason)}
         </div>
       )}
       <div className="flex items-center justify-between mb-2">
@@ -101,7 +103,7 @@ export function AvailabilityCalendar({
           type="button"
           onClick={() => shift(-1)}
           className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-          aria-label="Předchozí měsíc"
+          aria-label={t.availabilityCalendar.prevMonth}
         >
           ←
         </button>
@@ -114,13 +116,13 @@ export function AvailabilityCalendar({
             onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
             className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
           >
-            Dnes
+            {t.availabilityCalendar.today}
           </button>
           <button
             type="button"
             onClick={() => shift(1)}
             className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            aria-label="Další měsíc"
+            aria-label={t.availabilityCalendar.nextMonth}
           >
             →
           </button>
@@ -128,7 +130,7 @@ export function AvailabilityCalendar({
       </div>
 
       <div className="grid grid-cols-7 gap-1">
-        {WEEKDAY_LABELS.map((label) => (
+        {weekdayLabels().map((label) => (
           <div
             key={label}
             className="text-center text-xs font-medium text-slate-400 dark:text-slate-500 pb-1"
@@ -165,9 +167,10 @@ export function AvailabilityCalendar({
             selectable && 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-400',
             ring,
           );
-          const label = `${day.toLocaleDateString('cs-CZ')} — ${statusLabel(
-            isBlocked ? 'blocked' : state.status,
-          )}`;
+          const label = t.availabilityCalendar.dayLabel(
+            day.toLocaleDateString(localeTag(getLocale())),
+            statusLabel(t, isBlocked ? 'blocked' : state.status),
+          );
           if (selectable) {
             return (
               <button
@@ -175,7 +178,7 @@ export function AvailabilityCalendar({
                 type="button"
                 onClick={() => pick(day)}
                 aria-pressed={selected}
-                aria-label={`${day.toLocaleDateString('cs-CZ')} — volné, vybrat`}
+                aria-label={t.availabilityCalendar.dayFreeSelectLabel(day.toLocaleDateString(localeTag(getLocale())))}
                 className={className}
               >
                 {day.getDate()}
@@ -200,20 +203,19 @@ export function AvailabilityCalendar({
       {onCreateLoan && sel && (
         <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-blue-200 bg-blue-50 p-2 text-sm dark:border-blue-800 dark:bg-blue-900/30">
           <span className="text-slate-700 dark:text-slate-200">
-            {sel.end ? (
-              <>
-                Termín {sel.start.toLocaleDateString('cs-CZ')} – {sel.end.toLocaleDateString('cs-CZ')}
-              </>
-            ) : (
-              <>Začátek {sel.start.toLocaleDateString('cs-CZ')} — vyber konec (nebo půjč na jeden den)</>
-            )}
+            {sel.end
+              ? t.availabilityCalendar.rangeSummary(
+                  sel.start.toLocaleDateString(localeTag(getLocale())),
+                  sel.end.toLocaleDateString(localeTag(getLocale())),
+                )
+              : t.availabilityCalendar.startPrompt(sel.start.toLocaleDateString(localeTag(getLocale())))}
           </span>
           <span className="flex-1" />
           <Button onClick={() => onCreateLoan(sel.start, sel.end ?? sel.start)}>
-            Vytvořit výpůjčku
+            {t.availabilityCalendar.createLoan}
           </Button>
           <Button variant="ghost" onClick={() => setSel(null)}>
-            Zrušit
+            {t.availabilityCalendar.cancel}
           </Button>
         </div>
       )}
@@ -224,18 +226,19 @@ export function AvailabilityCalendar({
 }
 
 export function CalendarLegend({ blocked = false }: { blocked?: boolean }) {
+  const t = useT();
   return (
     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-      <LegendItem status="free" label="Volné" />
-      <LegendItem status="active" label="Vypůjčeno" />
-      <LegendItem status="planned" label="Rezervováno" />
+      <LegendItem status="free" label={t.availabilityCalendar.legendFree} />
+      <LegendItem status="active" label={t.availabilityCalendar.legendLoaned} />
+      <LegendItem status="planned" label={t.availabilityCalendar.legendReserved} />
       {blocked && (
         <span className="inline-flex items-center gap-1.5">
           <span
             className={clsx('inline-block w-3 h-3 rounded', blockedDayClass)}
             style={HATCH_STYLE}
           />
-          Nedostupné
+          {t.availabilityCalendar.legendBlocked}
         </span>
       )}
     </div>

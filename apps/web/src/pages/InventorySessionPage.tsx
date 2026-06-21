@@ -16,12 +16,14 @@ import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
 import { parseScannedValue } from '../lib/scan.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
+import { useT } from '../i18n/index.js';
 
 const SCANNER_ELEMENT_ID = 'inventory-scanner-region';
 
 type Detail = { session: InventorySessionRow; report: InventoryReport };
 
 export function InventorySessionPage() {
+  const t = useT();
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
   const canWrite = hasRole(useCurrentUser(), 'admin', 'operator');
@@ -58,22 +60,26 @@ export function InventorySessionPage() {
         kind: res.result,
         text:
           res.result === 'found'
-            ? `✓ ${label}`
+            ? t.inventorySession.scanFound(label)
             : res.result === 'already'
-              ? `↺ ${label} (už naskenováno)`
-              : `⚠ ${label} (mimo rozsah / archivováno)`,
+              ? t.inventorySession.scanAlready(label)
+              : t.inventorySession.scanUnexpected(label),
       });
       applyReport(res.report);
     },
     onError: (e: unknown) =>
-      setLastResult({ kind: 'unexpected', text: e instanceof Error ? e.message : 'Chyba skenu' }),
+      setLastResult({
+        kind: 'unexpected',
+        text: e instanceof Error ? e.message : t.inventorySession.scanError,
+      }),
   });
 
   const itemNote = useMutation({
     mutationFn: (v: { assetId: string; note: string }) =>
       apiClient.inventory.setItemNote(id, v.assetId, v.note),
     onSuccess: (res) => applyReport(res.report),
-    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+    onError: (e: unknown) =>
+      setActionError(e instanceof Error ? e.message : t.inventorySession.genericError),
   });
 
   const saveSessionNote = useMutation({
@@ -83,7 +89,8 @@ export function InventorySessionPage() {
       queryClient.setQueryData<Detail>(['inventory', id], (old) =>
         old ? { ...old, session: { ...old.session, note: note.trim() ? note.trim() : null } } : old,
       ),
-    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+    onError: (e: unknown) =>
+      setActionError(e instanceof Error ? e.message : t.inventorySession.genericError),
   });
 
   // Patch the session's status into the cache directly (same stale-SW reason
@@ -107,12 +114,14 @@ export function InventorySessionPage() {
   const close = useMutation({
     mutationFn: () => apiClient.inventory.close(id),
     onSuccess: () => setStatus('closed'),
-    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+    onError: (e: unknown) =>
+      setActionError(e instanceof Error ? e.message : t.inventorySession.genericError),
   });
   const reopen = useMutation({
     mutationFn: () => apiClient.inventory.reopen(id),
     onSuccess: () => setStatus('open'),
-    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+    onError: (e: unknown) =>
+      setActionError(e instanceof Error ? e.message : t.inventorySession.genericError),
   });
   const markLost = useMutation({
     mutationFn: (codes: string[]) => apiClient.inventory.markLost(id, codes),
@@ -120,7 +129,8 @@ export function InventorySessionPage() {
       applyReport(res.report);
       void queryClient.invalidateQueries({ queryKey: ['inventory'], exact: true });
     },
-    onError: (e: unknown) => setActionError(e instanceof Error ? e.message : 'Chyba'),
+    onError: (e: unknown) =>
+      setActionError(e instanceof Error ? e.message : t.inventorySession.genericError),
   });
 
   const locationLabel = (locId: string | null) =>
@@ -131,20 +141,22 @@ export function InventorySessionPage() {
     return (
       <section className="space-y-3">
         <Link to="/inventory" className="text-sm text-slate-500 hover:underline">
-          ← zpět na inventury
+          {t.inventorySession.backToInventories}
         </Link>
-        <p className="text-sm text-red-600">Inventura nenalezena.</p>
+        <p className="text-sm text-red-600">{t.inventorySession.notFound}</p>
       </section>
     );
   }
 
   const scopeLabel =
     session.assetIds && session.assetIds.length > 0
-      ? `ručně vybráno ${session.assetIds.length} assetů`
+      ? t.inventorySession.scopeManual(session.assetIds.length)
       : [
-          session.locationId ? locationLabel(session.locationId) : 'celá organizace',
+          session.locationId
+            ? locationLabel(session.locationId)
+            : t.inventorySession.scopeWholeOrganization,
           session.typeIds && session.typeIds.length > 0
-            ? `${session.typeIds.length} ${session.typeIds.length === 1 ? 'typ' : 'typů'}`
+            ? t.inventorySession.scopeTypes(session.typeIds.length)
             : null,
         ]
           .filter(Boolean)
@@ -157,16 +169,17 @@ export function InventorySessionPage() {
   return (
     <section className="space-y-4">
       <Link to="/inventory" className="text-sm text-slate-500 hover:underline">
-        ← zpět na inventury
+        {t.inventorySession.backToInventories}
       </Link>
 
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-2xl font-bold">{session.name}</h1>
           <p className="text-sm text-slate-500">
-            Rozsah: {scopeLabel} · založeno {formatDate(session.createdAt)}
+            {t.inventorySession.scopePrefix(scopeLabel)} ·{' '}
+            {t.inventorySession.createdAt(formatDate(session.createdAt))}
             {session.status === 'closed' && session.closedAt
-              ? ` · uzavřeno ${formatDate(session.closedAt)}`
+              ? ` · ${t.inventorySession.closedAt(formatDate(session.closedAt))}`
               : ''}
           </p>
         </div>
@@ -176,15 +189,15 @@ export function InventorySessionPage() {
             (isOpen ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
           }
         >
-          {isOpen ? 'Probíhá' : 'Uzavřeno'}
+          {isOpen ? t.inventorySession.statusOpen : t.inventorySession.statusClosed}
         </span>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <Stat label="Očekáváno" value={report.counts.expected} />
-        <Stat label="Nalezeno" value={report.counts.found} tone="emerald" />
-        <Stat label="Chybí" value={report.counts.missing} tone="red" />
-        <Stat label="Navíc" value={report.counts.unexpected} tone="amber" />
+        <Stat label={t.inventorySession.statExpected} value={report.counts.expected} />
+        <Stat label={t.inventorySession.statFound} value={report.counts.found} tone="emerald" />
+        <Stat label={t.inventorySession.statMissing} value={report.counts.missing} tone="red" />
+        <Stat label={t.inventorySession.statUnexpected} value={report.counts.unexpected} tone="amber" />
       </div>
 
       <SessionNote
@@ -208,11 +221,11 @@ export function InventorySessionPage() {
         <div className="flex flex-wrap gap-2">
           {isOpen ? (
             <Button variant="secondary" onClick={() => close.mutate()} disabled={close.isPending}>
-              Uzavřít inventuru
+              {t.inventorySession.closeInventory}
             </Button>
           ) : (
             <Button variant="secondary" onClick={() => reopen.mutate()} disabled={reopen.isPending}>
-              Znovu otevřít
+              {t.inventorySession.reopen}
             </Button>
           )}
           {report.missing.length > 0 && (
@@ -224,48 +237,48 @@ export function InventorySessionPage() {
                 if (losable.length === 0) return;
                 if (
                   await confirm({
-                    title: `Označit ${losable.length} chybějících assetů jako ztracené?`,
-                    message: 'Přejdou do archivu.',
-                    confirmLabel: 'Označit jako ztracené',
+                    title: t.inventorySession.markLostTitle(losable.length),
+                    message: t.inventorySession.markLostMessage,
+                    confirmLabel: t.inventorySession.markLostConfirm,
                     danger: true,
                   })
                 ) {
                   markLost.mutate(losable.map((m) => m.code), {
-                    onSuccess: () => toast.success('Chybějící assety označeny jako ztracené'),
+                    onSuccess: () => toast.success(t.inventorySession.markLostSuccess),
                   });
                 }
               }}
             >
-              Označit chybějící jako ztracené
+              {t.inventorySession.markMissingLost}
             </Button>
           )}
         </div>
       )}
 
       <AssetGroup
-        title="Chybí"
-        hint="V evidenci, ale nenaskenováno. Položky na výpůjčce nejsou fyzicky na místě — to je očekávané."
+        title={t.inventorySession.groupMissingTitle}
+        hint={t.inventorySession.groupMissingHint}
         assets={report.missing}
         locationLabel={locationLabel}
-        emptyText="Nic nechybí 🎉"
+        emptyText={t.inventorySession.groupMissingEmpty}
         canWrite={canWrite}
         onSaveNote={onSaveNote}
         onMarkFound={canWrite && isOpen ? (code) => scan.mutate(code) : undefined}
       />
       <AssetGroup
-        title="Navíc / mimo rozsah"
-        hint="Naskenováno, ale nepatří do očekávaného rozsahu (archivováno nebo na jiné lokaci)."
+        title={t.inventorySession.groupUnexpectedTitle}
+        hint={t.inventorySession.groupUnexpectedHint}
         assets={report.unexpected}
         locationLabel={locationLabel}
-        emptyText="Nic navíc."
+        emptyText={t.inventorySession.groupUnexpectedEmpty}
         canWrite={canWrite}
         onSaveNote={onSaveNote}
       />
       <AssetGroup
-        title="Nalezeno"
+        title={t.inventorySession.groupFoundTitle}
         assets={report.found}
         locationLabel={locationLabel}
-        emptyText="Zatím nic naskenováno."
+        emptyText={t.inventorySession.groupFoundEmpty}
         canWrite={canWrite}
         onSaveNote={onSaveNote}
       />
@@ -284,6 +297,7 @@ function SessionNote({
   saving: boolean;
   onSave: (note: string) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note ?? '');
 
@@ -291,7 +305,7 @@ function SessionNote({
     if (!note) return null;
     return (
       <Card>
-        <h2 className="font-semibold mb-1 text-sm">Poznámka</h2>
+        <h2 className="font-semibold mb-1 text-sm">{t.inventorySession.noteHeading}</h2>
         <p className="text-sm whitespace-pre-wrap">{note}</p>
       </Card>
     );
@@ -300,7 +314,7 @@ function SessionNote({
   return (
     <Card className="space-y-2">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold text-sm">Poznámka k inventuře</h2>
+        <h2 className="font-semibold text-sm">{t.inventorySession.noteHeadingEditable}</h2>
         {!editing && (
           <Button
             variant="ghost"
@@ -310,7 +324,7 @@ function SessionNote({
               setEditing(true);
             }}
           >
-            {note ? 'Upravit' : 'Přidat'}
+            {note ? t.common.edit : t.common.add}
           </Button>
         )}
       </div>
@@ -325,17 +339,17 @@ function SessionNote({
                 setEditing(false);
               }}
             >
-              {saving ? 'Ukládám…' : 'Uložit'}
+              {saving ? t.inventorySession.saving : t.common.save}
             </Button>
             <Button variant="ghost" onClick={() => setEditing(false)}>
-              Zrušit
+              {t.common.cancel}
             </Button>
           </div>
         </div>
       ) : note ? (
         <p className="text-sm whitespace-pre-wrap">{note}</p>
       ) : (
-        <p className="text-sm text-slate-400">Bez poznámky.</p>
+        <p className="text-sm text-slate-400">{t.inventorySession.noteEmpty}</p>
       )}
     </Card>
   );
@@ -375,6 +389,7 @@ function ScanPanel({
   pending: boolean;
   lastResult: { kind: ScanResult['result']; text: string } | null;
 }) {
+  const t = useT();
   const [manual, setManual] = useState('');
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -407,7 +422,7 @@ function ScanPanel({
           },
         );
       } catch (err) {
-        setError(errorMessage(err) || 'Kameru nelze otevřít.');
+        setError(errorMessage(err) || t.inventorySession.cameraError);
         setScanning(false);
       }
     };
@@ -429,9 +444,9 @@ function ScanPanel({
   return (
     <Card className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="font-semibold">Skenovat</h2>
+        <h2 className="font-semibold">{t.inventorySession.scanHeading}</h2>
         <Button variant={scanning ? 'secondary' : 'primary'} onClick={() => setScanning((s) => !s)}>
-          {scanning ? 'Zastavit kameru' : 'Spustit kameru'}
+          {scanning ? t.inventorySession.stopCamera : t.inventorySession.startCamera}
         </Button>
       </div>
 
@@ -448,7 +463,7 @@ function ScanPanel({
           e.preventDefault();
           const code = parseScannedValue(manual);
           if (!code) {
-            setError('Neplatný formát kódu');
+            setError(t.inventorySession.invalidCodeFormat);
             return;
           }
           setError(null);
@@ -460,11 +475,11 @@ function ScanPanel({
         <Input
           value={manual}
           onChange={(e) => setManual(e.target.value)}
-          placeholder="LAP-00001"
+          placeholder={t.inventorySession.manualPlaceholder}
           className="font-mono"
         />
         <Button type="submit" disabled={pending}>
-          Přidat
+          {t.common.add}
         </Button>
       </form>
 
@@ -496,10 +511,11 @@ function AssetGroup({
   onMarkFound?: (code: string) => void;
   onSaveNote?: (assetId: string, note: string) => void;
 }) {
+  const t = useT();
   return (
     <div className="space-y-1">
       <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-        {title} ({assets.length})
+        {title} {t.inventorySession.groupCount(assets.length)}
       </h2>
       {hint && <p className="text-xs text-slate-500">{hint}</p>}
       {assets.length === 0 ? (
@@ -535,6 +551,7 @@ function ReportItem({
   onMarkFound?: (code: string) => void;
   onSaveNote?: (assetId: string, note: string) => void;
 }) {
+  const t = useT();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(asset.note ?? '');
 
@@ -553,7 +570,7 @@ function ReportItem({
               className="text-xs py-0.5"
               onClick={() => onMarkFound(asset.code)}
             >
-              Nalezeno
+              {t.inventorySession.markFound}
             </Button>
           )}
           {canWrite && onSaveNote && (
@@ -564,8 +581,8 @@ function ReportItem({
                 setEditing((v) => !v);
               }}
               className="rounded px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
-              title={asset.note ? 'Upravit poznámku' : 'Přidat poznámku'}
-              aria-label="Poznámka k položce"
+              title={asset.note ? t.inventorySession.editNoteTitle : t.inventorySession.addNoteTitle}
+              aria-label={t.inventorySession.itemNoteAriaLabel}
             >
               📝
             </button>
@@ -582,7 +599,7 @@ function ReportItem({
           <Input
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Poznámka k položce…"
+            placeholder={t.inventorySession.itemNotePlaceholder}
             className="text-xs"
           />
           <Button
@@ -592,7 +609,7 @@ function ReportItem({
               setEditing(false);
             }}
           >
-            Uložit
+            {t.common.save}
           </Button>
         </div>
       )}

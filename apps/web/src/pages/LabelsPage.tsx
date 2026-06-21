@@ -5,8 +5,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Textarea } from '../components/ui.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
+import { useT } from '../i18n/index.js';
 
 export function LabelsPage() {
+  const t = useT();
   const [params] = useSearchParams();
   const queryClient = useQueryClient();
   const isAdmin = hasRole(useCurrentUser(), 'admin');
@@ -65,28 +67,26 @@ export function LabelsPage() {
 
   return (
     <section className="space-y-6">
-      <h1 className="text-2xl font-bold print:hidden">Tisk štítků</h1>
+      <h1 className="text-2xl font-bold print:hidden">{t.labels.title}</h1>
 
       <div className="grid md:grid-cols-2 gap-6 print:hidden">
         <Card>
-          <h2 className="font-semibold mb-2">Kódy</h2>
-          <p className="text-xs text-slate-500 mb-2">
-            Vlož kódy jeden na řádek (nebo oddělené čárkou), nebo vyber z assetů vpravo.
-          </p>
+          <h2 className="font-semibold mb-2">{t.labels.codes}</h2>
+          <p className="text-xs text-slate-500 mb-2">{t.labels.codesHint}</p>
           <Textarea
             rows={8}
             value={codesInput}
             onChange={(e) => setCodesInput(e.target.value)}
-            placeholder="LAP-00001&#10;MON-00001"
+            placeholder={t.labels.codesPlaceholder}
             className="font-mono"
           />
           <div className="flex gap-2 mt-3">
             <Button onClick={() => labels.mutate(codes)} disabled={codes.length === 0 || labels.isPending}>
-              Načíst {codes.length || ''} štítků
+              {t.labels.loadLabels(codes.length)}
             </Button>
             {labels.data && (
               <Button variant="secondary" onClick={() => window.print()}>
-                Tisk
+                {t.labels.print}
               </Button>
             )}
           </div>
@@ -96,12 +96,12 @@ export function LabelsPage() {
         </Card>
 
         <Card>
-          <h2 className="font-semibold mb-2">Vybrat z assetů</h2>
+          <h2 className="font-semibold mb-2">{t.labels.selectFromAssets}</h2>
           <Input
             type="search"
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filtr…"
+            placeholder={t.labels.filterPlaceholder}
             className="mb-2"
           />
           <ul className="max-h-64 overflow-y-auto divide-y rounded border text-sm dark:divide-slate-700 dark:border-slate-700">
@@ -131,26 +131,23 @@ export function LabelsPage() {
       </div>
 
       <Card className="print:hidden space-y-3">
-        <h2 className="font-semibold">Nastavení štítku</h2>
+        <h2 className="font-semibold">{t.labels.labelSettings}</h2>
         <div className="flex flex-wrap gap-x-6 gap-y-2">
           <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
-            Malý kód (jen kód, bez odkazu)
+            {t.labels.compactOption}
           </label>
           <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} />
-            Tisknout název
+            {t.labels.showNameOption}
           </label>
         </div>
-        <p className="text-xs text-slate-500">
-          Malý kód kóduje jen kód assetu (menší QR, čte ho čtečka v aplikaci). Velký kóduje plnou
-          adresu, takže ho otevře i foťák v mobilu.
-        </p>
-        <Field label="Poznámka pod kódem (volitelná)">
+        <p className="text-xs text-slate-500">{t.labels.qrHint}</p>
+        <Field label={t.labels.noteLabel}>
           <Input
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="např. Když najdete, ozvěte se: spravce@firma.cz"
+            placeholder={t.labels.notePlaceholder}
             maxLength={200}
           />
         </Field>
@@ -161,10 +158,10 @@ export function LabelsPage() {
               disabled={saveDefaults.isPending}
               onClick={() => saveDefaults.mutate()}
             >
-              {saveDefaults.isPending ? 'Ukládám…' : 'Uložit jako výchozí pro organizaci'}
+              {saveDefaults.isPending ? t.common.saving : t.labels.saveAsDefault}
             </Button>
             {saveDefaults.isSuccess && (
-              <span className="text-xs text-emerald-600">Uloženo pro celou organizaci.</span>
+              <span className="text-xs text-emerald-600">{t.labels.savedForOrg}</span>
             )}
             {saveDefaults.error && (
               <span className="text-xs text-red-600">{errorMessage(saveDefaults.error)}</span>
@@ -172,10 +169,7 @@ export function LabelsPage() {
           </div>
         )}
         {!isAdmin && (
-          <p className="text-xs text-slate-400">
-            Výchozí nastavení pro organizaci může změnit jen admin; tady si ho můžeš upravit pro tento
-            tisk.
-          </p>
+          <p className="text-xs text-slate-400">{t.labels.nonAdminHint}</p>
         )}
       </Card>
 

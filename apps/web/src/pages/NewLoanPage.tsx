@@ -6,6 +6,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, Textarea } from '../components/ui.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
+import { useT } from '../i18n/index.js';
 import clsx from 'clsx';
 
 type FormValues = {
@@ -17,6 +18,7 @@ type FormValues = {
 };
 
 export function NewLoanPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const fromLoanId = searchParams.get('from');
@@ -117,23 +119,22 @@ export function NewLoanPage() {
   return (
     <section className="space-y-6 max-w-3xl">
       <Link to="/loans" className="text-sm text-slate-500 hover:underline">
-        ← zpět na výpůjčky
+        {t.newLoan.back}
       </Link>
       <h1 className="text-2xl font-bold">
-        {fromLoanId ? 'Nová podobná výpůjčka' : 'Nová výpůjčka'}
+        {fromLoanId ? t.newLoan.titleSimilar : t.newLoan.title}
       </h1>
 
       {fromLoanId && prefilled && (
         <p className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
-          Předvyplněno podle dřívější výpůjčky. Zkontroluj položky – předvybrané assety se zobrazí
-          jen pokud jsou znovu skladem.
+          {t.newLoan.prefilledNote}
         </p>
       )}
 
       <form className="space-y-4" onSubmit={handleSubmit((v) => create.mutate(v))}>
-        <Field label="Vybrat existující kontakt (volitelné)">
+        <Field label={t.newLoan.contactLabel}>
           <Select value={contactId} onChange={(e) => setContactId(e.target.value)}>
-            <option value="">— bez kontaktu, ručně níže —</option>
+            <option value="">{t.newLoan.contactNone}</option>
             {contacts.data?.items.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -143,50 +144,47 @@ export function NewLoanPage() {
           </Select>
         </Field>
 
-        <Field label="Jméno vypůjčujícího" required error={formState.errors.borrowerName?.message}>
+        <Field
+          label={t.newLoan.borrowerNameLabel}
+          required
+          error={formState.errors.borrowerName?.message}
+        >
           <Input
-            {...register('borrowerName', { required: 'Jméno je povinné' })}
-            placeholder="Jan Novák"
+            {...register('borrowerName', { required: t.newLoan.borrowerNameRequired })}
+            placeholder={t.newLoan.borrowerNamePlaceholder}
           />
         </Field>
 
-        <Field label="Kontakt (e-mail / telefon)">
-          <Input {...register('borrowerContact')} placeholder="jan@example.com" />
+        <Field label={t.newLoan.contactFieldLabel}>
+          <Input {...register('borrowerContact')} placeholder={t.newLoan.contactFieldPlaceholder} />
         </Field>
 
-        <Field label="Účel (volitelné)">
+        <Field label={t.newLoan.purposeLabel}>
           <Textarea rows={2} {...register('purpose')} />
         </Field>
 
-        <Field label="Začátek výpůjčky (volitelné)">
+        <Field label={t.newLoan.loanedAtLabel}>
           <Input type="date" {...register('loanedAt')} />
-          <p className="text-xs text-slate-500 mt-1">
-            Necháš-li prázdné, výpůjčka začne hned. Budoucí datum ji naplánuje – assety se
-            rezervují a vypůjčí se až v termínu (nebo ručně).
-          </p>
+          <p className="text-xs text-slate-500 mt-1">{t.newLoan.loanedAtHelp}</p>
         </Field>
 
-        <Field label="Předpokládaný návrat">
+        <Field label={t.newLoan.expectedReturnLabel}>
           <Input type="date" {...register('expectedReturnAt')} />
         </Field>
 
         <Card>
-          <h2 className="font-semibold mb-2">Položky výpůjčky</h2>
-          <p className="text-xs text-slate-500 mb-2">
-            Vybrat lze assety volné ve zvoleném termínu – včetně právě půjčených, které se do
-            začátku stihnou vrátit. Nedostupné jsou zašedlé i s důvodem. Vybráno:{' '}
-            {selectedCodes.length}
-          </p>
+          <h2 className="font-semibold mb-2">{t.newLoan.itemsTitle}</h2>
+          <p className="text-xs text-slate-500 mb-2">{t.newLoan.itemsHelp(selectedCodes.length)}</p>
           <Input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Hledat kód / název…"
+            placeholder={t.newLoan.itemsSearchPlaceholder}
             className="mb-2"
           />
           <ul className="max-h-64 overflow-y-auto divide-y rounded border">
             {assets.data?.items.length === 0 && (
-              <li className="p-3 text-sm text-slate-500">Žádné assety neodpovídají hledání.</li>
+              <li className="p-3 text-sm text-slate-500">{t.newLoan.noAssets}</li>
             )}
             {assets.data?.items.map((a) => {
               const checked = selectedSet.has(a.code);
@@ -220,7 +218,7 @@ export function NewLoanPage() {
                   )}
                   {a.available && a.status === 'on_loan' && (
                     <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                      teď půjčeno
+                      {t.newLoan.nowLent}
                     </span>
                   )}
                 </li>
@@ -235,10 +233,10 @@ export function NewLoanPage() {
 
         <div className="flex gap-2">
           <Button type="submit" disabled={create.isPending || selectedCodes.length === 0}>
-            {create.isPending ? 'Ukládám…' : 'Vytvořit výpůjčku'}
+            {create.isPending ? t.newLoan.saving : t.newLoan.submit}
           </Button>
           <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
-            Zrušit
+            {t.newLoan.cancel}
           </Button>
         </div>
       </form>

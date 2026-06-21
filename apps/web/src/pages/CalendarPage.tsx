@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { apiClient, type LoanCalendarAsset } from '../lib/api.js';
 import { Button, Input } from '../components/ui.js';
+import { useT } from '../i18n/index.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { CalendarLegend } from '../components/AvailabilityCalendar.js';
 import {
@@ -37,6 +38,7 @@ function toWindows(asset: LoanCalendarAsset): BusyWindow[] {
 }
 
 export function CalendarPage() {
+  const t = useT();
   const today = new Date();
   const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const [cursor, setCursor] = useState(() => ({
@@ -90,13 +92,13 @@ export function CalendarPage() {
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Kalendář dostupnosti</h1>
+        <h1 className="text-2xl font-bold">{t.calendar.title}</h1>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => shift(-1)}
             className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            aria-label="Předchozí měsíc"
+            aria-label={t.calendar.prevMonth}
           >
             ←
           </button>
@@ -107,7 +109,7 @@ export function CalendarPage() {
             type="button"
             onClick={() => shift(1)}
             className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            aria-label="Další měsíc"
+            aria-label={t.calendar.nextMonth}
           >
             →
           </button>
@@ -116,27 +118,27 @@ export function CalendarPage() {
             onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
             className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
           >
-            Dnes
+            {t.calendar.today}
           </button>
         </div>
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-slate-500 block mb-0.5">Hledat</label>
+          <label className="text-xs text-slate-500 block mb-0.5">{t.calendar.search}</label>
           <Input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Kód / název assetu…"
+            placeholder={t.calendar.searchPlaceholder}
           />
         </div>
         <div>
-          <label className="text-xs text-slate-500 block mb-0.5">Volné od</label>
+          <label className="text-xs text-slate-500 block mb-0.5">{t.calendar.freeFrom}</label>
           <Input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
         </div>
         <div>
-          <label className="text-xs text-slate-500 block mb-0.5">do</label>
+          <label className="text-xs text-slate-500 block mb-0.5">{t.calendar.rangeTo}</label>
           <Input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
         </div>
         {(rangeFrom || rangeTo) && (
@@ -148,25 +150,25 @@ export function CalendarPage() {
               setRangeTo('');
             }}
           >
-            Vyčistit termín
+            {t.calendar.clearRange}
           </Button>
         )}
       </div>
 
       {freeRange && (
         <p className="text-sm text-slate-500">
-          Volné v celém termínu: <span className="font-medium">{total}</span>{' '}
-          {total === 1 ? 'asset' : 'assetů'}.
+          {t.calendar.freeInRange} <span className="font-medium">{total}</span>{' '}
+          {t.calendar.assetsCount(total)}.
         </p>
       )}
 
-      {calendar.isLoading && <p className="text-slate-500">Načítám…</p>}
+      {calendar.isLoading && <p className="text-slate-500">{t.calendar.loading}</p>}
       {calendar.error && (
         <p className="text-red-600">{errorMessage(calendar.error)}</p>
       )}
 
       {calendar.data && rows.length === 0 && (
-        <p className="text-sm text-slate-500">Žádné assety neodpovídají hledání.</p>
+        <p className="text-sm text-slate-500">{t.calendar.noMatches}</p>
       )}
 
       {rows.length > 0 && (
@@ -175,7 +177,7 @@ export function CalendarPage() {
             <thead>
               <tr>
                 <th className="sticky left-0 z-10 bg-white dark:bg-slate-800 px-3 py-2 text-left font-medium border-b border-slate-200 dark:border-slate-700">
-                  Asset
+                  {t.calendar.assetColumn}
                 </th>
                 {days.map((day) => {
                   const weekend = day.getDay() === 0 || day.getDay() === 6;
@@ -254,10 +256,10 @@ export function CalendarPage() {
             disabled={calendar.isFetching}
             onClick={() => setLimit((l) => l + 100)}
           >
-            {calendar.isFetching ? 'Načítám…' : 'Načíst další'}
+            {calendar.isFetching ? t.calendar.loading : t.calendar.loadMore}
           </Button>
           <span className="text-xs text-slate-500">
-            zobrazeno {rows.length} z {total}
+            {t.calendar.shownOf(rows.length, total)}
           </span>
         </div>
       )}

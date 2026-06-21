@@ -3,6 +3,11 @@ export type Locale = (typeof LOCALES)[number];
 
 export const LOCALE_LABELS: Record<Locale, string> = { cs: 'Čeština', en: 'English' };
 
+/** BCP-47 tag for Intl/toLocaleString date & number formatting. */
+export function localeTag(locale: Locale): string {
+  return locale === 'en' ? 'en-GB' : 'cs-CZ';
+}
+
 /**
  * Declares one translation namespace. `en` is type-checked to have exactly the
  * same shape as `cs` (same keys, same value/function signatures), so a missing

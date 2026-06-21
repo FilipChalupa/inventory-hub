@@ -1,5 +1,6 @@
 import type { CustomFieldsSchema } from '@inventory-hub/shared';
 import { Field, Input, Select } from './ui.js';
+import { useT } from '../i18n/index.js';
 
 type Props = {
   schema: CustomFieldsSchema;
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function CustomFieldsValuesForm({ schema, values, onChange, errors }: Props) {
+  const t = useT();
   if (schema.length === 0) return null;
   const set = (key: string, value: unknown) => onChange({ ...values, [key]: value });
 
@@ -72,7 +74,7 @@ export function CustomFieldsValuesForm({ schema, values, onChange, errors }: Pro
                   value={(raw as string | undefined) ?? ''}
                   onChange={(e) => set(f.key, e.target.value)}
                 >
-                  <option value="">— vybrat —</option>
+                  <option value="">{t.components.selectPlaceholder}</option>
                   {(f.options ?? []).map((opt) => (
                     <option key={opt} value={opt}>
                       {opt}

@@ -5,14 +5,8 @@ import { apiClient, type LoanRow } from '../lib/api.js';
 import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
 import { LoansCalendar } from '../components/LoansCalendar.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
+import { useT } from '../i18n/index.js';
 import clsx from 'clsx';
-
-const statusLabels = {
-  planned: 'Naplánováno',
-  open: 'Otevřená',
-  partially_returned: 'Část vráceno',
-  fully_returned: 'Vráceno',
-} as const;
 
 const statusClasses = {
   planned: 'bg-violet-100 text-violet-800',
@@ -21,9 +15,10 @@ const statusClasses = {
   fully_returned: 'bg-emerald-100 text-emerald-800',
 } as const;
 
-type StatusFilter = '' | keyof typeof statusLabels | 'overdue';
+type StatusFilter = '' | keyof typeof statusClasses | 'overdue';
 
 export function LoansPage() {
+  const t = useT();
   const now = new Date();
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'list';
@@ -81,18 +76,18 @@ export function LoansPage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Výpůjčky</h1>
+        <h1 className="text-2xl font-bold">{t.loans.title}</h1>
         <Link to="/loans/new">
-          <Button>+ Nová výpůjčka</Button>
+          <Button>{t.loans.newLoan}</Button>
         </Link>
       </div>
 
       <div className="inline-flex rounded border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
         <ViewTab active={view === 'list'} onClick={() => setSearchParams({})}>
-          Seznam
+          {t.loans.viewList}
         </ViewTab>
         <ViewTab active={view === 'calendar'} onClick={() => setSearchParams({ view: 'calendar' })}>
-          Kalendář
+          {t.loans.viewCalendar}
         </ViewTab>
       </div>
 
@@ -101,31 +96,31 @@ export function LoansPage() {
       {view === 'list' && (loadedCount > 0 || borrower || status || from || to) && (
         <div className="flex flex-wrap gap-2 items-end">
           <div className="flex-1 min-w-[160px]">
-            <label className="text-xs text-slate-500 block mb-0.5">Borrower</label>
+            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.borrower}</label>
             <Input
               type="search"
               value={borrower}
               onChange={(e) => setBorrower(e.target.value)}
-              placeholder="Hledat podle jména…"
+              placeholder={t.loans.borrowerPlaceholder}
             />
           </div>
           <div>
-            <label className="text-xs text-slate-500 block mb-0.5">Status</label>
+            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.status}</label>
             <Select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
-              <option value="">Všechny</option>
-              <option value="planned">Naplánováno</option>
-              <option value="open">Otevřené</option>
-              <option value="partially_returned">Část vráceno</option>
-              <option value="fully_returned">Vráceno</option>
-              <option value="overdue">Po termínu</option>
+              <option value="">{t.loans.statusAll}</option>
+              <option value="planned">{t.loanStatuses.planned}</option>
+              <option value="open">{t.loanStatuses.open}</option>
+              <option value="partially_returned">{t.loanStatuses.partially_returned}</option>
+              <option value="fully_returned">{t.loanStatuses.fully_returned}</option>
+              <option value="overdue">{t.loanStatuses.overdue}</option>
             </Select>
           </div>
           <div>
-            <label className="text-xs text-slate-500 block mb-0.5">Od</label>
+            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.from}</label>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
           </div>
           <div>
-            <label className="text-xs text-slate-500 block mb-0.5">Do</label>
+            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.to}</label>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
           </div>
           {(status || borrower || from || to) && (
@@ -139,7 +134,7 @@ export function LoansPage() {
                 setTo('');
               }}
             >
-              Vyčistit
+              {t.loans.clear}
             </Button>
           )}
         </div>
@@ -147,27 +142,23 @@ export function LoansPage() {
 
       {view === 'list' && loadedCount === 0 && !borrower && (
         <Card>
-          <h2 className="font-semibold mb-1">Zatím žádné výpůjčky</h2>
-          <p className="text-slate-600 text-sm mb-3">
-            Výpůjčka eviduje, kdo si od tebe co odnesl. Můžeš ji založit komukoli
-            (interní uživatel nebo externí jméno) a vracet pak položku po
-            položce.
-          </p>
+          <h2 className="font-semibold mb-1">{t.loans.emptyTitle}</h2>
+          <p className="text-slate-600 text-sm mb-3">{t.loans.emptyBody}</p>
           <Link to="/loans/new">
-            <Button>+ Vytvořit první výpůjčku</Button>
+            <Button>{t.loans.createFirst}</Button>
           </Link>
         </Card>
       )}
 
       {view === 'list' &&
         ((loadedCount > 0 && filtered.length === 0) || (loadedCount === 0 && !!borrower)) && (
-          <p className="text-sm text-slate-500">Žádné výpůjčky neodpovídají filtru.</p>
+          <p className="text-sm text-slate-500">{t.loans.noMatch}</p>
         )}
 
       {view === 'list' && upcoming.length > 0 && (
         <div className="space-y-1">
           <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-            Nadcházející rezervace
+            {t.loans.upcoming}
           </h2>
           <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
             {upcoming.map((loan) => (
@@ -192,11 +183,9 @@ export function LoansPage() {
             disabled={list.isFetching}
             onClick={() => setLimit((l) => l + 100)}
           >
-            {list.isFetching ? 'Načítám…' : 'Načíst další'}
+            {list.isFetching ? t.common.loading : t.common.loadMore}
           </Button>
-          <span className="text-xs text-slate-500">
-            zobrazeno {loadedCount} z {total}
-          </span>
+          <span className="text-xs text-slate-500">{t.loans.shownOf(loadedCount, total)}</span>
         </div>
       )}
     </section>
@@ -229,6 +218,7 @@ function ViewTab({
 }
 
 function LoanRowItem({ loan, now }: { loan: LoanRow; now: Date }) {
+  const t = useT();
   const overdue =
     loan.status !== 'fully_returned' &&
     loan.status !== 'planned' &&
@@ -240,23 +230,23 @@ function LoanRowItem({ loan, now }: { loan: LoanRow; now: Date }) {
         <div>
           <div className="font-medium">{loan.borrowerName}</div>
           <div className="text-xs text-slate-500">
-            {loan.items.length} ks ·{' '}
+            {t.loans.pieces(loan.items.length)} ·{' '}
             {loan.status === 'planned'
-              ? `začátek ${formatDate(loan.loanedAt)}`
-              : `zapůjčeno ${formatDate(loan.startedAt ?? loan.loanedAt)}`}
-            {loan.expectedReturnAt && ` · vrátit do ${formatDate(loan.expectedReturnAt)}`}
+              ? t.loans.startsAt(formatDate(loan.loanedAt))
+              : t.loans.lentAt(formatDate(loan.startedAt ?? loan.loanedAt))}
+            {loan.expectedReturnAt && ` · ${t.loans.returnBy(formatDate(loan.expectedReturnAt))}`}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {overdue && (
             <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">
-              overdue
+              {t.loans.overdue}
             </span>
           )}
           <span
             className={clsx('text-xs px-2 py-0.5 rounded font-medium', statusClasses[loan.status])}
           >
-            {statusLabels[loan.status]}
+            {t.loanStatuses[loan.status]}
           </span>
         </div>
       </Link>

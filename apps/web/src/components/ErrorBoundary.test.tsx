@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
+import { renderWithI18n } from '../test/render.js';
 import { ErrorBoundary } from './ErrorBoundary.js';
 
 describe('ErrorBoundary', () => {
@@ -10,7 +11,7 @@ describe('ErrorBoundary', () => {
   afterEach(() => vi.restoreAllMocks());
 
   it('renders children when nothing throws', () => {
-    render(
+    renderWithI18n(
       <ErrorBoundary>
         <div>obsah</div>
       </ErrorBoundary>,
@@ -22,7 +23,7 @@ describe('ErrorBoundary', () => {
     function Boom(): never {
       throw new Error('kaboom');
     }
-    render(
+    renderWithI18n(
       <ErrorBoundary>
         <Boom />
       </ErrorBoundary>,
@@ -37,7 +38,7 @@ describe('ErrorBoundary', () => {
       if (crash) throw new Error('kaboom');
       return <div>zotaveno</div>;
     }
-    render(
+    renderWithI18n(
       <ErrorBoundary>
         <Boom />
       </ErrorBoundary>,

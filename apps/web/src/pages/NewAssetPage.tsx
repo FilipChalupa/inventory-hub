@@ -9,6 +9,7 @@ import { toast } from '../components/Toast.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { validateCustomFieldValues } from '@inventory-hub/shared';
+import { useT } from '../i18n/index.js';
 
 type FormValues = {
   name: string;
@@ -18,6 +19,7 @@ type FormValues = {
 };
 
 export function NewAssetPage() {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { register, handleSubmit, watch, formState } = useForm<FormValues>({
@@ -34,7 +36,7 @@ export function NewAssetPage() {
   });
 
   const typeId = watch('typeId');
-  const selectedType = types.data?.items.find((t) => t.id === typeId);
+  const selectedType = types.data?.items.find((type) => type.id === typeId);
   const schema = selectedType?.customFieldsSchema ?? [];
 
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
@@ -51,7 +53,7 @@ export function NewAssetPage() {
       }),
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: ['assets'] });
-      toast.success(`Asset ${res.code} vytvořen`);
+      toast.success(t.newAsset.created(res.code));
       navigate(`/a/${res.code}`);
     },
   });
@@ -59,9 +61,9 @@ export function NewAssetPage() {
   return (
     <section className="max-w-xl">
       <Link to="/assets" className="text-sm text-slate-500 hover:underline">
-        ← zpět na seznam
+        {t.newAsset.backToList}
       </Link>
-      <h1 className="text-2xl font-bold mt-2 mb-4">Nový asset</h1>
+      <h1 className="text-2xl font-bold mt-2 mb-4">{t.newAsset.title}</h1>
 
       <form
         className="space-y-4"
@@ -75,32 +77,32 @@ export function NewAssetPage() {
           create.mutate(values);
         })}
       >
-        <Field label="Název" required error={formState.errors.name?.message}>
+        <Field label={t.newAsset.nameLabel} required error={formState.errors.name?.message}>
           <Input
-            {...register('name', { required: 'Název je povinný' })}
-            placeholder="ThinkPad X1 Carbon"
+            {...register('name', { required: t.newAsset.nameRequired })}
+            placeholder={t.newAsset.namePlaceholder}
           />
         </Field>
 
-        <Field label="Typ (pro auto-generování kódu)">
+        <Field label={t.newAsset.typeLabel}>
           <Select {...register('typeId')}>
-            <option value="">— bez typu —</option>
-            {types.data?.items.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name} ({t.codePrefix})
+            <option value="">{t.newAsset.typeNone}</option>
+            {types.data?.items.map((type) => (
+              <option key={type.id} value={type.id}>
+                {type.name} ({type.codePrefix})
               </option>
             ))}
           </Select>
         </Field>
 
-        <Field label="Lokace">
+        <Field label={t.newAsset.locationLabel}>
           <LocationSelect locations={locations.data?.items ?? []} {...register('locationId')} />
         </Field>
 
-        <Field label="Vlastní kód (nepovinné — jinak se vygeneruje z typu)">
+        <Field label={t.newAsset.codeLabel}>
           <Input
             {...register('code')}
-            placeholder="LAP-00123"
+            placeholder={t.newAsset.codePlaceholder}
             className="font-mono"
             onChange={(e) =>
               (e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''))
@@ -111,7 +113,7 @@ export function NewAssetPage() {
         {schema.length > 0 && (
           <div className="border-t pt-4">
             <h2 className="font-semibold mb-3 text-sm text-slate-700">
-              Vlastní pole ({selectedType?.name})
+              {t.newAsset.customFields(selectedType?.name ?? '')}
             </h2>
             <CustomFieldsValuesForm
               schema={schema}
@@ -128,10 +130,10 @@ export function NewAssetPage() {
 
         <div className="flex gap-2">
           <Button type="submit" disabled={create.isPending}>
-            {create.isPending ? 'Vytvářím…' : 'Vytvořit asset'}
+            {create.isPending ? t.newAsset.submitting : t.newAsset.submit}
           </Button>
           <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
-            Zrušit
+            {t.common.cancel}
           </Button>
         </div>
       </form>

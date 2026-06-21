@@ -1,0 +1,38 @@
+import { ns } from './util.js';
+
+export const newAsset = ns({
+  cs: {
+    backToList: '← zpět na seznam',
+    title: 'Nový asset',
+    nameLabel: 'Název',
+    nameRequired: 'Název je povinný',
+    namePlaceholder: 'ThinkPad X1 Carbon',
+    typeLabel: 'Typ (pro auto-generování kódu)',
+    typeNone: '— bez typu —',
+    locationLabel: 'Lokace',
+    codeLabel: 'Vlastní kód (nepovinné — jinak se vygeneruje z typu)',
+    codePlaceholder: 'LAP-00123',
+    customFields: (typeName: string) => `Vlastní pole (${typeName})`,
+    submit: 'Vytvořit asset',
+    submitting: 'Vytvářím…',
+    cancel: 'Zrušit',
+    created: (code: string) => `Asset ${code} vytvořen`,
+  },
+  en: {
+    backToList: '← back to list',
+    title: 'New asset',
+    nameLabel: 'Name',
+    nameRequired: 'Name is required',
+    namePlaceholder: 'ThinkPad X1 Carbon',
+    typeLabel: 'Type (for code auto-generation)',
+    typeNone: '— no type —',
+    locationLabel: 'Location',
+    codeLabel: 'Custom code (optional — otherwise generated from type)',
+    codePlaceholder: 'LAP-00123',
+    customFields: (typeName: string) => `Custom fields (${typeName})`,
+    submit: 'Create asset',
+    submitting: 'Creating…',
+    cancel: 'Cancel',
+    created: (code: string) => `Asset ${code} created`,
+  },
+});

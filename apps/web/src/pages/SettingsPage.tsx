@@ -6,11 +6,13 @@ import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
-import type { AllowedDomain, ApiKeyScope, UserRole } from '@inventory-hub/shared';
+import { useT } from '../i18n/index.js';
+import type { AllowedDomain, UserRole } from '@inventory-hub/shared';
 
 type SettingsForm = { name: string; codePrefix: string };
 
 export function SettingsPage() {
+  const t = useT();
   const qc = useQueryClient();
   const org = useQuery({ queryKey: ['org'], queryFn: () => apiClient.org.get() });
 
@@ -47,23 +49,23 @@ export function SettingsPage() {
 
   return (
     <section className="space-y-6 max-w-2xl">
-      <h1 className="text-2xl font-bold">Nastavení organizace</h1>
+      <h1 className="text-2xl font-bold">{t.settings.title}</h1>
 
       <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
         <Card>
           <div className="space-y-3">
             <Field
-              label="Název organizace"
+              label={t.settings.orgNameLabel}
               required
-              error={formState.errors.name ? 'Název organizace je povinný' : undefined}
+              error={formState.errors.name ? t.settings.orgNameRequired : undefined}
             >
               <Input {...register('name', { required: true })} />
             </Field>
             <Field
-              label="Prefix kódu assetů (volitelné, např. ACME)"
+              label={t.settings.codePrefixLabel}
               error={
                 formState.errors.codePrefix
-                  ? 'Prefix musí mít 2–6 znaků (A–Z, 0–9)'
+                  ? t.settings.codePrefixError
                   : undefined
               }
             >
@@ -81,55 +83,58 @@ export function SettingsPage() {
         </Card>
 
         <Card>
-          <h2 className="font-semibold mb-2">Povolené domény (Google auto-join)</h2>
+          <h2 className="font-semibold mb-2">{t.settings.allowedDomainsTitle}</h2>
           <p className="text-xs text-slate-500 mb-3">
-            Exact match — <span className="font-mono">acme.com</span> NEPOKRYJE{' '}
-            <span className="font-mono">eng.acme.com</span>. Subdomény přidávej zvlášť.
+            {t.settings.allowedDomainsExactNote1}
+            <span className="font-mono">acme.com</span>
+            {t.settings.allowedDomainsExactNote2}
+            <span className="font-mono">eng.acme.com</span>
+            {t.settings.allowedDomainsExactNote3}
           </p>
           <AllowedDomainsEditor value={domains} onChange={setDomains} />
         </Card>
 
         {save.error && <p className="text-sm text-red-600">{errorMessage(save.error)}</p>}
         {save.isSuccess && !save.isPending && (
-          <p className="text-sm text-emerald-600">Nastavení uloženo.</p>
+          <p className="text-sm text-emerald-600">{t.settings.settingsSaved}</p>
         )}
 
         <Button type="submit" disabled={save.isPending}>
-          {save.isPending ? 'Ukládám…' : 'Uložit nastavení'}
+          {save.isPending ? t.common.saving : t.settings.saveSettings}
         </Button>
       </form>
 
       <InvitationsSection />
 
       <Card>
-        <h2 className="font-semibold mb-2">Export CSV</h2>
+        <h2 className="font-semibold mb-2">{t.settings.exportTitle}</h2>
         <p className="text-xs text-slate-500 mb-3">
-          Stáhne aktuální data ve formátu CSV (UTF-8 + BOM, otevíratelné v Excelu).
+          {t.settings.exportNote}
         </p>
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/export/assets.csv"
             className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
-            Assety
+            {t.settings.exportAssets}
           </a>
           <a
             href="/api/export/loans.csv"
             className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
-            Výpůjčky
+            {t.settings.exportLoans}
           </a>
           <a
             href="/api/export/damages.csv"
             className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
-            Poškození
+            {t.settings.exportDamages}
           </a>
           <a
             href="/api/export/contacts.csv"
             className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
-            Kontakty
+            {t.settings.exportContacts}
           </a>
         </div>
       </Card>
@@ -145,8 +150,6 @@ export function SettingsPage() {
     </section>
   );
 }
-
-const SCOPE_LABELS: Record<ApiKeyScope, string> = { api: 'API', feeds: 'Kalendář' };
 
 /** Full subscribable feed URL for a freshly minted feeds token. */
 function calendarFeedUrl(token: string) {
@@ -165,9 +168,10 @@ function todayInputValue(): string {
 
 /** Optional expiry date picker shared by the key/feed creation forms. */
 function ExpiryField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const t = useT();
   return (
     <div className="min-w-[150px]">
-      <Field label="Platí do (volitelné)">
+      <Field label={t.settings.expiryLabel}>
         <Input
           type="date"
           value={value}
@@ -186,6 +190,7 @@ function ExpiryField({ value, onChange }: { value: string; onChange: (v: string)
  * @inventory-hub/shared.
  */
 function CalendarFeedSection() {
+  const t = useT();
   const qc = useQueryClient();
   const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.apiKeys.list() });
   const links = keys.data?.items.filter((k) => k.scopes.includes('feeds')) ?? [];
@@ -214,27 +219,26 @@ function CalendarFeedSection() {
 
   return (
     <Card>
-      <h2 className="font-semibold mb-2">Kalendář výpůjček (.ics)</h2>
+      <h2 className="font-semibold mb-2">{t.settings.calendarTitle}</h2>
       <p className="text-xs text-slate-500 mb-3">
-        Odebírej termíny vrácení a začátky rezervací v Google / Apple kalendáři. Vytvoř
-        odkaz a vlož ho jako „odebíraný kalendář". Odkaz obsahuje token — ber ho jako heslo.
-        Umožní <strong>jen čtení</strong> termínů výpůjček, k API ani datům se s ním nedostaneš.
-        Token uvidíš jen jednou; zrušením odkazu odběr okamžitě přestane fungovat.
+        {t.settings.calendarIntro1}
+        <strong>{t.settings.calendarIntroReadOnly}</strong>
+        {t.settings.calendarIntro2}
       </p>
 
       {created && (
         <div className="mb-3 rounded border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
           <p className="text-sm font-medium mb-1">
-            Odkaz „{created.name}" — zkopíruj teď (uvidíš ho jen jednou):
+            {t.settings.calendarCreatedTitle(created.name)}
           </p>
           <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {calendarFeedUrl(created.token)}
           </code>
           <p className="text-xs text-slate-500 mt-1">
-            Vlož jako odebíraný kalendář v Google / Apple kalendáři (URL veřejné adresy).
+            {t.settings.calendarCreatedHint}
           </p>
           <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
-            Mám zkopírováno
+            {t.settings.copiedDone}
           </Button>
         </div>
       )}
@@ -247,23 +251,23 @@ function CalendarFeedSection() {
         }}
       >
         <div className="flex-1 min-w-[180px]">
-          <Field label="Název odkazu" required>
+          <Field label={t.settings.linkNameLabel} required>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="např. Můj telefon"
+              placeholder={t.settings.linkNamePlaceholder}
             />
           </Field>
         </div>
         <ExpiryField value={expiresAt} onChange={setExpiresAt} />
         <Button type="submit" disabled={create.isPending || !name.trim()}>
-          {create.isPending ? 'Vytvářím…' : 'Vytvořit odkaz'}
+          {create.isPending ? t.settings.creating : t.settings.createLink}
         </Button>
       </form>
       {create.error && <p className="text-sm text-red-600 mb-2">{errorMessage(create.error)}</p>}
 
       {links.length === 0 ? (
-        <p className="text-sm text-slate-500">Zatím žádné kalendářové odkazy.</p>
+        <p className="text-sm text-slate-500">{t.settings.calendarLinksEmpty}</p>
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
           {links.map((k) => (
@@ -272,8 +276,8 @@ function CalendarFeedSection() {
                 <span className="font-medium">{k.name}</span>{' '}
                 <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>
                 <div className="text-xs text-slate-500">
-                  {k.lastUsedAt ? `naposledy ${formatDate(k.lastUsedAt)}` : 'nepoužitý'}
-                  {k.expiresAt && ` · platí do ${formatDate(k.expiresAt)}`}
+                  {k.lastUsedAt ? t.settings.lastUsed(formatDate(k.lastUsedAt)) : t.settings.neverUsed}
+                  {k.expiresAt && ` · ${t.settings.validUntil(formatDate(k.expiresAt))}`}
                 </div>
               </div>
               <Button
@@ -283,17 +287,17 @@ function CalendarFeedSection() {
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: `Zrušit odkaz „${k.name}"?`,
-                      message: 'Odběr kalendáře okamžitě přestane fungovat.',
-                      confirmLabel: 'Zrušit odkaz',
+                      title: t.settings.cancelLinkTitle(k.name),
+                      message: t.settings.cancelLinkMessage,
+                      confirmLabel: t.settings.cancelLinkConfirm,
                       danger: true,
                     })
                   ) {
-                    remove.mutate(k.id, { onSuccess: () => toast.success('Odkaz zrušen') });
+                    remove.mutate(k.id, { onSuccess: () => toast.success(t.settings.linkCancelled) });
                   }
                 }}
               >
-                Zrušit
+                {t.settings.cancelLinkButton}
               </Button>
             </li>
           ))}
@@ -304,6 +308,7 @@ function CalendarFeedSection() {
 }
 
 function ApiKeysSection() {
+  const t = useT();
   const qc = useQueryClient();
   const keys = useQuery({ queryKey: ['api-keys'], queryFn: () => apiClient.apiKeys.list() });
   // REST keys only; calendar links live in their own section.
@@ -334,25 +339,25 @@ function ApiKeysSection() {
   return (
     <Card>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="font-semibold">API klíče</h2>
+        <h2 className="font-semibold">{t.settings.apiKeysTitle}</h2>
         <a href="/docs" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
-          dokumentace API →
+          {t.settings.apiDocsLink}
         </a>
       </div>
       <p className="text-xs text-slate-500 mb-3">
-        Pro integrace a skripty. Klíč se posílá jako{' '}
-        <span className="font-mono">Authorization: Bearer …</span> a má práva admina, který ho
-        vytvořil. Pro odběr kalendáře použij sekci výše. Token uvidíš jen jednou.
+        {t.settings.apiKeysIntro1}
+        <span className="font-mono">Authorization: Bearer …</span>
+        {t.settings.apiKeysIntro2}
       </p>
 
       {created && (
         <div className="mb-3 rounded border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
-          <p className="text-sm font-medium mb-1">Nový klíč „{created.name}" — zkopíruj teď:</p>
+          <p className="text-sm font-medium mb-1">{t.settings.apiKeyCreatedTitle(created.name)}</p>
           <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {created.token}
           </code>
           <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
-            Mám zkopírováno
+            {t.settings.copiedDone}
           </Button>
         </div>
       )}
@@ -365,19 +370,19 @@ function ApiKeysSection() {
         }}
       >
         <div className="flex-1 min-w-[180px]">
-          <Field label="Název klíče" required>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="např. Zapier" />
+          <Field label={t.settings.keyNameLabel} required>
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.settings.keyNamePlaceholder} />
           </Field>
         </div>
         <ExpiryField value={expiresAt} onChange={setExpiresAt} />
         <Button type="submit" disabled={create.isPending || !name.trim()}>
-          {create.isPending ? 'Vytvářím…' : 'Vytvořit klíč'}
+          {create.isPending ? t.settings.creating : t.settings.createKey}
         </Button>
       </form>
       {create.error && <p className="text-sm text-red-600 mb-2">{errorMessage(create.error)}</p>}
 
       {apiKeys.length === 0 ? (
-        <p className="text-sm text-slate-500">Zatím žádné klíče.</p>
+        <p className="text-sm text-slate-500">{t.settings.apiKeysEmpty}</p>
       ) : (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
           {apiKeys.map((k) => (
@@ -387,12 +392,12 @@ function ApiKeysSection() {
                 <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>{' '}
                 {k.scopes.includes('feeds') && (
                   <span className="ml-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                    + {SCOPE_LABELS.feeds}
+                    + {t.settings.scopeFeeds}
                   </span>
                 )}
                 <div className="text-xs text-slate-500">
-                  {k.lastUsedAt ? `naposledy ${formatDate(k.lastUsedAt)}` : 'nepoužitý'}
-                  {k.expiresAt && ` · platí do ${formatDate(k.expiresAt)}`}
+                  {k.lastUsedAt ? t.settings.lastUsed(formatDate(k.lastUsedAt)) : t.settings.neverUsed}
+                  {k.expiresAt && ` · ${t.settings.validUntil(formatDate(k.expiresAt))}`}
                 </div>
               </div>
               <Button
@@ -402,17 +407,17 @@ function ApiKeysSection() {
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: `Zrušit klíč „${k.name}"?`,
-                      message: 'Klíč přestane okamžitě fungovat.',
-                      confirmLabel: 'Zrušit klíč',
+                      title: t.settings.cancelKeyTitle(k.name),
+                      message: t.settings.cancelKeyMessage,
+                      confirmLabel: t.settings.cancelKeyConfirm,
                       danger: true,
                     })
                   ) {
-                    remove.mutate(k.id, { onSuccess: () => toast.success('Klíč zrušen') });
+                    remove.mutate(k.id, { onSuccess: () => toast.success(t.settings.keyCancelled) });
                   }
                 }}
               >
-                Zrušit
+                {t.settings.cancelLinkButton}
               </Button>
             </li>
           ))}
@@ -423,6 +428,7 @@ function ApiKeysSection() {
 }
 
 function McpConnectionSection() {
+  const t = useT();
   const info = useQuery({ queryKey: ['mcp-info'], queryFn: () => apiClient.org.mcpInfo() });
   const url = info.data?.url ?? '';
   const command = `claude mcp add --transport http inventory-hub ${url}`;
@@ -431,47 +437,47 @@ function McpConnectionSection() {
   return (
     <Card>
       <div className="flex items-center justify-between mb-2">
-        <h2 className="font-semibold">Připojení AI asistenta (MCP)</h2>
+        <h2 className="font-semibold">{t.settings.mcpTitle}</h2>
         <a href="/docs" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
-          dokumentace API →
+          {t.settings.apiDocsLink}
         </a>
       </div>
       <p className="text-xs text-slate-500 mb-3">
-        Inventory Hub umí svá data zpřístupnit AI asistentům (Claude Desktop/Code,
-        claude.ai) přes Model Context Protocol. Připojení se nastavuje v MCP klientovi,
-        ne tady — níže je hotový příkaz k vložení.
+        {t.settings.mcpIntro}
       </p>
 
-      {info.isLoading && <p className="text-sm text-slate-500">Načítám…</p>}
+      {info.isLoading && <p className="text-sm text-slate-500">{t.common.loading}</p>}
 
       {!info.isLoading && !googleConfigured && (
         <p className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-200">
-          ⚠ Přihlášení k MCP jede přes Google OAuth, který teď není nakonfigurovaný
-          (<span className="font-mono">GOOGLE_CLIENT_ID</span> /{' '}
+          {t.settings.mcpGoogleWarn1}
+          <span className="font-mono">GOOGLE_CLIENT_ID</span> /{' '}
           <span className="font-mono">SECRET</span> /{' '}
-          <span className="font-mono">REDIRECT_URL</span>). Konektor zatím nepůjde
-          autorizovat — viz README → „Remote MCP server".
+          <span className="font-mono">REDIRECT_URL</span>
+          {t.settings.mcpGoogleWarn2}
         </p>
       )}
 
       {!info.isLoading && (
         <div className="space-y-3">
-          <CopyField label="URL konektoru" text={url} />
-          <CopyField label="Příkaz pro Claude Code" text={command} />
+          <CopyField label={t.settings.mcpConnectorUrlLabel} text={url} />
+          <CopyField label={t.settings.mcpCommandLabel} text={command} />
         </div>
       )}
 
       <p className="text-xs text-slate-500 mt-3">
-        Při prvním použití klient otevře prohlížeč k přihlášení. Pak zvolíš{' '}
-        <strong>read-write</strong> (zdědí tvoji roli a oprávnění) nebo{' '}
-        <strong>read-only</strong> (jen čtení). Nástroje kopírují REST API — assety,
-        výpůjčky, kontakty, poškození, lokace, typy a (pro adminy) správu organizace.
+        {t.settings.mcpFooter1}
+        <strong>{t.settings.mcpFooterReadWrite}</strong>
+        {t.settings.mcpFooter2}
+        <strong>{t.settings.mcpFooterReadOnly}</strong>
+        {t.settings.mcpFooter3}
       </p>
     </Card>
   );
 }
 
 function CopyField({ label, text }: { label: string; text: string }) {
+  const t = useT();
   const [copied, setCopied] = useState(false);
   return (
     <div>
@@ -493,7 +499,7 @@ function CopyField({ label, text }: { label: string; text: string }) {
               .catch(() => undefined);
           }}
         >
-          {copied ? 'Zkopírováno' : 'Kopírovat'}
+          {copied ? t.common.copied : t.common.copy}
         </Button>
       </div>
     </div>
@@ -504,6 +510,7 @@ function CopyField({ label, text }: { label: string; text: string }) {
 // Vloží do DB sadu demo dat (typy assetů, lokace, assety, kontakt, výpůjčku
 // a hlášení poškození). Smazat spolu s /api/demo routou na serveru.
 function DemoDataSection() {
+  const t = useT();
   const qc = useQueryClient();
 
   const seed = useMutation({
@@ -517,22 +524,23 @@ function DemoDataSection() {
   return (
     <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700">
       <h2 className="font-semibold mb-1 text-amber-900 dark:text-amber-300">
-        🧪 Demo data{' '}
+        🧪 {t.settings.demoTitle}{' '}
         <span className="text-xs font-normal text-amber-700 dark:text-amber-400">
-          (dočasné)
+          {t.settings.demoTemporary}
         </span>
       </h2>
       <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">
-        Vloží ukázková data do databáze: typy assetů, lokace, desítky assetů v různých stavech,
-        kontakty, výpůjčky a hlášení poškození. Lze spustit opakovaně – pokaždé přidá novou sadu.
+        {t.settings.demoIntro}
       </p>
 
       {seed.isSuccess && seed.data && (
         <div className="mb-3 p-2 rounded bg-emerald-50 border border-emerald-200 text-xs dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300">
-          ✅ Hotovo! Vytvořeno: {seed.data.summary.assetsCreated} assetů,{' '}
-          {seed.data.summary.locationsCreated} lokací,{' '}
-          {seed.data.summary.loansCreated} výpůjček,{' '}
-          {seed.data.summary.damageReportsCreated} hlášení poškození.
+          {t.settings.demoDone(
+            seed.data.summary.assetsCreated,
+            seed.data.summary.locationsCreated,
+            seed.data.summary.loansCreated,
+            seed.data.summary.damageReportsCreated,
+          )}
         </div>
       )}
 
@@ -545,13 +553,14 @@ function DemoDataSection() {
         onClick={() => seed.mutate()}
         disabled={seed.isPending}
       >
-        {seed.isPending ? 'Vkládám data…' : 'Vložit demo data'}
+        {seed.isPending ? t.settings.demoSeeding : t.settings.demoSeed}
       </Button>
     </Card>
   );
 }
 
 function InvitationsSection() {
+  const t = useT();
   const qc = useQueryClient();
   const list = useQuery({ queryKey: ['invitations'], queryFn: () => apiClient.invitations.list() });
   const [email, setEmail] = useState('');
@@ -574,10 +583,9 @@ function InvitationsSection() {
 
   return (
     <Card>
-      <h2 className="font-semibold mb-2">Pozvánky uživatelů</h2>
+      <h2 className="font-semibold mb-2">{t.settings.invitationsTitle}</h2>
       <p className="text-xs text-slate-500 mb-3">
-        Pozvaný uživatel dostane e-mail s odkazem (v dev módu se e-mail vypíše do
-        konzole serveru). Pokud má SMTP nakonfigurovaný, doručí se reálně.
+        {t.settings.invitationsIntro}
       </p>
 
       <form
@@ -588,17 +596,17 @@ function InvitationsSection() {
         }}
       >
         <div className="flex-1 min-w-[200px]">
-          <Field label="E-mail" required>
+          <Field label={t.settings.emailLabel} required>
             <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="kolega@firma.cz"
+              placeholder={t.settings.emailPlaceholder}
             />
           </Field>
         </div>
         <div className="w-40">
-          <Field label="Role">
+          <Field label={t.common.role}>
             <Select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
               <option value="member">member</option>
               <option value="operator">operator</option>
@@ -608,7 +616,7 @@ function InvitationsSection() {
           </Field>
         </div>
         <Button type="submit" disabled={create.isPending || !email}>
-          Pozvat
+          {t.settings.invite}
         </Button>
       </form>
 
@@ -618,28 +626,28 @@ function InvitationsSection() {
 
       {lastUrl && (
         <div className="mt-3 p-3 rounded bg-emerald-50 border border-emerald-200 text-xs space-y-1">
-          <p className="font-medium">Pozvánka vytvořena. Odkaz:</p>
+          <p className="font-medium">{t.settings.invitationCreated}</p>
           <code className="block break-all">{lastUrl}</code>
           <Button
             variant="secondary"
             className="text-xs"
             onClick={() => navigator.clipboard.writeText(lastUrl)}
           >
-            Kopírovat
+            {t.common.copy}
           </Button>
         </div>
       )}
 
       <ul className="divide-y border rounded mt-4">
         {list.data?.items.length === 0 && (
-          <li className="p-3 text-sm text-slate-500">Žádné čekající pozvánky.</li>
+          <li className="p-3 text-sm text-slate-500">{t.settings.invitationsEmpty}</li>
         )}
         {list.data?.items.map((inv) => (
           <li key={inv.id} className="flex items-center justify-between p-3 gap-2">
             <div>
               <p className="text-sm font-medium">{inv.email}</p>
               <p className="text-xs text-slate-500">
-                role {inv.role} · platí do {formatDate(inv.expiresAt)}
+                {t.settings.invitationMeta(inv.role, formatDate(inv.expiresAt))}
               </p>
             </div>
             <Button
@@ -647,7 +655,7 @@ function InvitationsSection() {
               className="text-red-600 text-xs"
               onClick={() => remove.mutate(inv.id)}
             >
-              Zrušit
+              {t.settings.cancelInvitationButton}
             </Button>
           </li>
         ))}
@@ -663,6 +671,7 @@ function AllowedDomainsEditor({
   value: AllowedDomain[];
   onChange: (v: AllowedDomain[]) => void;
 }) {
+  const t = useT();
   const [domain, setDomain] = useState('');
   const [role, setRole] = useState<UserRole>('member');
 
@@ -677,7 +686,7 @@ function AllowedDomainsEditor({
     <div className="space-y-3">
       <ul className="divide-y rounded border">
         {value.length === 0 && (
-          <li className="p-3 text-sm text-slate-500">Žádné domény nejsou povoleny.</li>
+          <li className="p-3 text-sm text-slate-500">{t.settings.allowedDomainsEmpty}</li>
         )}
         {value.map((d) => (
           <li key={d.domain} className="flex items-center justify-between p-2 gap-2">
@@ -688,7 +697,7 @@ function AllowedDomainsEditor({
               className="text-red-600 text-xs"
               onClick={() => onChange(value.filter((x) => x.domain !== d.domain))}
             >
-              Odebrat
+              {t.settings.removeDomain}
             </Button>
           </li>
         ))}
@@ -696,7 +705,7 @@ function AllowedDomainsEditor({
 
       <div className="flex gap-2 items-end">
         <div className="flex-1">
-          <Field label="Doména">
+          <Field label={t.settings.domainLabel}>
             <Input
               value={domain}
               onChange={(e) => setDomain(e.target.value.toLowerCase())}
@@ -714,7 +723,7 @@ function AllowedDomainsEditor({
           </Field>
         </div>
         <div className="w-40">
-          <Field label="Default role">
+          <Field label={t.settings.defaultRoleLabel}>
             <Select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
               <option value="member">member</option>
               <option value="operator">operator</option>
@@ -724,7 +733,7 @@ function AllowedDomainsEditor({
           </Field>
         </div>
         <Button type="button" variant="secondary" onClick={add}>
-          Přidat
+          {t.settings.addDomain}
         </Button>
       </div>
     </div>

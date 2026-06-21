@@ -3,28 +3,9 @@ import { errorMessage } from '../lib/errors.js';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient, type ImportPreviewRow, type ImportResult } from '../lib/api.js';
 import { Button, Card, Select } from '../components/ui.js';
+import { useT } from '../i18n/index.js';
 
 type Kind = 'assets' | 'asset-types' | 'locations';
-
-const KIND_LABELS: Record<Kind, string> = {
-  assets: 'Assety',
-  'asset-types': 'Typy assetů',
-  locations: 'Lokace',
-};
-
-const KIND_HINTS: Record<Kind, string> = {
-  assets:
-    'Povinný: name. Volitelné: code, type (codePrefix existujícího typu), notes. Další sloupce = vlastní pole.',
-  'asset-types': 'Povinné: name, code_prefix.',
-  locations:
-    'Povinný: name. Volitelné: parent_name (musí odpovídat jménu existující lokace).',
-};
-
-const KIND_LIMITS: Record<Kind, string> = {
-  assets: '1 MB, max 1000 řádků',
-  'asset-types': '100 KB, max 200 řádků',
-  locations: '100 KB, max 500 řádků',
-};
 
 const KIND_REDIRECT: Record<Kind, string> = {
   assets: '/',
@@ -44,6 +25,7 @@ function runImport(kind: Kind, file: File, dryRun: boolean): Promise<ImportResul
 }
 
 export function ImportAssetsPage() {
+  const t = useT();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const initialKind = (params.get('kind') as Kind | null) ?? 'assets';
@@ -100,14 +82,14 @@ export function ImportAssetsPage() {
   return (
     <section className="space-y-4">
       <Link to="/assets" className="text-sm text-slate-500 hover:underline">
-        ← zpět
+        ← {t.common.back}
       </Link>
-      <h1 className="text-2xl font-bold">Import z CSV</h1>
+      <h1 className="text-2xl font-bold">{t.importAssets.title}</h1>
 
       <Card>
         <div className="flex flex-wrap gap-2 items-end mb-3">
           <label className="block">
-            <span className="block text-sm font-medium mb-1">Entita</span>
+            <span className="block text-sm font-medium mb-1">{t.importAssets.entity}</span>
             <Select
               value={kind}
               onChange={(e) => {
@@ -118,16 +100,17 @@ export function ImportAssetsPage() {
                 setFile(null);
               }}
             >
-              {(Object.keys(KIND_LABELS) as Kind[]).map((k) => (
+              {(Object.keys(t.importAssets.kindLabels) as Kind[]).map((k) => (
                 <option key={k} value={k}>
-                  {KIND_LABELS[k]}
+                  {t.importAssets.kindLabels[k]}
                 </option>
               ))}
             </Select>
           </label>
         </div>
         <p className="text-sm text-slate-600 dark:text-slate-400 mb-3">
-          {KIND_HINTS[kind]} Limit: {KIND_LIMITS[kind]}.
+          {t.importAssets.kindHints[kind]} {t.importAssets.limitPrefix}{' '}
+          {t.importAssets.kindLimits[kind]}.
         </p>
         <input
           type="file"
@@ -140,22 +123,22 @@ export function ImportAssetsPage() {
         />
         <div className="mt-3 flex gap-2">
           <Button onClick={runDryRun} disabled={!file || busy}>
-            {busy ? 'Pracuji…' : 'Náhled (dry-run)'}
+            {busy ? t.importAssets.working : t.importAssets.dryRun}
           </Button>
           <Button
             variant="primary"
             onClick={runCommit}
             disabled={!file || busy || (preview !== null && hasErrors)}
           >
-            Importovat
+            {t.importAssets.import}
           </Button>
         </div>
         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         {createdCount !== null && (
           <p className="text-sm text-green-700 dark:text-green-400 mt-2">
-            Importováno {createdCount} záznamů.{' '}
+            {t.importAssets.imported(createdCount)}{' '}
             <button className="underline" onClick={() => navigate(KIND_REDIRECT[kind])}>
-              Přejít na seznam
+              {t.importAssets.goToList}
             </button>
           </p>
         )}
@@ -164,21 +147,26 @@ export function ImportAssetsPage() {
       {preview && (
         <Card>
           <h2 className="font-semibold mb-2">
-            Náhled ({preview.length} řádků
-            {hasErrors ? `, ${preview.filter((p) => p.issues.length > 0).length} s chybami` : ''})
+            {t.importAssets.previewTitle(preview.length)}
+            {hasErrors
+              ? t.importAssets.previewWithErrors(
+                  preview.filter((p) => p.issues.length > 0).length,
+                )
+              : ''}
+            {t.importAssets.previewClose}
           </h2>
           <div className="overflow-x-auto">
             <table className="text-sm w-full">
               <thead>
                 <tr className="text-left border-b border-slate-200 dark:border-slate-700">
                   <th className="py-1 pr-3">#</th>
-                  {kind === 'assets' && <th className="py-1 pr-3">code</th>}
+                  {kind === 'assets' && <th className="py-1 pr-3">{t.importAssets.colCode}</th>}
                   {headers.map((h) => (
                     <th key={h} className="py-1 pr-3">
                       {h}
                     </th>
                   ))}
-                  <th className="py-1">problémy</th>
+                  <th className="py-1">{t.importAssets.colIssues}</th>
                 </tr>
               </thead>
               <tbody>
@@ -189,7 +177,9 @@ export function ImportAssetsPage() {
                   >
                     <td className="py-1 pr-3 text-slate-400">{p.lineNumber}</td>
                     {kind === 'assets' && (
-                      <td className="py-1 pr-3 font-mono text-xs">{p.code ?? '—'}</td>
+                      <td className="py-1 pr-3 font-mono text-xs">
+                        {p.code ?? t.importAssets.emptyValue}
+                      </td>
                     )}
                     {headers.map((h) => (
                       <td key={h} className="py-1 pr-3">

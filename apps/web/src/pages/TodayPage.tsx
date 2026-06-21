@@ -3,7 +3,8 @@ import { errorMessage } from '../lib/errors.js';
 import { Link } from 'react-router-dom';
 import { apiClient, type LoanTodayBucket } from '../lib/api.js';
 import { Card, SkeletonList, formatDate } from '../components/ui.js';
-import { useT } from '../i18n/index.js';
+import { useT, getLocale } from '../i18n/index.js';
+import { localeTag } from '../i18n/util.js';
 
 /**
  * Operational "what needs attention today" view: overdue returns, returns due
@@ -22,7 +23,7 @@ export function TodayPage() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t.today.title}</h1>
-        <span className="text-sm text-slate-500">{now.toLocaleDateString('cs-CZ')}</span>
+        <span className="text-sm text-slate-500">{now.toLocaleDateString(localeTag(getLocale()))}</span>
       </div>
 
       {todayQuery.isLoading && <SkeletonList rows={3} />}

@@ -94,7 +94,7 @@ function Shell() {
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center text-slate-500">
-        Načítám…
+        {t.common.loading}
       </div>
     );
   }

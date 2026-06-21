@@ -4,10 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
+import { useT } from '../i18n/index.js';
 
 const IS_DEV = import.meta.env.DEV;
 
 export function LoginPage() {
+  const t = useT();
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [email, setEmail] = useState('admin@example.com');
@@ -34,7 +36,7 @@ export function LoginPage() {
       <Card className="w-full max-w-md space-y-6">
         <div>
           <h1 className="text-2xl font-bold">Inventory Hub</h1>
-          <p className="text-sm text-slate-600">Přihlas se a pokračuj.</p>
+          <p className="text-sm text-slate-600">{t.login.subtitle}</p>
         </div>
 
         <a
@@ -59,7 +61,7 @@ export function LoginPage() {
               d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1A10.997 10.997 0 0 0 2.18 7.07l3.66 2.84C6.71 7.31 9.14 5.38 12 5.38Z"
             />
           </svg>
-          Pokračovat přes Google
+          {t.login.continueWithGoogle}
         </a>
 
         {IS_DEV && (
@@ -69,11 +71,11 @@ export function LoginPage() {
                 <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">dev mode</span>
+                <span className="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{t.login.devMode}</span>
               </div>
             </div>
             <form className="space-y-3" onSubmit={devLogin}>
-              <Field label="E-mail existujícího uživatele" required>
+              <Field label={t.login.existingUserEmail} required>
                 <Input
                   type="email"
                   value={email}
@@ -83,11 +85,12 @@ export function LoginPage() {
               </Field>
               {error && <p className="text-sm text-red-600">{error}</p>}
               <Button type="submit" disabled={submitting} className="w-full">
-                {submitting ? 'Přihlašuji…' : 'Dev login'}
+                {submitting ? t.login.signingIn : t.login.devLogin}
               </Button>
               <p className="text-xs text-slate-500">
-                Dev login je vypnutý v produkci. Potřebuje, aby uživatel s daným e-mailem
-                v databázi existoval (viz <code className="font-mono">db:seed</code>).
+                {t.login.devLoginHint}
+                <code className="font-mono">db:seed</code>
+                {t.login.devLoginHintEnd}
               </p>
             </form>
           </>

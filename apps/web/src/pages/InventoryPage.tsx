@@ -7,8 +7,10 @@ import { LocationSelect } from '../components/LocationSelect.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { locationPath } from '../lib/locations.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
+import { useT } from '../i18n/index.js';
 
 export function InventoryPage() {
+  const t = useT();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const canWrite = hasRole(useCurrentUser(), 'admin', 'operator');
@@ -57,88 +59,88 @@ export function InventoryPage() {
       void queryClient.invalidateQueries({ queryKey: ['inventory'] });
       navigate(`/inventory/${res.session.id}`);
     },
-    onError: (e: unknown) => setError(e instanceof Error ? e.message : 'Chyba'),
+    onError: (e: unknown) => setError(e instanceof Error ? e.message : t.inventory.genericError),
   });
 
   const items = sessions.data?.items ?? [];
   const locationName = (id: string | null) =>
-    id ? locationPath(locations.data?.items ?? [], id) || '—' : 'Celá organizace';
+    id ? locationPath(locations.data?.items ?? [], id) || '—' : t.inventory.wholeOrganization;
 
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Inventury</h1>
+        <h1 className="text-2xl font-bold">{t.inventory.title}</h1>
         {canWrite && !creating && (
-          <Button onClick={() => setCreating(true)}>+ Nová inventura</Button>
+          <Button onClick={() => setCreating(true)}>{t.inventory.newInventory}</Button>
         )}
       </div>
 
       <p className="text-sm text-slate-600 dark:text-slate-300">
-        Inventura zkontroluje, že fyzicky existuje vše, co je v evidenci. Spustíš
-        ji pro celou organizaci nebo pro vybranou lokaci, naskenuješ co máš v ruce
-        a systém ti vypíše, co chybí a co je navíc.
+        {t.inventory.intro}
       </p>
 
       {creating && (
         <Card className="space-y-3">
-          <h2 className="font-semibold">Nová inventura</h2>
-          <Field label="Název (volitelný)">
+          <h2 className="font-semibold">{t.inventory.newInventoryHeading}</h2>
+          <Field label={t.inventory.nameLabel}>
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="Inventura — sklad A"
+              placeholder={t.inventory.namePlaceholder}
             />
           </Field>
           <div className={picking ? 'space-y-2 opacity-50 pointer-events-none' : 'space-y-2'}>
-            <Field label="Rozsah (lokace)">
+            <Field label={t.inventory.scopeLabel}>
               <LocationSelect
                 locations={locations.data?.items ?? []}
                 value={locationId}
                 onChange={(e) => setLocationId(e.target.value)}
-                placeholder="— celá organizace —"
+                placeholder={t.inventory.scopePlaceholder}
               />
             </Field>
             <div>
               <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
-                Typy assetů (volitelné)
+                {t.inventory.assetTypesLabel}
               </span>
               {types.data?.items.length === 0 ? (
-                <p className="text-xs text-slate-500">Žádné typy.</p>
+                <p className="text-xs text-slate-500">{t.inventory.noTypes}</p>
               ) : (
                 <div className="flex flex-wrap gap-x-4 gap-y-1">
-                  {types.data?.items.map((t) => (
-                    <label key={t.id} className="inline-flex items-center gap-1.5 text-sm">
+                  {types.data?.items.map((type) => (
+                    <label key={type.id} className="inline-flex items-center gap-1.5 text-sm">
                       <input
                         type="checkbox"
-                        checked={typeIds.includes(t.id)}
+                        checked={typeIds.includes(type.id)}
                         onChange={() =>
                           setTypeIds((prev) =>
-                            prev.includes(t.id) ? prev.filter((x) => x !== t.id) : [...prev, t.id],
+                            prev.includes(type.id)
+                              ? prev.filter((x) => x !== type.id)
+                              : [...prev, type.id],
                           )
                         }
                       />
-                      {t.name}
+                      {type.name}
                     </label>
                   ))}
                 </div>
               )}
             </div>
             <p className="text-xs text-slate-500">
-              Bez výběru se kontroluje celá organizace. Lokace a typy se kombinují (průnik).
+              {t.inventory.scopeHint}
             </p>
           </div>
 
-          <Field label="Nebo ručně vybrat assety (volitelné)">
+          <Field label={t.inventory.pickAssetsLabel}>
             <Input
               type="search"
               value={assetSearch}
               onChange={(e) => setAssetSearch(e.target.value)}
-              placeholder="Hledat kód / název…"
+              placeholder={t.inventory.assetSearchPlaceholder}
               className="mb-2"
             />
             <ul className="max-h-48 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 dark:border-slate-700">
               {assetList.data?.items.length === 0 && (
-                <li className="p-2 text-sm text-slate-500">Žádné assety neodpovídají hledání.</li>
+                <li className="p-2 text-sm text-slate-500">{t.inventory.noAssetsMatch}</li>
               )}
               {assetList.data?.items.map((a) => {
                 const checked = pickedAssetCodes.includes(a.code);
@@ -161,26 +163,26 @@ export function InventoryPage() {
             </ul>
             {picking && (
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                Vybráno {pickedAssetCodes.length} assetů — lokace a typy se ignorují.{' '}
+                {t.inventory.pickedSummary(pickedAssetCodes.length)}{' '}
                 <button
                   type="button"
                   className="underline"
                   onClick={() => setPickedAssetCodes([])}
                 >
-                  Vyčistit výběr
+                  {t.inventory.clearSelection}
                 </button>
               </p>
             )}
           </Field>
 
-          <Field label="Poznámka (volitelné)">
+          <Field label={t.inventory.noteLabel}>
             <Textarea rows={2} value={note} onChange={(e) => setNote(e.target.value)} />
           </Field>
 
           {error && <p className="text-sm text-red-600">{error}</p>}
           <div className="flex gap-2">
             <Button onClick={() => create.mutate()} disabled={create.isPending}>
-              {create.isPending ? 'Zakládám…' : 'Spustit inventuru'}
+              {create.isPending ? t.inventory.creating : t.inventory.start}
             </Button>
             <Button
               variant="ghost"
@@ -189,7 +191,7 @@ export function InventoryPage() {
                 setError(null);
               }}
             >
-              Zrušit
+              {t.common.cancel}
             </Button>
           </div>
         </Card>
@@ -200,7 +202,7 @@ export function InventoryPage() {
       {!sessions.isLoading && items.length === 0 && !creating && (
         <Card>
           <p className="text-slate-600 text-sm">
-            Zatím žádná inventura. {canWrite ? 'Spusť první tlačítkem nahoře.' : ''}
+            {t.inventory.empty} {canWrite ? t.inventory.emptyHint : ''}
           </p>
         </Card>
       )}
@@ -223,14 +225,15 @@ function SessionRow({
   session: InventorySessionRow;
   locationName: string;
 }) {
+  const t = useT();
   return (
     <li className="hover:bg-slate-50 dark:hover:bg-slate-700">
       <Link to={`/inventory/${session.id}`} className="flex items-center justify-between p-3 gap-4">
         <div>
           <div className="font-medium">{session.name}</div>
           <div className="text-xs text-slate-500">
-            {locationName} · založeno {formatDate(session.createdAt)} ·{' '}
-            {session.scanCount ?? 0} naskenováno
+            {locationName} · {t.inventory.createdAt(formatDate(session.createdAt))} ·{' '}
+            {t.inventory.scanned(session.scanCount ?? 0)}
           </div>
         </div>
         <span
@@ -241,7 +244,7 @@ function SessionRow({
               : 'bg-emerald-100 text-emerald-800')
           }
         >
-          {session.status === 'open' ? 'Probíhá' : 'Uzavřeno'}
+          {session.status === 'open' ? t.inventory.statusOpen : t.inventory.statusClosed}
         </span>
       </Link>
     </li>

@@ -1,4 +1,6 @@
 import { loanWindowsOverlap } from '@inventory-hub/shared';
+import { getLocale } from '../i18n/index.js';
+import { localeTag, type Locale } from '../i18n/util.js';
 
 /**
  * A single reservation/loan window projected onto the calendar. `end === null`
@@ -131,11 +133,18 @@ export function isSameDay(a: Date, b: Date): boolean {
   );
 }
 
-/** Monday-first short weekday headers in Czech. */
-export const WEEKDAY_LABELS = ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'] as const;
+/** Monday-first short weekday headers in the active locale. */
+const WEEKDAY_LABELS_BY_LOCALE: Record<Locale, readonly string[]> = {
+  cs: ['Po', 'Út', 'St', 'Čt', 'Pá', 'So', 'Ne'],
+  en: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+};
+
+export function weekdayLabels(): readonly string[] {
+  return WEEKDAY_LABELS_BY_LOCALE[getLocale()];
+}
 
 export function monthTitle(year: number, month: number): string {
-  return new Date(year, month, 1).toLocaleDateString('cs-CZ', {
+  return new Date(year, month, 1).toLocaleDateString(localeTag(getLocale()), {
     month: 'long',
     year: 'numeric',
   });
@@ -144,18 +153,28 @@ export function monthTitle(year: number, month: number): string {
 // Statuses that block a loan regardless of the time window (mirrors the
 // server's LOANABLE_STATUSES / STATUS_UNAVAILABLE_REASON). in_stock and
 // on_loan are loanable, so they map to null.
-const NON_LOANABLE_REASON: Record<string, string> = {
-  assigned: 'přiřazeno uživateli',
-  in_repair: 'v opravě',
-  damaged: 'poškozeno',
-  sold: 'prodáno',
-  lost: 'ztraceno',
-  retired: 'vyřazeno',
+const NON_LOANABLE_REASON: Record<Locale, Record<string, string>> = {
+  cs: {
+    assigned: 'přiřazeno uživateli',
+    in_repair: 'v opravě',
+    damaged: 'poškozeno',
+    sold: 'prodáno',
+    lost: 'ztraceno',
+    retired: 'vyřazeno',
+  },
+  en: {
+    assigned: 'assigned to a user',
+    in_repair: 'in repair',
+    damaged: 'damaged',
+    sold: 'sold',
+    lost: 'lost',
+    retired: 'retired',
+  },
 };
 
 /** Why an asset can't be loaned based purely on its status, or null if it can. */
 export function nonLoanableReason(status: string): string | null {
-  return NON_LOANABLE_REASON[status] ?? null;
+  return NON_LOANABLE_REASON[getLocale()][status] ?? null;
 }
 
 /** Diagonal hatch overlay marking days where availability doesn't apply. */

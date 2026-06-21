@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import clsx from 'clsx';
 import { apiClient } from '../lib/api.js';
-import { WEEKDAY_LABELS, monthGridDays, monthGridRange, monthTitle } from '../lib/availability.js';
+import { useT } from '../i18n/index.js';
+import { weekdayLabels, monthGridDays, monthGridRange, monthTitle } from '../lib/availability.js';
 
 type Tone = 'planned' | 'open' | 'overdue';
 
@@ -36,6 +37,7 @@ const dayDiff = (a: Date, b: Date) =>
  * loans don't collide. Overdue loans are red; click a bar to open the loan.
  */
 export function LoansCalendar() {
+  const t = useT();
   const today = new Date();
   const todayStart = startOfDay(today);
   const [cursor, setCursor] = useState(() => ({
@@ -123,7 +125,7 @@ export function LoansCalendar() {
             type="button"
             onClick={() => shift(-1)}
             className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            aria-label="Předchozí měsíc"
+            aria-label={t.loansCalendar.prevMonth}
           >
             ←
           </button>
@@ -131,7 +133,7 @@ export function LoansCalendar() {
             type="button"
             onClick={() => shift(1)}
             className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            aria-label="Další měsíc"
+            aria-label={t.loansCalendar.nextMonth}
           >
             →
           </button>
@@ -144,7 +146,7 @@ export function LoansCalendar() {
           onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
           className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
         >
-          Dnes
+          {t.loansCalendar.today}
         </button>
       </div>
 
@@ -154,7 +156,7 @@ export function LoansCalendar() {
 
       <div className="rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
-          {WEEKDAY_LABELS.map((label) => (
+          {weekdayLabels().map((label) => (
             <div
               key={label}
               className="text-center text-xs font-medium text-slate-400 dark:text-slate-500 py-1"
@@ -206,7 +208,7 @@ export function LoansCalendar() {
               <Link
                 key={`${bar.loanId}-${bi}`}
                 to={`/loans/${bar.loanId}`}
-                title={`${bar.borrowerName} (${bar.itemCount} ks)`}
+                title={t.loansCalendar.barTitle(bar.borrowerName, bar.itemCount)}
                 style={{
                   gridColumn: `${bar.startCol + 1} / span ${bar.span}`,
                   gridRow: bar.lane + 2,
@@ -228,9 +230,9 @@ export function LoansCalendar() {
       </div>
 
       <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-        <LegendItem tone="planned" label="Rezervováno" />
-        <LegendItem tone="open" label="Vypůjčeno" />
-        <LegendItem tone="overdue" label="Po termínu" />
+        <LegendItem tone="planned" label={t.loansCalendar.legendReserved} />
+        <LegendItem tone="open" label={t.loansCalendar.legendLoaned} />
+        <LegendItem tone="overdue" label={t.loansCalendar.legendOverdue} />
       </div>
     </div>
   );

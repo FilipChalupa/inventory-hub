@@ -1,7 +1,8 @@
 import clsx from 'clsx';
 import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react';
-import { useT } from '../i18n/index.js';
+import { useT, getLocale } from '../i18n/index.js';
+import { localeTag } from '../i18n/util.js';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -80,12 +81,13 @@ export function Field({
   error?: string;
   required?: boolean;
 }) {
+  const t = useT();
   return (
     <label className="block">
       <span className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1">
         {label}
         {required && (
-          <span className="text-red-600" aria-hidden="true" title="Povinné">
+          <span className="text-red-600" aria-hidden="true" title={t.common.required}>
             {' '}
             *
           </span>
@@ -109,8 +111,9 @@ export function Skeleton({ className }: { className?: string }) {
 
 /** N placeholder list rows, for lists still loading. */
 export function SkeletonList({ rows = 6 }: { rows?: number }) {
+  const t = useT();
   return (
-    <div className="space-y-2" aria-busy="true" aria-label="Načítám…">
+    <div className="space-y-2" aria-busy="true" aria-label={t.common.loading}>
       {Array.from({ length: rows }).map((_, i) => (
         <Skeleton key={i} className="h-12 w-full" />
       ))}
@@ -160,5 +163,5 @@ export function StatusBadge({ status }: { status: string }) {
 export function formatDate(value: string | Date | null | undefined): string {
   if (!value) return '—';
   const d = typeof value === 'string' ? new Date(value) : value;
-  return d.toLocaleString('cs-CZ', { dateStyle: 'medium', timeStyle: 'short' });
+  return d.toLocaleString(localeTag(getLocale()), { dateStyle: 'medium', timeStyle: 'short' });
 }

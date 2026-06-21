@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { screen, fireEvent, act } from '@testing-library/react';
+import { renderWithI18n } from '../test/render.js';
 import { ConfirmViewport, confirm } from './ConfirmDialog.js';
 
 describe('ConfirmDialog', () => {
   it('resolves true when the confirm action is clicked', async () => {
-    render(<ConfirmViewport />);
+    renderWithI18n(<ConfirmViewport />);
     let p!: Promise<boolean>;
     act(() => {
       p = confirm({ title: 'Smazat položku?', confirmLabel: 'Smazat', danger: true });
@@ -17,7 +18,7 @@ describe('ConfirmDialog', () => {
   });
 
   it('resolves false when cancelled', async () => {
-    render(<ConfirmViewport />);
+    renderWithI18n(<ConfirmViewport />);
     let p!: Promise<boolean>;
     act(() => {
       p = confirm({ title: 'Pokračovat?' });
@@ -27,7 +28,7 @@ describe('ConfirmDialog', () => {
   });
 
   it('resolves false on Escape', async () => {
-    render(<ConfirmViewport />);
+    renderWithI18n(<ConfirmViewport />);
     let p!: Promise<boolean>;
     act(() => {
       p = confirm({ title: 'Zavřít?' });

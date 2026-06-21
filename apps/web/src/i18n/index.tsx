@@ -9,6 +9,29 @@ import {
 import { LOCALES, type Locale } from './util.js';
 import { nav, assetStatuses, loanStatuses, common } from './core.js';
 import { today } from './today.js';
+import { login } from './login.js';
+import { acceptInvite } from './acceptInvite.js';
+import { contacts } from './contacts.js';
+import { users } from './users.js';
+import { assetTypes } from './assetTypes.js';
+import { locations } from './locations.js';
+import { audit } from './audit.js';
+import { scan } from './scan.js';
+import { assetDetail } from './assetDetail.js';
+import { assets } from './assets.js';
+import { newAsset } from './newAsset.js';
+import { settings } from './settings.js';
+import { loans } from './loans.js';
+import { newLoan } from './newLoan.js';
+import { loanDetail } from './loanDetail.js';
+import { inventory } from './inventory.js';
+import { inventorySession } from './inventorySession.js';
+import { calendar } from './calendar.js';
+import { loansCalendar } from './loansCalendar.js';
+import { availabilityCalendar } from './availabilityCalendar.js';
+import { labels } from './labels.js';
+import { importAssets } from './importAssets.js';
+import { components } from './components.js';
 
 // Compose every namespace into one catalog per locale. Add a namespace here
 // when you create its file; pages then read it as `t.<namespace>.<key>`.
@@ -19,6 +42,29 @@ const catalog = {
     loanStatuses: loanStatuses.cs,
     common: common.cs,
     today: today.cs,
+    login: login.cs,
+    acceptInvite: acceptInvite.cs,
+    contacts: contacts.cs,
+    users: users.cs,
+    assetTypes: assetTypes.cs,
+    locations: locations.cs,
+    audit: audit.cs,
+    scan: scan.cs,
+    assetDetail: assetDetail.cs,
+    assets: assets.cs,
+    newAsset: newAsset.cs,
+    settings: settings.cs,
+    loans: loans.cs,
+    newLoan: newLoan.cs,
+    loanDetail: loanDetail.cs,
+    inventory: inventory.cs,
+    inventorySession: inventorySession.cs,
+    calendar: calendar.cs,
+    loansCalendar: loansCalendar.cs,
+    availabilityCalendar: availabilityCalendar.cs,
+    labels: labels.cs,
+    importAssets: importAssets.cs,
+    components: components.cs,
   },
   en: {
     nav: nav.en,
@@ -26,6 +72,29 @@ const catalog = {
     loanStatuses: loanStatuses.en,
     common: common.en,
     today: today.en,
+    login: login.en,
+    acceptInvite: acceptInvite.en,
+    contacts: contacts.en,
+    users: users.en,
+    assetTypes: assetTypes.en,
+    locations: locations.en,
+    audit: audit.en,
+    scan: scan.en,
+    assetDetail: assetDetail.en,
+    assets: assets.en,
+    newAsset: newAsset.en,
+    settings: settings.en,
+    loans: loans.en,
+    newLoan: newLoan.en,
+    loanDetail: loanDetail.en,
+    inventory: inventory.en,
+    inventorySession: inventorySession.en,
+    calendar: calendar.en,
+    loansCalendar: loansCalendar.en,
+    availabilityCalendar: availabilityCalendar.en,
+    labels: labels.en,
+    importAssets: importAssets.en,
+    components: components.en,
   },
 };
 
@@ -43,11 +112,22 @@ function initialLocale(): Locale {
   return 'cs';
 }
 
+// Mirror of the active locale at module scope, kept in sync by the provider.
+// Lets non-component helpers (formatDate, availability labels, errorMessage)
+// pick the right language without threading the hook everywhere.
+let activeLocale: Locale = 'cs';
+export function getLocale(): Locale {
+  return activeLocale;
+}
+
 type I18nContextValue = { locale: Locale; setLocale: (l: Locale) => void; t: Messages };
 const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>(initialLocale);
+  // Keep the module mirror in sync for non-component helpers (runs before
+  // children render, so they read the current locale this pass).
+  activeLocale = locale;
   const setLocale = useCallback((l: Locale) => {
     try {
       localStorage.setItem(STORAGE_KEY, l);

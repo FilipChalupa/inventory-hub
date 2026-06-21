@@ -4,10 +4,12 @@ import { Html5Qrcode } from 'html5-qrcode';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Card } from '../components/ui.js';
 import { parseScannedValue } from '../lib/scan.js';
+import { useT } from '../i18n/index.js';
 
 const SCANNER_ELEMENT_ID = 'qr-scanner-region';
 
 export function ScanPage() {
+  const t = useT();
   const navigate = useNavigate();
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,10 +42,7 @@ export function ScanPage() {
         );
         setScanning(true);
       } catch (err) {
-        setError(
-          errorMessage(err) ||
-            'Kameru nelze otevřít — povol přístup nebo zadej kód ručně.',
-        );
+        setError(errorMessage(err) || t.scan.cameraError);
       }
     };
     void start();
@@ -62,7 +61,7 @@ export function ScanPage() {
     e.preventDefault();
     const code = parseScannedValue(manualCode);
     if (!code) {
-      setError('Neplatný formát kódu');
+      setError(t.scan.invalidCode);
       return;
     }
     navigate(`/a/${code}`);
@@ -71,9 +70,9 @@ export function ScanPage() {
   return (
     <section className="space-y-4">
       <Link to="/assets" className="text-sm text-slate-500 hover:underline">
-        ← zpět na seznam
+        {t.scan.backToList}
       </Link>
-      <h1 className="text-2xl font-bold">Skenovat QR</h1>
+      <h1 className="text-2xl font-bold">{t.scan.title}</h1>
 
       <Card>
         <div
@@ -82,14 +81,14 @@ export function ScanPage() {
         />
         {!scanning && !error && (
           <p className="text-sm text-slate-500 text-center mt-3">
-            Inicializuji kameru…
+            {t.scan.initializing}
           </p>
         )}
         {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
       </Card>
 
       <Card>
-        <h2 className="font-semibold mb-2">Ruční zadání</h2>
+        <h2 className="font-semibold mb-2">{t.scan.manualEntry}</h2>
         <form onSubmit={submitManual} className="flex gap-2">
           <input
             type="text"
@@ -98,7 +97,7 @@ export function ScanPage() {
             placeholder="LAP-00001"
             className="flex-1 border rounded px-2 py-1 font-mono"
           />
-          <Button type="submit">Otevřít</Button>
+          <Button type="submit">{t.scan.open}</Button>
         </form>
       </Card>
     </section>

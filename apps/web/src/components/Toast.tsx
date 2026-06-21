@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import clsx from 'clsx';
+import { useT } from '../i18n/index.js';
 
 /**
  * Tiny imperative toast store. Lives at module scope so it can be fired from
@@ -55,6 +56,7 @@ const kindStyles: Record<ToastKind, string> = {
 const kindIcon: Record<ToastKind, string> = { success: '✓', error: '⚠', info: 'ℹ' };
 
 export function ToastViewport() {
+  const t = useT();
   const items = useSyncExternalStore(subscribe, () => toasts, () => toasts);
   if (items.length === 0) return null;
   return (
@@ -79,7 +81,7 @@ export function ToastViewport() {
             type="button"
             onClick={() => dismiss(item.id)}
             className="-mr-1 px-1 text-lg leading-none opacity-60 hover:opacity-100"
-            aria-label="Zavřít"
+            aria-label={t.components.toastClose}
           >
             ×
           </button>

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import type { CustomFieldsSchema } from '@inventory-hub/shared';
+import { renderWithI18n } from '../test/render.js';
 import { CustomFieldsValuesForm } from './CustomFieldsValuesForm.js';
 
 const schema: CustomFieldsSchema = [
@@ -10,7 +11,7 @@ const schema: CustomFieldsSchema = [
 
 describe('CustomFieldsValuesForm', () => {
   it('renders a field per schema entry and marks required ones', () => {
-    render(<CustomFieldsValuesForm schema={schema} values={{}} onChange={() => {}} />);
+    renderWithI18n(<CustomFieldsValuesForm schema={schema} values={{}} onChange={() => {}} />);
     expect(screen.getByText('Sériové číslo')).toBeInTheDocument();
     expect(screen.getByText('Barva')).toBeInTheDocument();
     // Required marker.
@@ -18,7 +19,7 @@ describe('CustomFieldsValuesForm', () => {
   });
 
   it('shows per-field error messages', () => {
-    render(
+    renderWithI18n(
       <CustomFieldsValuesForm
         schema={schema}
         values={{}}
@@ -31,7 +32,7 @@ describe('CustomFieldsValuesForm', () => {
 
   it('emits the edited value via onChange', () => {
     const onChange = vi.fn();
-    render(<CustomFieldsValuesForm schema={schema} values={{}} onChange={onChange} />);
+    renderWithI18n(<CustomFieldsValuesForm schema={schema} values={{}} onChange={onChange} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'SN-42' } });
     expect(onChange).toHaveBeenCalledWith({ serial: 'SN-42' });
   });

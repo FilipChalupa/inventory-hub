@@ -7,8 +7,11 @@ import { Button, Card, Field, Input, Select, SkeletonList, Textarea, formatDate 
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
+import { useT, getLocale } from '../i18n/index.js';
+import { localeTag } from '../i18n/util.js';
 
 export function LoanDetailPage() {
+  const t = useT();
   const { id = '' } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -42,7 +45,7 @@ export function LoanDetailPage() {
   return (
     <article className="space-y-4">
       <Link to="/loans" className="text-sm text-slate-500 hover:underline">
-        ← zpět
+        ← {t.common.back}
       </Link>
       <header>
         <div className="flex items-start justify-between gap-4">
@@ -50,16 +53,16 @@ export function LoanDetailPage() {
             <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
             {planned && (
               <span className="text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-800 font-medium">
-                Naplánováno
+                {t.loanStatuses.planned}
               </span>
             )}
           </div>
           <div className="flex flex-wrap justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditing((v) => !v)}>
-              Upravit
+              {t.common.edit}
             </Button>
             <Button variant="secondary" onClick={() => navigate(`/loans/new?from=${l.id}`)}>
-              Založit podobnou
+              {t.loanDetail.createSimilar}
             </Button>
             {planned && (
               <Button
@@ -68,19 +71,19 @@ export function LoanDetailPage() {
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: 'Zrušit tuto rezervaci?',
-                      message: 'Akci nelze vrátit.',
-                      confirmLabel: 'Zrušit rezervaci',
+                      title: t.loanDetail.cancelReservationTitle,
+                      message: t.loanDetail.cancelReservationMessage,
+                      confirmLabel: t.loanDetail.cancelReservationLabel,
                       danger: true,
                     })
                   ) {
                     cancel.mutate(undefined, {
-                      onSuccess: () => toast.success('Rezervace zrušena'),
+                      onSuccess: () => toast.success(t.loanDetail.reservationCancelled),
                     });
                   }
                 }}
               >
-                {cancel.isPending ? 'Ruším…' : 'Zrušit rezervaci'}
+                {cancel.isPending ? t.loanDetail.cancellingReservation : t.loanDetail.cancelReservation}
               </Button>
             )}
           </div>
@@ -89,12 +92,14 @@ export function LoanDetailPage() {
           <p className="text-sm text-red-600 mt-1">{errorMessage(cancel.error)}</p>
         )}
         {l.borrowerContact && <p className="text-sm text-slate-600">{l.borrowerContact}</p>}
-        {l.purpose && <p className="text-sm mt-2">Účel: {l.purpose}</p>}
+        {l.purpose && <p className="text-sm mt-2">{t.loanDetail.purpose(l.purpose)}</p>}
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm mt-2">
-          <dt className="text-slate-500">{planned ? 'Plánovaný začátek' : 'Zapůjčeno'}</dt>
+          <dt className="text-slate-500">
+            {planned ? t.loanDetail.plannedStart : t.loanDetail.loanedOut}
+          </dt>
           <dd>{formatDate(planned ? l.loanedAt : l.startedAt ?? l.loanedAt)}</dd>
-          <dt className="text-slate-500">Vrátit do</dt>
-          <dd>{l.expectedReturnAt ? formatDate(l.expectedReturnAt) : '—'}</dd>
+          <dt className="text-slate-500">{t.loanDetail.returnBy}</dt>
+          <dd>{l.expectedReturnAt ? formatDate(l.expectedReturnAt) : t.common.none}</dd>
         </dl>
         {editing && (
           <EditLoanForm
@@ -112,7 +117,7 @@ export function LoanDetailPage() {
 
       <Card>
         <div className="flex items-center justify-between mb-2">
-          <h2 className="font-semibold">Položky</h2>
+          <h2 className="font-semibold">{t.loanDetail.items}</h2>
           {!planned && openCount > 0 && (
             <ReturnAllButton loanId={l.id} count={openCount} onDone={refresh} />
           )}
@@ -156,6 +161,7 @@ function ReturnAllButton({
   count: number;
   onDone: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [returnedAt, setReturnedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const returnAll = useMutation({
@@ -169,14 +175,14 @@ function ReturnAllButton({
   if (!open) {
     return (
       <Button variant="secondary" onClick={() => setOpen(true)}>
-        Vrátit vše ({count})
+        {t.loanDetail.returnAll(count)}
       </Button>
     );
   }
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <label className="text-xs text-slate-500">Datum vrácení</label>
+      <label className="text-xs text-slate-500">{t.loanDetail.returnDate}</label>
       <Input
         type="date"
         value={returnedAt}
@@ -185,10 +191,10 @@ function ReturnAllButton({
         className="w-auto"
       />
       <Button onClick={() => returnAll.mutate()} disabled={returnAll.isPending}>
-        {returnAll.isPending ? 'Vracím…' : `Vrátit vše (${count}) jako v pořádku`}
+        {returnAll.isPending ? t.loanDetail.returningAll : t.loanDetail.returnAllAsOk(count)}
       </Button>
       <Button variant="ghost" onClick={() => setOpen(false)}>
-        Zrušit
+        {t.common.cancel}
       </Button>
       {returnAll.error && (
         <p className="w-full text-right text-sm text-red-600">
@@ -214,6 +220,7 @@ function EditLoanForm({
   onSaved: () => void;
   onCancel: () => void;
 }) {
+  const t = useT();
   const [borrowerName, setBorrowerName] = useState(loan.borrowerName);
   const [borrowerContact, setBorrowerContact] = useState(loan.borrowerContact ?? '');
   const [purpose, setPurpose] = useState(loan.purpose ?? '');
@@ -235,21 +242,21 @@ function EditLoanForm({
   return (
     <Card className="mt-3">
       <div className="space-y-3">
-        <Field label="Jméno vypůjčujícího">
+        <Field label={t.loanDetail.borrowerNameLabel}>
           <Input value={borrowerName} onChange={(e) => setBorrowerName(e.target.value)} />
         </Field>
-        <Field label="Kontakt (e-mail / telefon)">
+        <Field label={t.loanDetail.contactLabel}>
           <Input value={borrowerContact} onChange={(e) => setBorrowerContact(e.target.value)} />
         </Field>
-        <Field label="Účel">
+        <Field label={t.loanDetail.purposeLabel}>
           <Textarea rows={2} value={purpose} onChange={(e) => setPurpose(e.target.value)} />
         </Field>
         {planned && (
-          <Field label="Začátek výpůjčky">
+          <Field label={t.loanDetail.loanStartLabel}>
             <Input type="date" value={loanedAt} onChange={(e) => setLoanedAt(e.target.value)} />
           </Field>
         )}
-        <Field label="Vrátit do">
+        <Field label={t.loanDetail.returnByLabel}>
           <Input
             type="date"
             value={expectedReturnAt}
@@ -258,10 +265,10 @@ function EditLoanForm({
         </Field>
         <div className="flex gap-2">
           <Button onClick={() => save.mutate()} disabled={save.isPending || !borrowerName.trim()}>
-            {save.isPending ? 'Ukládám…' : 'Uložit'}
+            {save.isPending ? t.common.saving : t.common.save}
           </Button>
           <Button variant="ghost" onClick={onCancel}>
-            Zrušit
+            {t.common.cancel}
           </Button>
         </div>
         {save.error && <p className="text-sm text-red-600">{errorMessage(save.error)}</p>}
@@ -271,17 +278,16 @@ function EditLoanForm({
 }
 
 function StartLoanBar({ loanId, onStarted }: { loanId: string; onStarted: () => void }) {
+  const t = useT();
   const start = useMutation({
     mutationFn: () => apiClient.loans.start(loanId),
     onSuccess: onStarted,
   });
   return (
     <div className="mt-3 flex items-center gap-3 rounded border border-violet-200 bg-violet-50 p-3">
-      <p className="text-sm text-violet-900 flex-1">
-        Výpůjčka je naplánovaná. Spustí se sama v termínu, nebo ji můžeš zahájit teď.
-      </p>
+      <p className="text-sm text-violet-900 flex-1">{t.loanDetail.plannedNotice}</p>
       <Button onClick={() => start.mutate()} disabled={start.isPending}>
-        {start.isPending ? 'Zahajuji…' : 'Zahájit výpůjčku'}
+        {start.isPending ? t.loanDetail.starting : t.loanDetail.startLoan}
       </Button>
       {start.error && (
         <p className="text-sm text-red-600">{errorMessage(start.error)}</p>
@@ -303,6 +309,7 @@ function AddLoanItems({
   existingCodes: string[];
   onAdded: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -328,7 +335,7 @@ function AddLoanItems({
     return (
       <div className="mt-3">
         <Button variant="secondary" onClick={() => setOpen(true)}>
-          + Přidat položku
+          {t.loanDetail.addItem}
         </Button>
       </div>
     );
@@ -340,18 +347,16 @@ function AddLoanItems({
 
   return (
     <div className="mt-3 border-t pt-3 space-y-2">
-      <p className="text-xs text-slate-500">
-        Assety volné v termínu výpůjčky. Vybráno: {selected.length}
-      </p>
+      <p className="text-xs text-slate-500">{t.loanDetail.availableInTerm(selected.length)}</p>
       <Input
         type="search"
         value={search}
         onChange={(e) => setSearch(e.target.value)}
-        placeholder="Hledat kód / název…"
+        placeholder={t.loanDetail.searchPlaceholder}
       />
       <ul className="max-h-56 overflow-y-auto divide-y rounded border">
         {items.length === 0 && (
-          <li className="p-3 text-sm text-slate-500">Žádné dostupné assety.</li>
+          <li className="p-3 text-sm text-slate-500">{t.loanDetail.noAvailableAssets}</li>
         )}
         {items.map((a) => {
           const checked = selectedSet.has(a.code);
@@ -380,7 +385,7 @@ function AddLoanItems({
               )}
               {a.available && a.status === 'on_loan' && (
                 <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
-                  teď půjčeno
+                  {t.loanDetail.nowOnLoan}
                 </span>
               )}
             </li>
@@ -389,7 +394,7 @@ function AddLoanItems({
       </ul>
       <div className="flex gap-2">
         <Button onClick={() => add.mutate()} disabled={add.isPending || selected.length === 0}>
-          {add.isPending ? 'Přidávám…' : `Přidat (${selected.length})`}
+          {add.isPending ? t.loanDetail.adding : t.loanDetail.addSelected(selected.length)}
         </Button>
         <Button
           variant="ghost"
@@ -398,7 +403,7 @@ function AddLoanItems({
             setSelected([]);
           }}
         >
-          Zrušit
+          {t.common.cancel}
         </Button>
       </div>
       {add.error && <p className="text-sm text-red-600">{errorMessage(add.error)}</p>}
@@ -417,6 +422,7 @@ function LoanItemRowComp({
   canRemove: boolean;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [condition, setCondition] = useState<'ok' | 'damaged'>('ok');
   const [notes, setNotes] = useState('');
@@ -452,8 +458,8 @@ function LoanItemRowComp({
         </div>
         {item.returnedAt ? (
           <span className="text-xs text-slate-500">
-            vráceno {formatDate(item.returnedAt)}
-            {item.returnCondition === 'damaged' && ' · poškozeno'}
+            {t.loanDetail.returnedAt(formatDate(item.returnedAt))}
+            {item.returnCondition === 'damaged' && t.loanDetail.damagedSuffix}
           </span>
         ) : (
           <div className="flex items-center gap-2">
@@ -465,22 +471,22 @@ function LoanItemRowComp({
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: `Odebrat ${item.assetCode} z výpůjčky?`,
-                      confirmLabel: 'Odebrat',
+                      title: t.loanDetail.removeItemTitle(item.assetCode ?? ''),
+                      confirmLabel: t.loanDetail.removeItemLabel,
                       danger: true,
                     })
                   ) {
                     remove.mutate(undefined, {
-                      onSuccess: () => toast.success('Položka odebrána'),
+                      onSuccess: () => toast.success(t.loanDetail.itemRemoved),
                     });
                   }
                 }}
               >
-                Odebrat
+                {t.loanDetail.remove}
               </Button>
             )}
             <Button variant="secondary" onClick={() => setOpen((v) => !v)}>
-              Vrátit
+              {t.loanDetail.return}
             </Button>
           </div>
         )}
@@ -491,7 +497,7 @@ function LoanItemRowComp({
 
       {open && (
         <div className="mt-3 space-y-2">
-          <Field label="Datum vrácení">
+          <Field label={t.loanDetail.returnDateLabel}>
             <Input
               type="date"
               value={returnedAt}
@@ -499,21 +505,21 @@ function LoanItemRowComp({
               onChange={(e) => setReturnedAt(e.target.value)}
             />
           </Field>
-          <Field label="Stav při vrácení">
+          <Field label={t.loanDetail.returnConditionLabel}>
             <Select value={condition} onChange={(e) => setCondition(e.target.value as 'ok' | 'damaged')}>
-              <option value="ok">V pořádku</option>
-              <option value="damaged">Poškozeno (→ vytvoří se damage report)</option>
+              <option value="ok">{t.loanDetail.conditionOk}</option>
+              <option value="damaged">{t.loanDetail.conditionDamaged}</option>
             </Select>
           </Field>
-          <Field label="Poznámka">
+          <Field label={t.loanDetail.noteLabel}>
             <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </Field>
           <div className="flex gap-2">
             <Button onClick={() => mutate.mutate()} disabled={mutate.isPending}>
-              {mutate.isPending ? 'Ukládám…' : 'Potvrdit vrácení'}
+              {mutate.isPending ? t.common.saving : t.loanDetail.confirmReturn}
             </Button>
             <Button variant="ghost" onClick={() => setOpen(false)}>
-              Zrušit
+              {t.common.cancel}
             </Button>
           </div>
           {mutate.error && (
@@ -525,37 +531,18 @@ function LoanItemRowComp({
   );
 }
 
-const LOAN_EVENT_LABELS: Record<string, string> = {
-  loan_planned: 'Rezervace vytvořena',
-  loan_started: 'Zahájeno / vypůjčeno',
-  loan_item_returned: 'Položka vrácena',
-  loan_item_added: 'Položka přidána',
-  loan_item_removed: 'Položka odebrána',
-  loan_updated: 'Upraveno',
-  loan_cancelled: 'Rezervace zrušena',
-  damage_reported: 'Nahlášeno poškození',
-};
-
-const LOAN_FIELD_LABELS: Record<string, string> = {
-  borrowerName: 'Jméno',
-  borrowerContact: 'Kontakt',
-  borrowerContactId: 'Kontakt (vazba)',
-  purpose: 'Účel',
-  loanedAt: 'Začátek',
-  expectedReturnAt: 'Návrat',
-};
-
-function fmtEventValue(v: unknown): string {
-  if (v === null || v === undefined || v === '') return '—';
+function fmtEventValue(v: unknown, none: string): string {
+  if (v === null || v === undefined || v === '') return none;
   if (typeof v === 'string' && /^\d{4}-\d\d-\d\dT/.test(v)) return formatDate(v);
   return String(v);
 }
 
 function LoanHistoryCard({ events }: { events: LoanEventRow[] }) {
+  const t = useT();
   return (
     <Card>
-      <h2 className="font-semibold mb-2">Historie</h2>
-      {events.length === 0 && <p className="text-sm text-slate-500">Zatím žádné záznamy.</p>}
+      <h2 className="font-semibold mb-2">{t.loanDetail.history}</h2>
+      {events.length === 0 && <p className="text-sm text-slate-500">{t.loanDetail.noHistory}</p>}
       <ul className="divide-y divide-slate-200 dark:divide-slate-700">
         {events.map((e) => {
           const changes =
@@ -566,21 +553,21 @@ function LoanHistoryCard({ events }: { events: LoanEventRow[] }) {
             <li key={e.id} className="py-2 text-sm">
               <div className="flex items-center justify-between gap-3">
                 <span>
-                  {LOAN_EVENT_LABELS[e.type] ?? e.type}
+                  {t.loanDetail.eventLabels[e.type] ?? e.type}
                   {e.assetCode && (
                     <span className="font-mono text-xs text-slate-500"> · {e.assetCode}</span>
                   )}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {e.actorName ?? 'systém'} · {new Date(e.occurredAt).toLocaleString('cs-CZ')}
+                  {e.actorName ?? t.loanDetail.system} · {new Date(e.occurredAt).toLocaleString(localeTag(getLocale()))}
                 </span>
               </div>
               {changes && (
                 <ul className="mt-1 ml-3 list-inside list-disc text-xs text-slate-500">
                   {Object.entries(changes).map(([field, ch]) => (
                     <li key={field}>
-                      {LOAN_FIELD_LABELS[field] ?? field}: {fmtEventValue(ch.from)} →{' '}
-                      {fmtEventValue(ch.to)}
+                      {t.loanDetail.fieldLabels[field] ?? field}: {fmtEventValue(ch.from, t.common.none)} →{' '}
+                      {fmtEventValue(ch.to, t.common.none)}
                     </li>
                   ))}
                 </ul>

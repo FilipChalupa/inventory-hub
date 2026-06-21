@@ -1,5 +1,6 @@
 import { useEffect, useRef, useSyncExternalStore } from 'react';
 import { Button } from './ui.js';
+import { useT } from '../i18n/index.js';
 
 /**
  * Imperative confirmation dialog: `await confirm({ ... })` resolves true/false.
@@ -45,6 +46,7 @@ function subscribe(cb: () => void) {
 }
 
 export function ConfirmViewport() {
+  const t = useT();
   const pending = useSyncExternalStore(
     subscribe,
     () => current,
@@ -85,14 +87,14 @@ export function ConfirmViewport() {
         )}
         <div className="mt-5 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => settle(false)}>
-            {opts.cancelLabel ?? 'Zrušit'}
+            {opts.cancelLabel ?? t.common.cancel}
           </Button>
           <Button
             ref={confirmRef}
             variant={opts.danger ? 'danger' : 'primary'}
             onClick={() => settle(true)}
           >
-            {opts.confirmLabel ?? 'Potvrdit'}
+            {opts.confirmLabel ?? t.common.confirm}
           </Button>
         </div>
       </div>

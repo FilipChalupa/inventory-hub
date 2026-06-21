@@ -6,8 +6,10 @@ import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { USER_ROLES, type UserRole } from '@inventory-hub/shared';
 import { useCurrentUser } from '../auth/AuthContext.js';
+import { useT } from '../i18n/index.js';
 
 export function UsersPage() {
+  const t = useT();
   const qc = useQueryClient();
   const me = useCurrentUser();
   const list = useQuery({ queryKey: ['users'], queryFn: () => apiClient.users.list() });
@@ -20,16 +22,17 @@ export function UsersPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Uživatelé</h1>
+      <h1 className="text-2xl font-bold">{t.users.title}</h1>
       <p className="text-sm text-slate-600">
-        Spravuj role a deaktivuj uživatele, kteří už nemají mít přístup. Pozvánky se
-        zakládají v <a href="/settings" className="text-blue-600 hover:underline">Nastavení</a>.
+        {t.users.introBefore}
+        <a href="/settings" className="text-blue-600 hover:underline">{t.users.introSettingsLink}</a>
+        {t.users.introAfter}
       </p>
 
       <Card>
         <ul className="divide-y">
           {list.data?.items.length === 0 && (
-            <li className="py-3 text-sm text-slate-500">Žádní uživatelé.</li>
+            <li className="py-3 text-sm text-slate-500">{t.users.empty}</li>
           )}
           {list.data?.items.map((u) => {
             const isMe = me?.id === u.id;
@@ -46,7 +49,7 @@ export function UsersPage() {
                   )}
                   <div>
                     <p className="font-medium">
-                      {u.name} {isMe && <span className="text-xs text-slate-500">(ty)</span>}
+                      {u.name} {isMe && <span className="text-xs text-slate-500">{t.users.you}</span>}
                     </p>
                     <p className="text-xs text-slate-500">{u.email}</p>
                   </div>
@@ -70,13 +73,13 @@ export function UsersPage() {
                 {disabled ? (
                   <>
                     <span className="text-xs text-slate-500">
-                      deaktivován {formatDate(u.disabledAt)}
+                      {t.users.deactivatedAt(formatDate(u.disabledAt))}
                     </span>
                     <Button
                       variant="secondary"
                       onClick={() => update.mutate({ id: u.id, input: { disabled: false } })}
                     >
-                      Aktivovat
+                      {t.users.activate}
                     </Button>
                   </>
                 ) : (
@@ -87,20 +90,20 @@ export function UsersPage() {
                     onClick={async () => {
                       if (
                         await confirm({
-                          title: `Deaktivovat uživatele ${u.email}?`,
-                          message: 'Ztratí přístup do aplikace. Lze ho později znovu aktivovat.',
-                          confirmLabel: 'Deaktivovat',
+                          title: t.users.confirmTitle(u.email),
+                          message: t.users.confirmMessage,
+                          confirmLabel: t.users.deactivate,
                           danger: true,
                         })
                       ) {
                         update.mutate(
                           { id: u.id, input: { disabled: true } },
-                          { onSuccess: () => toast.success('Uživatel deaktivován') },
+                          { onSuccess: () => toast.success(t.users.deactivated) },
                         );
                       }
                     }}
                   >
-                    Deaktivovat
+                    {t.users.deactivate}
                   </Button>
                 )}
               </li>

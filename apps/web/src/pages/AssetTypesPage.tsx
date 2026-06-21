@@ -9,8 +9,10 @@ import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { CustomFieldsSchemaEditor } from '../components/CustomFieldsSchemaEditor.js';
 import type { CustomFieldsSchema } from '@inventory-hub/shared';
+import { useT } from '../i18n/index.js';
 
 export function AssetTypesPage() {
+  const t = useT();
   const qc = useQueryClient();
   const list = useQuery({
     queryKey: ['asset-types'],
@@ -38,40 +40,43 @@ export function AssetTypesPage() {
   return (
     <section className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Typy assetů</h1>
+        <h1 className="text-2xl font-bold">{t.assetTypes.title}</h1>
         <Link
           to="/assets/import?kind=asset-types"
           className="text-sm text-blue-600 hover:underline"
         >
-          Import CSV
+          {t.assetTypes.importCsv}
         </Link>
       </div>
 
       <Card>
-        <h2 className="font-semibold mb-2">Nový typ</h2>
+        <h2 className="font-semibold mb-2">{t.assetTypes.newType}</h2>
         <form
           className="flex flex-wrap gap-2 items-end"
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
           <div className="flex-1 min-w-[200px]">
-            <Field label="Název" required error={formState.errors.name?.message}>
-              <Input {...register('name', { required: 'Povinné' })} placeholder="Notebook" />
+            <Field label={t.assetTypes.name} required error={formState.errors.name?.message}>
+              <Input
+                {...register('name', { required: t.common.required })}
+                placeholder={t.assetTypes.namePlaceholder}
+              />
             </Field>
           </div>
           <div className="w-32">
-            <Field label="Prefix" required error={formState.errors.codePrefix?.message}>
+            <Field label={t.assetTypes.prefix} required error={formState.errors.codePrefix?.message}>
               <Input
                 {...register('codePrefix', {
-                  required: 'Povinné',
-                  pattern: { value: /^[A-Z0-9]{1,6}$/i, message: 'A–Z, 0–9, max 6 znaků' },
+                  required: t.common.required,
+                  pattern: { value: /^[A-Z0-9]{1,6}$/i, message: t.assetTypes.prefixPattern },
                 })}
-                placeholder="LAP"
+                placeholder={t.assetTypes.prefixPlaceholder}
                 className="font-mono"
               />
             </Field>
           </div>
           <Button type="submit" disabled={create.isPending}>
-            Přidat
+            {t.common.add}
           </Button>
         </form>
         {create.error && (
@@ -81,24 +86,26 @@ export function AssetTypesPage() {
 
       <div className="space-y-3">
         {list.data?.items.length === 0 && (
-          <p className="p-4 text-sm text-slate-500">Žádné typy. Přidej první výše.</p>
+          <p className="p-4 text-sm text-slate-500">{t.assetTypes.emptyList}</p>
         )}
-        {list.data?.items.map((t) => (
+        {list.data?.items.map((type) => (
           <AssetTypeRow
-            key={t.id}
-            id={t.id}
-            name={t.name}
-            codePrefix={t.codePrefix}
-            customFieldsSchema={t.customFieldsSchema ?? []}
+            key={type.id}
+            id={type.id}
+            name={type.name}
+            codePrefix={type.codePrefix}
+            customFieldsSchema={type.customFieldsSchema ?? []}
             onRemove={async () => {
               if (
                 await confirm({
-                  title: `Smazat typ „${t.name}"?`,
-                  confirmLabel: 'Smazat',
+                  title: t.assetTypes.confirmDeleteTitle(type.name),
+                  confirmLabel: t.common.delete,
                   danger: true,
                 })
               ) {
-                remove.mutate(t.id, { onSuccess: () => toast.success('Typ smazán') });
+                remove.mutate(type.id, {
+                  onSuccess: () => toast.success(t.assetTypes.typeDeleted),
+                });
               }
             }}
             onSavedSchema={() => qc.invalidateQueries({ queryKey: ['asset-types'] })}
@@ -124,6 +131,7 @@ function AssetTypeRow({
   onRemove: () => void;
   onSavedSchema: () => void;
 }) {
+  const t = useT();
   const [expanded, setExpanded] = useState(false);
   const [schema, setSchema] = useState<CustomFieldsSchema>(customFieldsSchema);
   const save = useMutation({
@@ -137,15 +145,15 @@ function AssetTypeRow({
         <div>
           <p className="font-medium">{name}</p>
           <p className="font-mono text-xs text-slate-500">
-            {codePrefix}-… · {customFieldsSchema.length} vlastní pole
+            {codePrefix}-… · {t.assetTypes.customFieldsCount(customFieldsSchema.length)}
           </p>
         </div>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={() => setExpanded((v) => !v)}>
-            {expanded ? 'Skrýt' : 'Vlastní pole'}
+            {expanded ? t.assetTypes.hide : t.assetTypes.customFields}
           </Button>
           <Button variant="ghost" className="text-red-600" onClick={onRemove}>
-            Smazat
+            {t.common.delete}
           </Button>
         </div>
       </div>
@@ -155,10 +163,10 @@ function AssetTypeRow({
           <CustomFieldsSchemaEditor value={schema} onChange={setSchema} />
           <div className="flex gap-2">
             <Button onClick={() => save.mutate()} disabled={save.isPending}>
-              {save.isPending ? 'Ukládám…' : 'Uložit schéma'}
+              {save.isPending ? t.common.saving : t.assetTypes.saveSchema}
             </Button>
             <Button variant="ghost" onClick={() => setSchema(customFieldsSchema)}>
-              Reset
+              {t.assetTypes.reset}
             </Button>
           </div>
           {save.error && (

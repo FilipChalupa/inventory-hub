@@ -1,0 +1,46 @@
+import { ns } from './util.js';
+
+export const availabilityCalendar = ns({
+  cs: {
+    statusFree: 'volné',
+    statusLoaned: 'vypůjčeno',
+    statusReserved: 'rezervováno',
+    statusBlocked: 'nedostupné',
+    blockedBanner: (reason: string) =>
+      `Asset teď nelze půjčit (${reason}). Volné dny od dneška jsou orientační, dokud se nevrátí mezi dostupné.`,
+    prevMonth: 'Předchozí měsíc',
+    nextMonth: 'Další měsíc',
+    today: 'Dnes',
+    dayLabel: (date: string, status: string) => `${date} — ${status}`,
+    dayFreeSelectLabel: (date: string) => `${date} — volné, vybrat`,
+    rangeSummary: (from: string, to: string) => `Termín ${from} – ${to}`,
+    startPrompt: (from: string) => `Začátek ${from} — vyber konec (nebo půjč na jeden den)`,
+    createLoan: 'Vytvořit výpůjčku',
+    cancel: 'Zrušit',
+    legendFree: 'Volné',
+    legendLoaned: 'Vypůjčeno',
+    legendReserved: 'Rezervováno',
+    legendBlocked: 'Nedostupné',
+  },
+  en: {
+    statusFree: 'free',
+    statusLoaned: 'on loan',
+    statusReserved: 'reserved',
+    statusBlocked: 'unavailable',
+    blockedBanner: (reason: string) =>
+      `Asset can't be loaned right now (${reason}). Free days from today on are indicative until it's back among the available ones.`,
+    prevMonth: 'Previous month',
+    nextMonth: 'Next month',
+    today: 'Today',
+    dayLabel: (date: string, status: string) => `${date} — ${status}`,
+    dayFreeSelectLabel: (date: string) => `${date} — free, select`,
+    rangeSummary: (from: string, to: string) => `Range ${from} – ${to}`,
+    startPrompt: (from: string) => `Start ${from} — pick an end (or loan for a single day)`,
+    createLoan: 'Create loan',
+    cancel: 'Cancel',
+    legendFree: 'Free',
+    legendLoaned: 'On loan',
+    legendReserved: 'Reserved',
+    legendBlocked: 'Unavailable',
+  },
+});

@@ -1,0 +1,46 @@
+import { ns } from './util.js';
+
+export const contacts = ns({
+  cs: {
+    title: 'Kontakty',
+    intro:
+      'Externí osoby (subdodavatelé, partneři, zákazníci), kterým půjčuješ assety. Interní zaměstnance řeš přes záložku „Uživatelé".',
+    newContact: 'Nový kontakt',
+    name: 'Jméno',
+    nameRequired: 'Jméno je povinné',
+    namePlaceholder: 'Jan Novák',
+    organization: 'Organizace',
+    organizationPlaceholder: 'ACME s.r.o.',
+    email: 'E-mail',
+    emailPlaceholder: 'jan@example.com',
+    phone: 'Telefon',
+    phonePlaceholder: '+420 …',
+    note: 'Poznámka',
+    addContact: 'Přidat kontakt',
+    searchPlaceholder: 'Hledat podle jména nebo organizace…',
+    empty: 'Žádné kontakty.',
+    deleteTitle: (name: string) => `Smazat kontakt „${name}"?`,
+    deleted: 'Kontakt smazán',
+  },
+  en: {
+    title: 'Contacts',
+    intro:
+      'External people (subcontractors, partners, customers) you lend assets to. Manage internal employees in the “Users” tab.',
+    newContact: 'New contact',
+    name: 'Name',
+    nameRequired: 'Name is required',
+    namePlaceholder: 'Jane Doe',
+    organization: 'Organization',
+    organizationPlaceholder: 'ACME Inc.',
+    email: 'Email',
+    emailPlaceholder: 'jane@example.com',
+    phone: 'Phone',
+    phonePlaceholder: '+420 …',
+    note: 'Note',
+    addContact: 'Add contact',
+    searchPlaceholder: 'Search by name or organization…',
+    empty: 'No contacts.',
+    deleteTitle: (name: string) => `Delete contact “${name}”?`,
+    deleted: 'Contact deleted',
+  },
+});

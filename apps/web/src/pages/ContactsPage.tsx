@@ -7,8 +7,10 @@ import { Button, Card, Field, Input } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
+import { useT } from '../i18n/index.js';
 
 export function ContactsPage() {
+  const t = useT();
   const qc = useQueryClient();
   const [q, setQ] = useState('');
   const dq = useDebouncedValue(q);
@@ -44,39 +46,39 @@ export function ContactsPage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Kontakty</h1>
+        <h1 className="text-2xl font-bold">{t.contacts.title}</h1>
       </div>
-      <p className="text-sm text-slate-500 dark:text-slate-400">
-        Externí osoby (subdodavatelé, partneři, zákazníci), kterým půjčuješ
-        assety. Interní zaměstnance řeš přes záložku „Uživatelé".
-      </p>
+      <p className="text-sm text-slate-500 dark:text-slate-400">{t.contacts.intro}</p>
 
       <Card>
-        <h2 className="font-semibold mb-2">Nový kontakt</h2>
+        <h2 className="font-semibold mb-2">{t.contacts.newContact}</h2>
         <form
           className="grid grid-cols-1 sm:grid-cols-2 gap-2"
           onSubmit={handleSubmit((v) => create.mutate(v))}
         >
-          <Field label="Jméno" required error={formState.errors.name?.message}>
-            <Input {...register('name', { required: 'Jméno je povinné' })} placeholder="Jan Novák" />
+          <Field label={t.contacts.name} required error={formState.errors.name?.message}>
+            <Input
+              {...register('name', { required: t.contacts.nameRequired })}
+              placeholder={t.contacts.namePlaceholder}
+            />
           </Field>
-          <Field label="Organizace">
-            <Input {...register('organization')} placeholder="ACME s.r.o." />
+          <Field label={t.contacts.organization}>
+            <Input {...register('organization')} placeholder={t.contacts.organizationPlaceholder} />
           </Field>
-          <Field label="E-mail">
-            <Input type="email" {...register('email')} placeholder="jan@example.com" />
+          <Field label={t.contacts.email}>
+            <Input type="email" {...register('email')} placeholder={t.contacts.emailPlaceholder} />
           </Field>
-          <Field label="Telefon">
-            <Input {...register('phone')} placeholder="+420 …" />
+          <Field label={t.contacts.phone}>
+            <Input {...register('phone')} placeholder={t.contacts.phonePlaceholder} />
           </Field>
           <div className="sm:col-span-2">
-            <Field label="Poznámka">
+            <Field label={t.contacts.note}>
               <Input {...register('note')} />
             </Field>
           </div>
           <div className="sm:col-span-2">
             <Button type="submit" disabled={create.isPending}>
-              {create.isPending ? 'Ukládám…' : 'Přidat kontakt'}
+              {create.isPending ? t.common.saving : t.contacts.addContact}
             </Button>
             {create.error && (
               <span className="text-sm text-red-600 ml-3">{errorMessage(create.error)}</span>
@@ -91,19 +93,19 @@ export function ContactsPage() {
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Hledat podle jména nebo organizace…"
+            placeholder={t.contacts.searchPlaceholder}
           />
         </div>
         <ul className="divide-y divide-slate-200 dark:divide-slate-700">
           {list.data?.items.length === 0 && (
-            <li className="p-4 text-slate-500">Žádné kontakty.</li>
+            <li className="p-4 text-slate-500">{t.contacts.empty}</li>
           )}
           {list.data?.items.map((c) => (
             <li key={c.id} className="p-3 flex flex-wrap items-center gap-3">
               <div className="flex-1 min-w-[180px]">
                 <p className="font-medium">{c.name}</p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {[c.organization, c.email, c.phone].filter(Boolean).join(' · ') || '—'}
+                  {[c.organization, c.email, c.phone].filter(Boolean).join(' · ') || t.common.none}
                 </p>
                 {c.note && (
                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{c.note}</p>
@@ -115,16 +117,16 @@ export function ContactsPage() {
                 onClick={async () => {
                   if (
                     await confirm({
-                      title: `Smazat kontakt „${c.name}"?`,
-                      confirmLabel: 'Smazat',
+                      title: t.contacts.deleteTitle(c.name),
+                      confirmLabel: t.common.delete,
                       danger: true,
                     })
                   ) {
-                    remove.mutate(c.id, { onSuccess: () => toast.success('Kontakt smazán') });
+                    remove.mutate(c.id, { onSuccess: () => toast.success(t.contacts.deleted) });
                   }
                 }}
               >
-                Smazat
+                {t.common.delete}
               </Button>
             </li>
           ))}

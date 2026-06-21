@@ -4,8 +4,10 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
+import { useT } from '../i18n/index.js';
 
 export function AcceptInvitePage() {
+  const t = useT();
   const [params] = useSearchParams();
   const token = params.get('token') ?? '';
   const navigate = useNavigate();
@@ -30,11 +32,11 @@ export function AcceptInvitePage() {
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
       <Card className="w-full max-w-md space-y-4">
-        <h1 className="text-2xl font-bold">Přijmout pozvánku</h1>
+        <h1 className="text-2xl font-bold">{t.acceptInvite.title}</h1>
 
-        {!token && <p className="text-sm text-red-600">Chybí token v URL.</p>}
+        {!token && <p className="text-sm text-red-600">{t.acceptInvite.missingToken}</p>}
 
-        {invite.isLoading && <p className="text-sm text-slate-500">Načítám pozvánku…</p>}
+        {invite.isLoading && <p className="text-sm text-slate-500">{t.acceptInvite.loadingInvite}</p>}
         {invite.error && (
           <p className="text-sm text-red-600">{errorMessage(invite.error)}</p>
         )}
@@ -42,7 +44,9 @@ export function AcceptInvitePage() {
         {invite.data && (
           <>
             <p className="text-sm text-slate-700">
-              Pozvánka pro <span className="font-mono">{invite.data.email}</span> · role{' '}
+              {t.acceptInvite.inviteFor}
+              <span className="font-mono">{invite.data.email}</span>
+              {t.acceptInvite.roleLabel}
               <span className="font-medium">{invite.data.role}</span>.
             </p>
             <form
@@ -52,14 +56,14 @@ export function AcceptInvitePage() {
                 if (name.trim()) accept.mutate();
               }}
             >
-              <Field label="Tvoje jméno" required>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Jan Novák" />
+              <Field label={t.acceptInvite.yourName} required>
+                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.acceptInvite.namePlaceholder} />
               </Field>
               {accept.error && (
                 <p className="text-sm text-red-600">{errorMessage(accept.error)}</p>
               )}
               <Button type="submit" disabled={accept.isPending || !name.trim()} className="w-full">
-                {accept.isPending ? 'Vytvářím účet…' : 'Přijmout pozvánku'}
+                {accept.isPending ? t.acceptInvite.creatingAccount : t.acceptInvite.accept}
               </Button>
             </form>
           </>

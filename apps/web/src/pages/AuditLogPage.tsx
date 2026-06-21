@@ -4,32 +4,34 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Input, Select, SkeletonList, formatDate } from '../components/ui.js';
+import { useT } from '../i18n/index.js';
 
-const EVENT_LABELS: Record<string, string> = {
-  created: 'Vytvořen',
-  updated: 'Upraven',
-  assigned: 'Přiřazen',
-  unassigned: 'Odebrán z přiřazení',
-  moved: 'Přesun',
-  status_changed: 'Změna stavu',
-  archived: 'Archivován',
-  unarchived: 'Vrácen z archivu',
-  damage_reported: 'Hlášené poškození',
-  damage_resolved: 'Poškození opraveno',
-  loan_planned: 'Rezervace vytvořena',
-  loan_started: 'Vypůjčen',
-  loan_item_returned: 'Vrácen z výpůjčky',
-  loan_cancelled: 'Rezervace zrušena',
-  loan_updated: 'Výpůjčka upravena',
-  loan_item_added: 'Položka přidána do výpůjčky',
-  loan_item_removed: 'Položka odebrána z výpůjčky',
-  repair_started: 'Poslán do opravy',
-  repair_finished: 'Oprava dokončena',
-};
+const EVENT_KEYS = [
+  'created',
+  'updated',
+  'assigned',
+  'unassigned',
+  'moved',
+  'status_changed',
+  'archived',
+  'unarchived',
+  'damage_reported',
+  'damage_resolved',
+  'loan_planned',
+  'loan_started',
+  'loan_item_returned',
+  'loan_cancelled',
+  'loan_updated',
+  'loan_item_added',
+  'loan_item_removed',
+  'repair_started',
+  'repair_finished',
+];
 
 const PAGE = 300;
 
 export function AuditLogPage() {
+  const t = useT();
   const [limit, setLimit] = useState(PAGE);
   const { data, isLoading, error } = useQuery({
     queryKey: ['audit-log', limit],
@@ -69,28 +71,32 @@ export function AuditLogPage() {
 
   return (
     <section className="space-y-4">
-      <h1 className="text-2xl font-bold">Audit log</h1>
+      <h1 className="text-2xl font-bold">{t.audit.title}</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Zobrazeno {data?.items.length ?? 0} z {data?.total ?? 0} událostí napříč všemi assety.
+        {t.audit.shownOf(data?.items.length ?? 0, data?.total ?? 0)}
       </p>
 
       <div className="flex flex-wrap gap-2 items-end">
         <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">Asset</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">
+            {t.audit.asset}
+          </label>
           <Input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Kód nebo název…"
+            placeholder={t.audit.assetPlaceholder}
           />
         </div>
         <div>
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">Typ</label>
+          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">
+            {t.audit.type}
+          </label>
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
-            <option value="">Všechny</option>
-            {Object.entries(EVENT_LABELS).map(([k, v]) => (
+            <option value="">{t.audit.allTypes}</option>
+            {EVENT_KEYS.map((k) => (
               <option key={k} value={k}>
-                {v}
+                {t.audit.events[k] ?? k}
               </option>
             ))}
           </Select>
@@ -105,18 +111,18 @@ export function AuditLogPage() {
         <table className="text-sm w-full">
           <thead className="bg-slate-50 dark:bg-slate-900/40 text-left">
             <tr>
-              <th className="py-2 px-3">Kdy</th>
-              <th className="py-2 px-3">Typ</th>
-              <th className="py-2 px-3">Asset</th>
-              <th className="py-2 px-3">Kdo</th>
-              <th className="py-2 px-3">Detail</th>
+              <th className="py-2 px-3">{t.audit.colWhen}</th>
+              <th className="py-2 px-3">{t.audit.colType}</th>
+              <th className="py-2 px-3">{t.audit.colAsset}</th>
+              <th className="py-2 px-3">{t.audit.colWho}</th>
+              <th className="py-2 px-3">{t.audit.colDetail}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
             {filtered.length === 0 && (
               <tr>
                 <td colSpan={5} className="py-4 px-3 text-slate-500 text-center">
-                  Žádné události neodpovídají filtru.
+                  {t.audit.emptyFiltered}
                 </td>
               </tr>
             )}
@@ -127,7 +133,7 @@ export function AuditLogPage() {
                 </td>
                 <td className="py-1.5 px-3">
                   <span className="text-xs font-medium">
-                    {EVENT_LABELS[e.type] ?? e.type}
+                    {t.audit.events[e.type] ?? e.type}
                   </span>
                 </td>
                 <td className="py-1.5 px-3">
@@ -139,7 +145,7 @@ export function AuditLogPage() {
                       {e.assetCode}
                     </Link>
                   ) : (
-                    <span className="text-slate-400">smazán</span>
+                    <span className="text-slate-400">{t.audit.assetDeleted}</span>
                   )}
                   {e.assetName && (
                     <div className="text-xs text-slate-500 dark:text-slate-400">
@@ -148,7 +154,9 @@ export function AuditLogPage() {
                   )}
                 </td>
                 <td className="py-1.5 px-3 text-xs text-slate-600 dark:text-slate-300">
-                  {e.actorUserId ? userById.get(e.actorUserId) ?? '—' : 'systém'}
+                  {e.actorUserId
+                    ? userById.get(e.actorUserId) ?? t.common.none
+                    : t.audit.system}
                 </td>
                 <td className="py-1.5 px-3 text-xs text-slate-500 dark:text-slate-400 max-w-md truncate">
                   {payloadSummary(e.payload)}
@@ -163,7 +171,7 @@ export function AuditLogPage() {
       {data && data.items.length < data.total && (
         <div className="flex justify-center">
           <Button variant="secondary" disabled={isLoading} onClick={() => setLimit((l) => l + PAGE)}>
-            Načíst další
+            {t.common.loadMore}
           </Button>
         </div>
       )}

@@ -7,10 +7,12 @@ import type { AssetStatus } from '@inventory-hub/shared';
 import { Button, Card, Input, Select, SkeletonList, StatusBadge } from '../components/ui.js';
 import { locationPath } from '../lib/locations.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
+import { useT } from '../i18n/index.js';
 
 const PAGE = 100;
 
 export function AssetsPage() {
+  const t = useT();
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<AssetStatus | ''>('');
   const [includeArchived, setIncludeArchived] = useState(false);
@@ -55,13 +57,13 @@ export function AssetsPage() {
   return (
     <section>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold">Assety</h1>
+        <h1 className="text-2xl font-bold">{t.assets.title}</h1>
         <div className="flex gap-2">
           <Link to="/assets/import">
-            <Button variant="secondary">Import CSV</Button>
+            <Button variant="secondary">{t.assets.importCsv}</Button>
           </Link>
           <Link to="/assets/new">
-            <Button>+ Nový asset</Button>
+            <Button>{t.assets.newAsset}</Button>
           </Link>
         </div>
       </div>
@@ -71,7 +73,7 @@ export function AssetsPage() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Hledat kód nebo název…"
+          placeholder={t.assets.searchPlaceholder}
           className="flex-1 min-w-[200px]"
         />
         <Select
@@ -79,15 +81,15 @@ export function AssetsPage() {
           onChange={(e) => setStatus(e.target.value as AssetStatus | '')}
           className="w-48"
         >
-          <option value="">Všechny stavy</option>
-          <option value="in_stock">Skladem</option>
-          <option value="assigned">Přiřazeno</option>
-          <option value="on_loan">Vypůjčeno</option>
-          <option value="in_repair">V opravě</option>
-          <option value="damaged">Poškozeno</option>
-          <option value="sold">Prodáno</option>
-          <option value="lost">Ztraceno</option>
-          <option value="retired">Vyřazeno</option>
+          <option value="">{t.assets.allStatuses}</option>
+          <option value="in_stock">{t.assetStatuses.in_stock}</option>
+          <option value="assigned">{t.assetStatuses.assigned}</option>
+          <option value="on_loan">{t.assetStatuses.on_loan}</option>
+          <option value="in_repair">{t.assetStatuses.in_repair}</option>
+          <option value="damaged">{t.assetStatuses.damaged}</option>
+          <option value="sold">{t.assetStatuses.sold}</option>
+          <option value="lost">{t.assetStatuses.lost}</option>
+          <option value="retired">{t.assetStatuses.retired}</option>
         </Select>
         <label className="flex items-center gap-2 text-sm text-slate-700">
           <input
@@ -95,7 +97,7 @@ export function AssetsPage() {
             checked={includeArchived}
             onChange={(e) => setIncludeArchived(e.target.checked)}
           />
-          archivované
+          {t.assets.archived}
         </label>
       </div>
 
@@ -104,43 +106,43 @@ export function AssetsPage() {
 
       {isFreshInstall && (
         <Card className="mb-4">
-          <h2 className="font-semibold text-lg mb-2">Vítej v Inventory Hub 👋</h2>
-          <p className="text-sm text-slate-600 mb-3">
-            Tady budou tvoje assety. Začni jedním ze tří kroků:
-          </p>
+          <h2 className="font-semibold text-lg mb-2">{t.assets.welcomeTitle}</h2>
+          <p className="text-sm text-slate-600 mb-3">{t.assets.welcomeIntro}</p>
           <ol className="space-y-2 text-sm">
             <li>
               <span className="font-medium">1.</span>{' '}
               {types.data && types.data.items.length === 0 ? (
                 <>
                   <Link to="/asset-types" className="text-blue-700 hover:underline">
-                    Vytvoř typ assetu
-                  </Link>{' '}
-                  — definuje prefix kódu (např. <code>LAP</code>) a volitelná vlastní pole.
+                    {t.assets.stepCreateType}
+                  </Link>
+                  {t.assets.stepCreateTypeHint}
+                  <code>LAP</code>
+                  {t.assets.stepCreateTypeHintEnd}
                 </>
               ) : (
                 <span className="text-slate-500">
-                  ✓ Typ assetu už máš (
+                  {t.assets.stepTypeDone}
                   <Link to="/asset-types" className="text-blue-700 hover:underline">
-                    upravit
+                    {t.assets.stepTypeDoneEdit}
                   </Link>
-                  ).
+                  {t.assets.stepTypeDoneEnd}
                 </span>
               )}
             </li>
             <li>
               <span className="font-medium">2.</span>{' '}
               <Link to="/assets/new" className="text-blue-700 hover:underline">
-                Přidej první asset
-              </Link>{' '}
-              ručně, nebo
+                {t.assets.stepAddAsset}
+              </Link>
+              {t.assets.stepAddAssetHint}
             </li>
             <li>
               <span className="font-medium">3.</span>{' '}
               <Link to="/assets/import" className="text-blue-700 hover:underline">
-                naimportuj z CSV
-              </Link>{' '}
-              — vhodné pro hromadnou inicializaci.
+                {t.assets.stepImport}
+              </Link>
+              {t.assets.stepImportHint}
             </li>
           </ol>
         </Card>
@@ -149,7 +151,7 @@ export function AssetsPage() {
       {data && (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {data.items.length === 0 && !isFreshInstall && (
-            <li className="p-4 text-slate-500">Žádné assety neodpovídají filtru.</li>
+            <li className="p-4 text-slate-500">{t.assets.noMatches}</li>
           )}
           {data.items.map((a) => {
             const path = a.locationId ? locationPath(locationRows, a.locationId) : '';
@@ -161,7 +163,7 @@ export function AssetsPage() {
                     <div className="font-medium truncate">{a.name}</div>
                   </div>
                   <div className="hidden sm:block text-xs text-slate-500 max-w-[40%] truncate text-right">
-                    {path || '—'}
+                    {path || t.common.none}
                   </div>
                   <StatusBadge status={a.status} />
                 </Link>
@@ -173,16 +175,14 @@ export function AssetsPage() {
 
       {total > 0 && (
         <div className="mt-3 flex items-center justify-between gap-3 text-sm text-slate-500">
-          <span>
-            Zobrazeno {loadedCount} z {total}
-          </span>
+          <span>{t.assets.shownOf(loadedCount, total)}</span>
           {loadedCount < total && (
             <Button
               variant="secondary"
               disabled={isLoading}
               onClick={() => setLimit((l) => l + PAGE)}
             >
-              Načíst další
+              {t.common.loadMore}
             </Button>
           )}
         </div>

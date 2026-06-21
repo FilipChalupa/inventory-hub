@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { screen, fireEvent } from '@testing-library/react';
 import { act } from 'react';
+import { renderWithI18n } from '../test/render.js';
 import { ToastViewport, toast } from './Toast.js';
 
 describe('Toast', () => {
@@ -13,7 +14,7 @@ describe('Toast', () => {
   });
 
   it('shows a success toast', () => {
-    render(<ToastViewport />);
+    renderWithI18n(<ToastViewport />);
     act(() => {
       toast.success('Uloženo');
     });
@@ -21,7 +22,7 @@ describe('Toast', () => {
   });
 
   it('dismisses on the close button', () => {
-    render(<ToastViewport />);
+    renderWithI18n(<ToastViewport />);
     act(() => {
       toast.error('Chyba');
     });
@@ -31,7 +32,7 @@ describe('Toast', () => {
   });
 
   it('auto-dismisses a success toast after its timeout', () => {
-    render(<ToastViewport />);
+    renderWithI18n(<ToastViewport />);
     act(() => {
       toast.success('Zmizí');
     });
