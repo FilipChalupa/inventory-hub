@@ -97,6 +97,7 @@ export function AuditLogPage() {
       {error && <p className="text-red-600">{errorMessage(error)}</p>}
 
       <Card className="p-0 overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="text-sm w-full">
           <thead className="bg-slate-50 dark:bg-slate-900/40 text-left">
             <tr>
@@ -152,6 +153,7 @@ export function AuditLogPage() {
             ))}
           </tbody>
         </table>
+        </div>
       </Card>
     </section>
   );

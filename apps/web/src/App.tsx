@@ -62,6 +62,12 @@ export function App() {
 function Shell() {
   const { state, isLoading } = useAuth();
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Close the mobile menu whenever the route changes (a link was tapped).
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
 
   if (isLoading) {
     return (
@@ -91,11 +97,34 @@ function Shell() {
     <div className="min-h-screen flex flex-col">
       <OfflineBanner />
       <header className="border-b border-slate-200 bg-white sticky top-0 z-10 print:hidden dark:bg-slate-800 dark:border-slate-700">
-        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-6">
+        <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4 sm:gap-6">
+          <button
+            type="button"
+            className="sm:hidden -ml-1 rounded p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            aria-label="Menu"
+            aria-expanded={mobileOpen}
+            onClick={() => setMobileOpen((v) => !v)}
+          >
+            <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="w-6 h-6">
+              {mobileOpen ? (
+                <path
+                  fillRule="evenodd"
+                  d="M5.22 5.22a.75.75 0 0 1 1.06 0L10 8.94l3.72-3.72a.75.75 0 1 1 1.06 1.06L11.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06L10 11.06l-3.72 3.72a.75.75 0 0 1-1.06-1.06L8.94 10 5.22 6.28a.75.75 0 0 1 0-1.06Z"
+                  clipRule="evenodd"
+                />
+              ) : (
+                <path
+                  fillRule="evenodd"
+                  d="M2.5 5.75A.75.75 0 0 1 3.25 5h13.5a.75.75 0 0 1 0 1.5H3.25a.75.75 0 0 1-.75-.75Zm0 4.25A.75.75 0 0 1 3.25 9.25h13.5a.75.75 0 0 1 0 1.5H3.25a.75.75 0 0 1-.75-.75Zm.75 3.5a.75.75 0 0 0 0 1.5h13.5a.75.75 0 0 0 0-1.5H3.25Z"
+                  clipRule="evenodd"
+                />
+              )}
+            </svg>
+          </button>
           <NavLink to="/" className="font-semibold text-lg whitespace-nowrap">
             Inventory Hub
           </NavLink>
-          <nav className="flex items-center gap-1 text-sm flex-1">
+          <nav className="hidden sm:flex items-center gap-1 text-sm flex-1">
             {mainNav.map((item) => (
               <NavLink
                 key={item.to}
@@ -117,8 +146,11 @@ function Shell() {
               ))}
             </Dropdown>
           </nav>
-          <UserMenu />
+          <div className="ml-auto sm:ml-0">
+            <UserMenu />
+          </div>
         </div>
+        {mobileOpen && <MobileMenu />}
       </header>
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-6">
@@ -151,6 +183,34 @@ function Shell() {
         </div>
       </main>
     </div>
+  );
+}
+
+/** Vertical nav shown under the header on small screens (toggled by ☰). */
+function MobileMenu() {
+  const mobileLink = ({ isActive }: { isActive: boolean }) =>
+    clsx(
+      'block rounded px-3 py-2 text-sm',
+      isActive
+        ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
+        : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700',
+    );
+  return (
+    <nav className="sm:hidden border-t border-slate-200 px-2 py-2 dark:border-slate-700">
+      {mainNav.map((item) => (
+        <NavLink key={item.to} to={item.to} end={item.end} className={mobileLink}>
+          {item.label}
+        </NavLink>
+      ))}
+      <div className="mt-2 mb-1 px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+        {t.nav.catalog}
+      </div>
+      {catalogNav.map((item) => (
+        <NavLink key={item.to} to={item.to} className={mobileLink}>
+          {item.label}
+        </NavLink>
+      ))}
+    </nav>
   );
 }
 
