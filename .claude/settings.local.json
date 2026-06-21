@@ -111,7 +111,10 @@
       "Bash(echo \"web exit $?\")",
       "Bash(echo \"server exit $?\")",
       "Bash(echo \"exit $?\")",
-      "Bash(grep -rn \"to=\\\\\"/\\\\\"\\\\|to={'/'}\\\\|navigate\\('/'\\)\\\\|navigate\\(\\\\\"/\\\\\"\\)\\\\|to={\\\\`/\\\\`}\" apps/web/src)"
+      "Bash(grep -rn \"to=\\\\\"/\\\\\"\\\\|to={'/'}\\\\|navigate\\('/'\\)\\\\|navigate\\(\\\\\"/\\\\\"\\)\\\\|to={\\\\`/\\\\`}\" apps/web/src)",
+      "Bash(git checkout *)",
+      "Bash(git merge *)",
+      "Bash(git branch *)"
     ],
     "additionalDirectories": [
       "/tmp"

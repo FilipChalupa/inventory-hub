@@ -8,6 +8,7 @@ import { Button, Field, Input, Select } from '../components/ui.js';
 import { toast } from '../components/Toast.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
 import { LocationSelect } from '../components/LocationSelect.js';
+import { validateCustomFieldValues } from '@inventory-hub/shared';
 
 type FormValues = {
   name: string;
@@ -37,6 +38,7 @@ export function NewAssetPage() {
   const schema = selectedType?.customFieldsSchema ?? [];
 
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>({});
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
 
   const create = useMutation({
     mutationFn: async (values: FormValues) =>
@@ -63,7 +65,15 @@ export function NewAssetPage() {
 
       <form
         className="space-y-4"
-        onSubmit={handleSubmit((values) => create.mutate(values))}
+        onSubmit={handleSubmit((values) => {
+          const result = validateCustomFieldValues(schema, customFieldValues);
+          if (!result.ok) {
+            setCustomFieldErrors(result.errors);
+            return;
+          }
+          setCustomFieldErrors({});
+          create.mutate(values);
+        })}
       >
         <Field label="Název" required error={formState.errors.name?.message}>
           <Input
@@ -107,6 +117,7 @@ export function NewAssetPage() {
               schema={schema}
               values={customFieldValues}
               onChange={setCustomFieldValues}
+              errors={customFieldErrors}
             />
           </div>
         )}

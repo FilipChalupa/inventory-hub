@@ -22,7 +22,12 @@ import { nextFreeAt, nonLoanableReason, toISODate, type BusyWindow } from '../li
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
-import { MAX_DAMAGE_PHOTOS, type CustomFieldsSchema, type DamageSeverity } from '@inventory-hub/shared';
+import {
+  MAX_DAMAGE_PHOTOS,
+  validateCustomFieldValues,
+  type CustomFieldsSchema,
+  type DamageSeverity,
+} from '@inventory-hub/shared';
 
 /** Placeholder mirroring the detail layout while the asset query loads. */
 function AssetDetailSkeleton() {
@@ -780,6 +785,7 @@ function EditAssetForm({
 }) {
   const { register, handleSubmit, formState } = useForm({ defaultValues: initial });
   const [customFieldValues, setCustomFieldValues] = useState(initial.customFields);
+  const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   return (
@@ -787,6 +793,12 @@ function EditAssetForm({
       <form
         className="space-y-3"
         onSubmit={handleSubmit(async (v) => {
+          const cf = validateCustomFieldValues(customSchema, customFieldValues);
+          if (!cf.ok) {
+            setCustomFieldErrors(cf.errors);
+            return;
+          }
+          setCustomFieldErrors({});
           setSubmitError(null);
           setSaving(true);
           try {
@@ -821,6 +833,7 @@ function EditAssetForm({
               schema={customSchema}
               values={customFieldValues}
               onChange={setCustomFieldValues}
+              errors={customFieldErrors}
             />
           </div>
         )}
