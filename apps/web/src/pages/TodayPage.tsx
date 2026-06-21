@@ -3,6 +3,7 @@ import { errorMessage } from '../lib/errors.js';
 import { Link } from 'react-router-dom';
 import { apiClient, type LoanTodayBucket } from '../lib/api.js';
 import { Card, SkeletonList, formatDate } from '../components/ui.js';
+import { useT } from '../i18n/index.js';
 
 /**
  * Operational "what needs attention today" view: overdue returns, returns due
@@ -10,8 +11,9 @@ import { Card, SkeletonList, formatDate } from '../components/ui.js';
  * nothing is silently capped.
  */
 export function TodayPage() {
+  const t = useT();
   const now = new Date();
-  const today = useQuery({
+  const todayQuery = useQuery({
     queryKey: ['loans-today'],
     queryFn: () => apiClient.loans.today(),
   });
@@ -19,32 +21,32 @@ export function TodayPage() {
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dnes</h1>
+        <h1 className="text-2xl font-bold">{t.today.title}</h1>
         <span className="text-sm text-slate-500">{now.toLocaleDateString('cs-CZ')}</span>
       </div>
 
-      {today.isLoading && <SkeletonList rows={3} />}
-      {today.error && <p className="text-red-600">{errorMessage(today.error)}</p>}
+      {todayQuery.isLoading && <SkeletonList rows={3} />}
+      {todayQuery.error && <p className="text-red-600">{errorMessage(todayQuery.error)}</p>}
 
-      {today.data && (
+      {todayQuery.data && (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <LoanGroup
-            title="Po termínu"
+            title={t.today.overdue}
             tone="danger"
-            loans={today.data.overdue}
-            empty="Nic není po termínu 🎉"
+            loans={todayQuery.data.overdue}
+            empty={t.today.overdueEmpty}
           />
           <LoanGroup
-            title="Vrátit dnes"
+            title={t.today.dueToday}
             tone="warning"
-            loans={today.data.dueToday}
-            empty="Dnes se nic nevrací."
+            loans={todayQuery.data.dueToday}
+            empty={t.today.dueTodayEmpty}
           />
           <LoanGroup
-            title="Začíná dnes"
+            title={t.today.startingToday}
             tone="info"
-            loans={today.data.startingToday}
-            empty="Dnes nezačíná žádná rezervace."
+            loans={todayQuery.data.startingToday}
+            empty={t.today.startingTodayEmpty}
           />
         </div>
       )}
@@ -69,6 +71,7 @@ function LoanGroup({
   loans: LoanTodayBucket[];
   empty: string;
 }) {
+  const t = useT();
   return (
     <Card>
       <h2 className={`font-semibold mb-2 ${toneStyles[tone]}`}>
@@ -87,7 +90,7 @@ function LoanGroup({
               >
                 <span className="truncate">
                   {loan.borrowerName}
-                  <span className="text-xs text-slate-400"> · {loan.itemCount} ks</span>
+                  <span className="text-xs text-slate-400"> · {t.today.pieces(loan.itemCount)}</span>
                 </span>
                 <span className="text-xs text-slate-500 whitespace-nowrap">
                   {formatDate(loan.date)}

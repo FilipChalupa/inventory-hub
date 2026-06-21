@@ -4,7 +4,8 @@ import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { SkeletonList } from './components/ui.js';
-import { t } from './i18n/messages.js';
+import { useT, useLocale, type Messages } from './i18n/index.js';
+import { LOCALES, LOCALE_LABELS } from './i18n/util.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 
 // Route components are code-split so the initial bundle stays small — each
@@ -42,28 +43,33 @@ const UsersPage = page(() => import('./pages/UsersPage.js'), 'UsersPage');
 const ContactsPage = page(() => import('./pages/ContactsPage.js'), 'ContactsPage');
 const AuditLogPage = page(() => import('./pages/AuditLogPage.js'), 'AuditLogPage');
 
+// Nav items carry an i18n `key`; the visible label is resolved per render from
+// the active locale (t.nav[key]).
+type NavKey = keyof Messages['nav'];
+type NavItem = { to: string; key: NavKey; end?: boolean };
+
 // Primary workflow — always visible in the bar.
-const mainNav: { to: string; label: string; end?: boolean }[] = [
-  { to: '/assets', label: t.nav.assets },
-  { to: '/scan', label: t.nav.scan },
-  { to: '/loans', label: t.nav.loans },
-  { to: '/calendar', label: t.nav.calendar },
-  { to: '/inventory', label: t.nav.inventory },
+const mainNav: NavItem[] = [
+  { to: '/assets', key: 'assets' },
+  { to: '/scan', key: 'scan' },
+  { to: '/loans', key: 'loans' },
+  { to: '/calendar', key: 'calendar' },
+  { to: '/inventory', key: 'inventory' },
 ];
 
 // Reference data — grouped under the "Číselníky" dropdown.
-const catalogNav = [
-  { to: '/asset-types', label: t.nav.types },
-  { to: '/locations', label: t.nav.locations },
-  { to: '/labels', label: t.nav.labels },
-  { to: '/contacts', label: t.nav.contacts },
+const catalogNav: NavItem[] = [
+  { to: '/asset-types', key: 'types' },
+  { to: '/locations', key: 'locations' },
+  { to: '/labels', key: 'labels' },
+  { to: '/contacts', key: 'contacts' },
 ];
 
 // Admin-only — grouped under the user menu (top right).
-const adminNav = [
-  { to: '/audit', label: t.nav.audit },
-  { to: '/users', label: t.nav.users },
-  { to: '/settings', label: t.nav.settings },
+const adminNav: NavItem[] = [
+  { to: '/audit', key: 'audit' },
+  { to: '/users', key: 'users' },
+  { to: '/settings', key: 'settings' },
 ];
 
 export function App() {
@@ -77,6 +83,7 @@ export function App() {
 function Shell() {
   const { state, isLoading } = useAuth();
   const location = useLocation();
+  const t = useT();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   // Close the mobile menu whenever the route changes (a link was tapped).
@@ -149,7 +156,7 @@ function Shell() {
                 end={item.end}
                 className={({ isActive }) => clsx(navItemClass, navItemState(isActive))}
               >
-                {item.label}
+                {t.nav[item.key]}
               </NavLink>
             ))}
             <Dropdown
@@ -158,7 +165,7 @@ function Shell() {
             >
               {catalogNav.map((item) => (
                 <DropdownLink key={item.to} to={item.to}>
-                  {item.label}
+                  {t.nav[item.key]}
                 </DropdownLink>
               ))}
             </Dropdown>
@@ -216,6 +223,7 @@ function RouteFallback() {
 
 /** Vertical nav shown under the header on small screens (toggled by ☰). */
 function MobileMenu() {
+  const t = useT();
   const mobileLink = ({ isActive }: { isActive: boolean }) =>
     clsx(
       'block rounded px-3 py-2 text-sm',
@@ -227,7 +235,7 @@ function MobileMenu() {
     <nav className="sm:hidden border-t border-slate-200 px-2 py-2 dark:border-slate-700">
       {mainNav.map((item) => (
         <NavLink key={item.to} to={item.to} end={item.end} className={mobileLink}>
-          {item.label}
+          {t.nav[item.key]}
         </NavLink>
       ))}
       <div className="mt-2 mb-1 px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -235,15 +243,41 @@ function MobileMenu() {
       </div>
       {catalogNav.map((item) => (
         <NavLink key={item.to} to={item.to} className={mobileLink}>
-          {item.label}
+          {t.nav[item.key]}
         </NavLink>
       ))}
+      <div className="mt-2 border-t border-slate-200 pt-2 dark:border-slate-700">
+        <LanguageSwitcher />
+      </div>
     </nav>
+  );
+}
+
+/** Language selector used in the user menu (desktop) and mobile menu. */
+function LanguageSwitcher({ className }: { className?: string }) {
+  const [locale, setLocale] = useLocale();
+  return (
+    <select
+      aria-label="Language"
+      value={locale}
+      onChange={(e) => setLocale(e.target.value as (typeof LOCALES)[number])}
+      className={clsx(
+        'rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
+        className,
+      )}
+    >
+      {LOCALES.map((l) => (
+        <option key={l} value={l}>
+          {LOCALE_LABELS[l]}
+        </option>
+      ))}
+    </select>
   );
 }
 
 function UserMenu() {
   const { state, logout } = useAuth();
+  const t = useT();
   if (!state?.authenticated) return null;
   const u = state.user;
   const adminItems = u.role === 'admin' ? adminNav : [];
@@ -271,18 +305,22 @@ function UserMenu() {
     >
       {adminItems.map((item) => (
         <DropdownLink key={item.to} to={item.to}>
-          {item.label}
+          {t.nav[item.key]}
         </DropdownLink>
       ))}
       {adminItems.length > 0 && (
         <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
       )}
+      <div className="hidden px-3 py-2 sm:block" onClick={(e) => e.stopPropagation()}>
+        <LanguageSwitcher className="w-full" />
+      </div>
+      <div className="my-1 hidden border-t border-slate-200 sm:block dark:border-slate-700" />
       <button
         type="button"
         onClick={() => logout()}
         className="block w-full px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
       >
-        Odhlásit
+        {t.nav.logout}
       </button>
     </Dropdown>
   );

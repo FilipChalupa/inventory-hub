@@ -1,7 +1,7 @@
 import clsx from 'clsx';
 import { forwardRef } from 'react';
 import type { ButtonHTMLAttributes, InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes, ReactNode } from 'react';
-import { t } from '../i18n/messages.js';
+import { useT } from '../i18n/index.js';
 
 type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'ghost';
 
@@ -142,9 +142,9 @@ const statusStyles: Record<string, string> = {
   retired: 'bg-slate-200 text-slate-700',
 };
 
-const statusLabels: Record<string, string> = t.asset.statuses;
-
 export function StatusBadge({ status }: { status: string }) {
+  const t = useT();
+  const labels = t.assetStatuses as Record<string, string>;
   return (
     <span
       className={clsx(
@@ -152,7 +152,7 @@ export function StatusBadge({ status }: { status: string }) {
         statusStyles[status] ?? 'bg-slate-100 text-slate-700',
       )}
     >
-      {statusLabels[status] ?? status}
+      {labels[status] ?? status}
     </span>
   );
 }

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { App } from './App.js';
+import { I18nProvider } from './i18n/index.js';
 import { ToastViewport, toast } from './components/Toast.js';
 import { ConfirmViewport } from './components/ConfirmDialog.js';
 import { errorMessage } from './lib/errors.js';
@@ -39,11 +40,13 @@ if (!rootEl) throw new Error('Missing #root element');
 createRoot(rootEl).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <App />
-        <ToastViewport />
-        <ConfirmViewport />
-      </BrowserRouter>
+      <I18nProvider>
+        <BrowserRouter>
+          <App />
+          <ToastViewport />
+          <ConfirmViewport />
+        </BrowserRouter>
+      </I18nProvider>
     </QueryClientProvider>
   </StrictMode>,
 );
