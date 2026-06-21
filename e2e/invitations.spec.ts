@@ -36,7 +36,7 @@ test.describe('invitations', () => {
     await inviteePage.getByRole('button', { name: /Přijmout pozvánku/ }).click();
 
     // Logged in → lands on the home dashboard.
-    await expect(inviteePage.getByRole('heading', { name: 'Dnes' })).toBeVisible({
+    await expect(inviteePage.getByRole('heading', { name: 'Dnes', exact: true })).toBeVisible({
       timeout: 10_000,
     });
 

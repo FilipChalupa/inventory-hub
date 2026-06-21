@@ -11,7 +11,8 @@ export async function devLogin(page: Page, email = 'admin@example.com'): Promise
   await page.goto('/login');
   await page.getByPlaceholder('admin@example.com').fill(email);
   await page.getByRole('button', { name: /Dev login/i }).click();
-  await page.getByRole('heading', { name: 'Dnes' }).waitFor({ timeout: 15_000 });
+  // exact: the home page also has "Vrátit dnes" / "Začíná dnes" bucket headings.
+  await page.getByRole('heading', { name: 'Dnes', exact: true }).waitFor({ timeout: 15_000 });
 }
 
 /**

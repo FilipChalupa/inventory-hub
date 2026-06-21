@@ -84,8 +84,10 @@ test.describe('loans', () => {
     const { id: loanId } = (await createRes.json()) as { id: string };
 
     await page.goto(`/loans/${loanId}`);
-    page.on('dialog', (dialog) => dialog.accept());
+    // Cancelling opens the in-app confirm dialog (not a native window.confirm);
+    // confirm via the dialog's button (scoped so it doesn't match the page one).
     await page.getByRole('button', { name: 'Zrušit rezervaci' }).click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Zrušit rezervaci' }).click();
     await expect(page).toHaveURL(/\/loans$/);
     await expect(page.locator('li').filter({ hasText: 'Cancel Borrower' })).toHaveCount(0);
   });
@@ -110,13 +112,13 @@ test.describe('loans', () => {
     await page.getByRole('button', { name: /Přidat \(1\)/ }).click();
     await expect(page.getByRole('link', { name: 'LAP-94002' })).toBeVisible();
 
-    // Remove it again.
-    page.on('dialog', (dialog) => dialog.accept());
+    // Remove it again — confirm via the in-app dialog.
     await page
       .locator('li')
       .filter({ hasText: 'LAP-94002' })
       .getByRole('button', { name: 'Odebrat' })
       .click();
+    await page.getByRole('alertdialog').getByRole('button', { name: 'Odebrat' }).click();
     await expect(page.getByRole('link', { name: 'LAP-94002' })).toBeHidden();
   });
 
@@ -154,8 +156,8 @@ test.describe('loans', () => {
     await page.goto('/loans');
     const row = page.locator('li').filter({ hasText: 'Overdue Customer' });
     await expect(row).toBeVisible();
-    // The "overdue" badge is a small red span, not just any element
-    // containing the substring (which would also match the borrower name).
-    await expect(row.locator('span.bg-red-100', { hasText: 'overdue' })).toBeVisible();
+    // The overdue badge is a small red span, not just any element containing
+    // the substring (which would also match the borrower name).
+    await expect(row.locator('span.bg-red-100', { hasText: 'Po termínu' })).toBeVisible();
   });
 });

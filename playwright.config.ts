@@ -13,6 +13,10 @@ export default defineConfig({
   reporter: process.env.CI ? [['list'], ['github']] : 'list',
   use: {
     baseURL: BASE_URL,
+    // Pin the browser language so the app's locale auto-detection defaults to
+    // Czech; specs assert Czech UI text. (Individual specs can still force a
+    // locale via localStorage before navigating.)
+    locale: 'cs-CZ',
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },
