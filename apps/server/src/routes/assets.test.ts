@@ -117,6 +117,33 @@ describe('assets API', () => {
     });
   });
 
+  describe('auditor is read-only', () => {
+    it('lets an auditor read but blocks any mutation', async () => {
+      const auditor = server.loginAs(
+        server.createUser({ role: 'auditor', email: 'auditor@example.com' }),
+      );
+
+      const read = await server.authRequest('/api/assets', { cookie: auditor });
+      expect(read.status).toBe(200);
+
+      const create = await jsonPost(server, auditor, '/api/assets', {
+        name: 'Nope',
+        typeId: server.laptopTypeId,
+      });
+      expect(create.status).toBe(403);
+
+      // A non-auditor role can still mutate.
+      const operator = server.loginAs(
+        server.createUser({ role: 'operator', email: 'op@example.com' }),
+      );
+      const ok = await jsonPost(server, operator, '/api/assets', {
+        name: 'Yep',
+        typeId: server.laptopTypeId,
+      });
+      expect([200, 201]).toContain(ok.status);
+    });
+  });
+
   describe('GET /api/assets', () => {
     it('hides archived assets by default and reveals them with includeArchived=true', async () => {
       const created = await jsonPost(server, cookie, '/api/assets', {
@@ -172,7 +199,8 @@ describe('assets API', () => {
       const body2 = (await page2.json()) as { items: { code: string }[]; total: number };
       expect(body2.items).toHaveLength(2);
       // Non-overlapping page.
-      expect(body2.items[0].code).not.toBe(body1.items[0].code);
+      const page1Codes = body1.items.map((i) => i.code);
+      expect(page1Codes).not.toContain(body2.items[0]?.code);
     });
   });
 

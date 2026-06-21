@@ -128,6 +128,20 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   // All /api/* routes require an authenticated session. Org PUT additionally
   // requires admin role — handled inside the org router.
   app.use('/api/*', requireAuth());
+
+  // `auditor` is a read-only role: reject any state-changing request across the
+  // whole API in one place, rather than role-guarding every mutation route.
+  app.use('/api/*', async (c, next) => {
+    const method = c.req.method;
+    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+      const user = c.get('user') as UserRow | undefined;
+      if (user?.role === 'auditor') {
+        return c.json({ error: { message: 'Auditor má jen čtecí přístup' } }, 403);
+      }
+    }
+    return next();
+  });
+
   app.route('/api/org', orgRoutes);
   app.route('/api/assets', assetRoutes);
   app.route('/api/asset-types', assetTypeRoutes);
