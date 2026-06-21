@@ -1,31 +1,46 @@
-import { type ReactNode, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, type ComponentType, type ReactNode, useEffect, useRef, useState } from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
+import { SkeletonList } from './components/ui.js';
 import { t } from './i18n/messages.js';
-import { AssetsPage } from './pages/AssetsPage.js';
-import { AssetDetailPage } from './pages/AssetDetailPage.js';
-import { NewAssetPage } from './pages/NewAssetPage.js';
-import { ImportAssetsPage } from './pages/ImportAssetsPage.js';
-import { ScanPage } from './pages/ScanPage.js';
-import { AssetTypesPage } from './pages/AssetTypesPage.js';
-import { LocationsPage } from './pages/LocationsPage.js';
-import { LoansPage } from './pages/LoansPage.js';
-import { LoanDetailPage } from './pages/LoanDetailPage.js';
-import { NewLoanPage } from './pages/NewLoanPage.js';
-import { CalendarPage } from './pages/CalendarPage.js';
-import { TodayPage } from './pages/TodayPage.js';
-import { LabelsPage } from './pages/LabelsPage.js';
-import { InventoryPage } from './pages/InventoryPage.js';
-import { InventorySessionPage } from './pages/InventorySessionPage.js';
-import { SettingsPage } from './pages/SettingsPage.js';
-import { LoginPage } from './pages/LoginPage.js';
-import { AcceptInvitePage } from './pages/AcceptInvitePage.js';
-import { UsersPage } from './pages/UsersPage.js';
-import { ContactsPage } from './pages/ContactsPage.js';
-import { AuditLogPage } from './pages/AuditLogPage.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
+
+// Route components are code-split so the initial bundle stays small — each
+// page's chunk loads on first navigation. `page` adapts our named exports
+// (we don't use default exports) to React.lazy's default-export contract.
+function page<T extends Record<string, ComponentType<object>>>(
+  loader: () => Promise<T>,
+  name: keyof T,
+) {
+  return lazy(() => loader().then((m) => ({ default: m[name] })));
+}
+
+const AssetsPage = page(() => import('./pages/AssetsPage.js'), 'AssetsPage');
+const AssetDetailPage = page(() => import('./pages/AssetDetailPage.js'), 'AssetDetailPage');
+const NewAssetPage = page(() => import('./pages/NewAssetPage.js'), 'NewAssetPage');
+const ImportAssetsPage = page(() => import('./pages/ImportAssetsPage.js'), 'ImportAssetsPage');
+const ScanPage = page(() => import('./pages/ScanPage.js'), 'ScanPage');
+const AssetTypesPage = page(() => import('./pages/AssetTypesPage.js'), 'AssetTypesPage');
+const LocationsPage = page(() => import('./pages/LocationsPage.js'), 'LocationsPage');
+const LoansPage = page(() => import('./pages/LoansPage.js'), 'LoansPage');
+const LoanDetailPage = page(() => import('./pages/LoanDetailPage.js'), 'LoanDetailPage');
+const NewLoanPage = page(() => import('./pages/NewLoanPage.js'), 'NewLoanPage');
+const CalendarPage = page(() => import('./pages/CalendarPage.js'), 'CalendarPage');
+const TodayPage = page(() => import('./pages/TodayPage.js'), 'TodayPage');
+const LabelsPage = page(() => import('./pages/LabelsPage.js'), 'LabelsPage');
+const InventoryPage = page(() => import('./pages/InventoryPage.js'), 'InventoryPage');
+const InventorySessionPage = page(
+  () => import('./pages/InventorySessionPage.js'),
+  'InventorySessionPage',
+);
+const SettingsPage = page(() => import('./pages/SettingsPage.js'), 'SettingsPage');
+const LoginPage = page(() => import('./pages/LoginPage.js'), 'LoginPage');
+const AcceptInvitePage = page(() => import('./pages/AcceptInvitePage.js'), 'AcceptInvitePage');
+const UsersPage = page(() => import('./pages/UsersPage.js'), 'UsersPage');
+const ContactsPage = page(() => import('./pages/ContactsPage.js'), 'ContactsPage');
+const AuditLogPage = page(() => import('./pages/AuditLogPage.js'), 'AuditLogPage');
 
 // Primary workflow — always visible in the bar.
 const mainNav: { to: string; label: string; end?: boolean }[] = [
@@ -83,11 +98,13 @@ function Shell() {
   if (!state?.authenticated) {
     if (isPublicRoute) {
       return (
-        <Routes>
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/accept-invite" element={<AcceptInvitePage />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
-        </Routes>
+        <Suspense fallback={<RouteFallback />}>
+          <Routes>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/accept-invite" element={<AcceptInvitePage />} />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
+        </Suspense>
       );
     }
     return <Navigate to="/login" replace />;
@@ -157,6 +174,7 @@ function Shell() {
           {/* key on the path remounts the boundary on navigation, so a crashed
               page doesn't keep showing its fallback after you move away. */}
           <ErrorBoundary key={location.pathname}>
+          <Suspense fallback={<RouteFallback />}>
           <Routes>
             <Route path="/" element={<TodayPage />} />
             <Route path="/assets" element={<AssetsPage />} />
@@ -179,9 +197,19 @@ function Shell() {
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
           </Routes>
+          </Suspense>
           </ErrorBoundary>
         </div>
       </main>
+    </div>
+  );
+}
+
+/** Placeholder shown while a route's code-split chunk loads. */
+function RouteFallback() {
+  return (
+    <div className="py-6">
+      <SkeletonList />
     </div>
   );
 }
