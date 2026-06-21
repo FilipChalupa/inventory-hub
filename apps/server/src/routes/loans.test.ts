@@ -814,7 +814,12 @@ describe('loans API', () => {
       const a = await makeAsset(server, cookie, 'A');
       const b = await makeAsset(server, cookie, 'B');
       const cc = await makeAsset(server, cookie, 'C');
-      const hours = (n: number) => new Date(Date.now() + n * 60 * 60 * 1000).toISOString();
+      // Use a time near the end of *today* rather than `now + 2h`, which would
+      // spill into tomorrow (and empty the "today" buckets) when the suite runs
+      // late in the day.
+      const laterToday = new Date();
+      laterToday.setHours(23, 59, 0, 0);
+      const endOfToday = laterToday.toISOString();
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
       await jsonPost(server, cookie, '/api/loans', {
@@ -824,12 +829,12 @@ describe('loans API', () => {
       });
       await jsonPost(server, cookie, '/api/loans', {
         borrowerName: 'Dnes vrátit',
-        expectedReturnAt: hours(2),
+        expectedReturnAt: endOfToday,
         assetCodes: [b],
       });
       await jsonPost(server, cookie, '/api/loans', {
         borrowerName: 'Začíná dnes',
-        loanedAt: hours(2),
+        loanedAt: endOfToday,
         assetCodes: [cc],
       });
 
@@ -962,6 +967,25 @@ describe('loans API', () => {
       const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
       const row = server.db.select().from(loanItems).where(eq(loanItems.id, itemId)).get()!;
       expect(row.returnedAt!.getTime()).toBe(yesterday.getTime());
+    });
+
+    it('return-all accepts a same-day (date-only) return for a loan started today', async () => {
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'X',
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      // The loan started moments ago (a time today); the UI sends a date-only
+      // value = midnight UTC today, which must not read as "before the loan".
+      const now = new Date();
+      const todayMidnight = new Date(
+        Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
+      );
+      const res = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {
+        returnedAt: todayMidnight.toISOString(),
+      });
+      expect(res.status).toBe(200);
     });
 
     it('return-all rejects a future return date', async () => {

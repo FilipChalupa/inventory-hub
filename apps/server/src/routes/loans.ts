@@ -40,10 +40,19 @@ const STATUS_UNAVAILABLE_REASON: Record<string, string> = {
 };
 
 // Shared guard for a (possibly backdated) return date: it cannot be in the
-// future, nor before the loan actually started.
+// future, nor before the day the loan started. The return date is a calendar
+// day (the UI sends a date-only value, i.e. midnight UTC), so a loan may be
+// returned on the same day it started — compare against the start of the
+// loan's day rather than its exact timestamp, otherwise a same-day return is
+// wrongly rejected as "before the loan started".
 function returnDateError(returnedAt: Date, loanStart: Date, now: Date): string | null {
   if (returnedAt.getTime() > now.getTime()) return 'Datum vrácení nemůže být v budoucnu';
-  if (returnedAt.getTime() < loanStart.getTime()) return 'Datum vrácení nemůže být před zapůjčením';
+  const startOfLoanDay = Date.UTC(
+    loanStart.getUTCFullYear(),
+    loanStart.getUTCMonth(),
+    loanStart.getUTCDate(),
+  );
+  if (returnedAt.getTime() < startOfLoanDay) return 'Datum vrácení nemůže být před zapůjčením';
   return null;
 }
 
