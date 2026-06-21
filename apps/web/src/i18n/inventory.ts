@@ -35,7 +35,7 @@ export const inventory = ns({
     title: 'Inventories',
     newInventory: '+ New inventory',
     intro:
-      'An inventory check confirms that everything in records physically exists. Run it for the whole organization or a selected location, scan what you have in hand, and the system lists what is missing and what is extra.',
+      'An inventory check confirms that all recorded items physically exist. Run it for the whole organization or a selected location, scan what you have in hand, and the system lists what is missing and what is extra.',
     newInventoryHeading: 'New inventory',
     nameLabel: 'Name (optional)',
     namePlaceholder: 'Inventory — warehouse A',

@@ -38,7 +38,7 @@ export const newLoan = ns({
     contactLabel: 'Select an existing contact (optional)',
     contactNone: '— no contact, enter manually below —',
     borrowerNameLabel: 'Borrower name',
-    borrowerNamePlaceholder: 'Jan Novák',
+    borrowerNamePlaceholder: 'John Smith',
     borrowerNameRequired: 'Name is required',
     contactFieldLabel: 'Contact (email / phone)',
     contactFieldPlaceholder: 'jan@example.com',
@@ -49,7 +49,7 @@ export const newLoan = ns({
     expectedReturnLabel: 'Expected return',
     itemsTitle: 'Loan items',
     itemsHelp: (selected: number) =>
-      `You can pick assets free in the chosen window – including currently lent ones that make it back before the start. Unavailable ones are dimmed with a reason. Selected: ${selected}`,
+      `You can select available assets in the chosen window – including currently lent ones that make it back before the start. Unavailable ones are dimmed with a reason. Selected: ${selected}`,
     itemsSearchPlaceholder: 'Search code / name…',
     noAssets: 'No assets match the search.',
     nowLent: 'lent now',

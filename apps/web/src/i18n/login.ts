@@ -15,10 +15,10 @@ export const login = ns({
     subtitle: 'Sign in to continue.',
     continueWithGoogle: 'Continue with Google',
     devMode: 'dev mode',
-    existingUserEmail: 'Existing user e-mail',
+    existingUserEmail: 'Existing user email',
     signingIn: 'Signing in…',
     devLogin: 'Dev login',
-    devLoginHint: 'Dev login is disabled in production. It requires a user with the given e-mail to exist in the database (see ',
+    devLoginHint: 'Dev login is disabled in production. It requires a user with the given email to exist in the database (see ',
     devLoginHintEnd: ').',
   },
 });

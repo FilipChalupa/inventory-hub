@@ -22,7 +22,7 @@ export const assetTypes = ns({
   en: {
     title: 'Asset types',
     importCsv: 'Import CSV',
-    newType: 'New type',
+    newType: 'New asset type',
     name: 'Name',
     namePlaceholder: 'Notebook',
     prefix: 'Prefix',

@@ -105,7 +105,7 @@ export const loanDetail = ns({
     returnAll: (count: number) => `Return all (${count})`,
     returnDate: 'Return date',
     returningAll: 'Returning…',
-    returnAllAsOk: (count: number) => `Return all (${count}) as OK`,
+    returnAllAsOk: (count: number) => `Return all (${count}) in good condition`,
 
     // EditLoanForm
     borrowerNameLabel: 'Borrower name',
@@ -122,7 +122,7 @@ export const loanDetail = ns({
     // AddLoanItems
     addItem: '+ Add item',
     availableInTerm: (selectedCount: number) =>
-      `Assets free during the loan period. Selected: ${selectedCount}`,
+      `Available assets during the loan period. Selected: ${selectedCount}`,
     searchPlaceholder: 'Search code / name…',
     noAvailableAssets: 'No available assets.',
     nowOnLoan: 'on loan now',

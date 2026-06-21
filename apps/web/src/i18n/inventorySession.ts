@@ -81,7 +81,7 @@ export const inventorySession = ns({
     groupMissingHint:
       'In records but not scanned. Items on loan are not physically present — that is expected.',
     groupMissingEmpty: 'Nothing missing 🎉',
-    groupUnexpectedTitle: 'Extra / out of scope',
+    groupUnexpectedTitle: 'Extra (out of scope)',
     groupUnexpectedHint:
       'Scanned but not part of the expected scope (archived or at a different location).',
     groupUnexpectedEmpty: 'Nothing extra.',
