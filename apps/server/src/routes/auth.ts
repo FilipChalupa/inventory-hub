@@ -165,7 +165,9 @@ export const authRoutes = new Hono<AppContext>()
 
   // ---- Invitation acceptance (public) -------------------------------------
 
-  .get('/invite/:token', (c) => {
+  // Rate-limited: invite tokens are bearer credentials in a URL, so throttle
+  // lookups/acceptance to stop token brute-forcing and email/role enumeration.
+  .get('/invite/:token', rateLimit({ bucket: 'invite-lookup', windowMs: 60_000, max: 30 }), (c) => {
     const db = c.get('db');
     const token = c.req.param('token');
     const invite = db.select().from(invitations).where(eq(invitations.token, token)).get();
@@ -181,6 +183,7 @@ export const authRoutes = new Hono<AppContext>()
 
   .post(
     '/accept-invite',
+    rateLimit({ bucket: 'accept-invite', windowMs: 60_000, max: 10 }),
     zValidator(
       'json',
       z.object({
