@@ -10,6 +10,7 @@ import {
   Field,
   Input,
   Select,
+  Skeleton,
   StatusBadge,
   Textarea,
   formatDate,
@@ -22,6 +23,25 @@ import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
 import { MAX_DAMAGE_PHOTOS, type CustomFieldsSchema, type DamageSeverity } from '@inventory-hub/shared';
+
+/** Placeholder mirroring the detail layout while the asset query loads. */
+function AssetDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <Skeleton className="h-4 w-24" />
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-7 w-56" />
+          <Skeleton className="h-5 w-20" />
+        </div>
+        <Skeleton className="h-32 w-32" />
+      </div>
+      <Skeleton className="h-24 w-full" />
+      <Skeleton className="h-40 w-full" />
+    </div>
+  );
+}
 
 export function AssetDetailPage() {
   const { code = '' } = useParams<{ code: string }>();
@@ -97,7 +117,7 @@ export function AssetDetailPage() {
   const [showDamageForm, setShowDamageForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
 
-  if (asset.isLoading) return <p className="text-slate-500">Načítám…</p>;
+  if (asset.isLoading) return <AssetDetailSkeleton />;
   if (asset.error) return <p className="text-red-600">{errorMessage(asset.error)}</p>;
   if (!asset.data) return null;
 

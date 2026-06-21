@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type InventorySessionRow } from '../lib/api.js';
-import { Button, Card, Field, Input, Textarea, formatDate } from '../components/ui.js';
+import { Button, Card, Field, Input, SkeletonList, Textarea, formatDate } from '../components/ui.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { locationPath } from '../lib/locations.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
@@ -193,7 +193,7 @@ export function InventoryPage() {
         </Card>
       )}
 
-      {sessions.isLoading && <p className="text-sm text-slate-500">Načítám…</p>}
+      {sessions.isLoading && <SkeletonList rows={4} />}
 
       {!sessions.isLoading && items.length === 0 && !creating && (
         <Card>

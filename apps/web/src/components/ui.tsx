@@ -97,6 +97,27 @@ export function Field({
   );
 }
 
+/** A shimmering placeholder block; compose several to mimic real layout. */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <div
+      aria-hidden="true"
+      className={clsx('animate-pulse rounded bg-slate-200 dark:bg-slate-700', className)}
+    />
+  );
+}
+
+/** N placeholder list rows, for lists still loading. */
+export function SkeletonList({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="space-y-2" aria-busy="true" aria-label="Načítám…">
+      {Array.from({ length: rows }).map((_, i) => (
+        <Skeleton key={i} className="h-12 w-full" />
+      ))}
+    </div>
+  );
+}
+
 export function Card({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div

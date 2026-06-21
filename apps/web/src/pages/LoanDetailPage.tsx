@@ -3,7 +3,7 @@ import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, type LoanEventRow, type LoanItemRow, type LoanRow } from '../lib/api.js';
-import { Button, Card, Field, Input, Select, Textarea, formatDate } from '../components/ui.js';
+import { Button, Card, Field, Input, Select, SkeletonList, Textarea, formatDate } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 
@@ -31,7 +31,7 @@ export function LoanDetailPage() {
     onSuccess: () => navigate('/loans'),
   });
 
-  if (loan.isLoading) return <p className="text-slate-500">Načítám…</p>;
+  if (loan.isLoading) return <SkeletonList rows={4} />;
   if (loan.error) return <p className="text-red-600">{errorMessage(loan.error)}</p>;
   if (!loan.data) return null;
 

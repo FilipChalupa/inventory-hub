@@ -3,7 +3,7 @@ import { errorMessage } from '../lib/errors.js';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
-import { Card, Input, Select, formatDate } from '../components/ui.js';
+import { Card, Input, Select, SkeletonList, formatDate } from '../components/ui.js';
 
 const EVENT_LABELS: Record<string, string> = {
   created: 'Vytvořen',
@@ -93,7 +93,7 @@ export function AuditLogPage() {
         </div>
       </div>
 
-      {isLoading && <p className="text-slate-500">Načítám…</p>}
+      {isLoading && <SkeletonList />}
       {error && <p className="text-red-600">{errorMessage(error)}</p>}
 
       <Card className="p-0 overflow-hidden">

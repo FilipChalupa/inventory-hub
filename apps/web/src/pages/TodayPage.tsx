@@ -2,7 +2,7 @@ import { useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../lib/errors.js';
 import { Link } from 'react-router-dom';
 import { apiClient, type LoanTodayBucket } from '../lib/api.js';
-import { Card, formatDate } from '../components/ui.js';
+import { Card, SkeletonList, formatDate } from '../components/ui.js';
 
 /**
  * Operational "what needs attention today" view: overdue returns, returns due
@@ -23,7 +23,7 @@ export function TodayPage() {
         <span className="text-sm text-slate-500">{now.toLocaleDateString('cs-CZ')}</span>
       </div>
 
-      {today.isLoading && <p className="text-slate-500">Načítám…</p>}
+      {today.isLoading && <SkeletonList rows={3} />}
       {today.error && <p className="text-red-600">{errorMessage(today.error)}</p>}
 
       {today.data && (

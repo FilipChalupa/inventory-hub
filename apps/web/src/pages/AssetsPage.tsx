@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import type { AssetStatus } from '@inventory-hub/shared';
-import { Button, Card, Input, Select, StatusBadge } from '../components/ui.js';
+import { Button, Card, Input, Select, SkeletonList, StatusBadge } from '../components/ui.js';
 import { locationPath } from '../lib/locations.js';
 
 export function AssetsPage() {
@@ -83,7 +83,7 @@ export function AssetsPage() {
         </label>
       </div>
 
-      {isLoading && <p className="text-slate-500">Načítám…</p>}
+      {isLoading && <SkeletonList />}
       {error && <p className="text-red-600">{errorMessage(error)}</p>}
 
       {isFreshInstall && (

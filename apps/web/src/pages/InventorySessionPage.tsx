@@ -10,7 +10,7 @@ import {
   type InventorySessionRow,
   type ScanResult,
 } from '../lib/api.js';
-import { Button, Card, Input, StatusBadge, Textarea, formatDate } from '../components/ui.js';
+import { Button, Card, Input, SkeletonList, StatusBadge, Textarea, formatDate } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
@@ -126,7 +126,7 @@ export function InventorySessionPage() {
   const locationLabel = (locId: string | null) =>
     locId ? locationPath(locations.data?.items ?? [], locId) || '—' : '—';
 
-  if (detail.isLoading) return <p className="text-sm text-slate-500">Načítám…</p>;
+  if (detail.isLoading) return <SkeletonList rows={5} />;
   if (!session || !report) {
     return (
       <section className="space-y-3">
