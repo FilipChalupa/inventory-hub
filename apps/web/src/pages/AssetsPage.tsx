@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../lib/errors.js';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -7,20 +7,28 @@ import type { AssetStatus } from '@inventory-hub/shared';
 import { Button, Card, Input, Select, SkeletonList, StatusBadge } from '../components/ui.js';
 import { locationPath } from '../lib/locations.js';
 
+const PAGE = 100;
+
 export function AssetsPage() {
   const [q, setQ] = useState('');
   const [status, setStatus] = useState<AssetStatus | ''>('');
   const [includeArchived, setIncludeArchived] = useState(false);
+  // Server-side paging so the list isn't silently capped; "load more" grows it.
+  const [limit, setLimit] = useState(PAGE);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['assets', { q, status, includeArchived }],
+    queryKey: ['assets', { q, status, includeArchived, limit }],
     queryFn: () =>
       apiClient.assets.list({
         q: q || undefined,
         status: status || undefined,
         includeArchived,
+        limit,
       }),
+    placeholderData: keepPreviousData,
   });
+  const total = data?.total ?? 0;
+  const loadedCount = data?.items.length ?? 0;
 
   const locations = useQuery({
     queryKey: ['locations'],
@@ -54,13 +62,19 @@ export function AssetsPage() {
         <Input
           type="search"
           value={q}
-          onChange={(e) => setQ(e.target.value)}
+          onChange={(e) => {
+            setQ(e.target.value);
+            setLimit(PAGE);
+          }}
           placeholder="Hledat kód nebo název…"
           className="flex-1 min-w-[200px]"
         />
         <Select
           value={status}
-          onChange={(e) => setStatus(e.target.value as AssetStatus | '')}
+          onChange={(e) => {
+            setStatus(e.target.value as AssetStatus | '');
+            setLimit(PAGE);
+          }}
           className="w-48"
         >
           <option value="">Všechny stavy</option>
@@ -77,7 +91,10 @@ export function AssetsPage() {
           <input
             type="checkbox"
             checked={includeArchived}
-            onChange={(e) => setIncludeArchived(e.target.checked)}
+            onChange={(e) => {
+              setIncludeArchived(e.target.checked);
+              setLimit(PAGE);
+            }}
           />
           archivované
         </label>
@@ -153,6 +170,23 @@ export function AssetsPage() {
             );
           })}
         </ul>
+      )}
+
+      {total > 0 && (
+        <div className="mt-3 flex items-center justify-between gap-3 text-sm text-slate-500">
+          <span>
+            Zobrazeno {loadedCount} z {total}
+          </span>
+          {loadedCount < total && (
+            <Button
+              variant="secondary"
+              disabled={isLoading}
+              onClick={() => setLimit((l) => l + PAGE)}
+            >
+              Načíst další
+            </Button>
+          )}
+        </div>
       )}
     </section>
   );

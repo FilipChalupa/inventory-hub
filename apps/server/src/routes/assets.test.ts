@@ -154,6 +154,26 @@ describe('assets API', () => {
       const stockBody = (await stock.json()) as { items: { code: string }[] };
       expect(stockBody.items.map((i) => i.code)).toEqual([c1Code]);
     });
+
+    it('paginates with limit/offset and reports the full total', async () => {
+      for (let i = 0; i < 5; i++) {
+        await jsonPost(server, cookie, '/api/assets', {
+          name: `A${i}`,
+          typeId: server.laptopTypeId,
+        });
+      }
+
+      const page1 = await server.authRequest('/api/assets?limit=2&offset=0', { cookie });
+      const body1 = (await page1.json()) as { items: { code: string }[]; total: number };
+      expect(body1.total).toBe(5);
+      expect(body1.items).toHaveLength(2);
+
+      const page2 = await server.authRequest('/api/assets?limit=2&offset=2', { cookie });
+      const body2 = (await page2.json()) as { items: { code: string }[]; total: number };
+      expect(body2.items).toHaveLength(2);
+      // Non-overlapping page.
+      expect(body2.items[0].code).not.toBe(body1.items[0].code);
+    });
   });
 
   describe('archive / unarchive', () => {

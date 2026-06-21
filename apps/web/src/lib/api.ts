@@ -44,6 +44,8 @@ export type ListAssetsParams = {
   typeId?: string;
   locationId?: string;
   includeArchived?: boolean;
+  limit?: number;
+  offset?: number;
 };
 
 export type AssetTypeRow = {
@@ -394,8 +396,10 @@ export const apiClient = {
       if (params.typeId) qs.set('typeId', params.typeId);
       if (params.locationId) qs.set('locationId', params.locationId);
       if (params.includeArchived) qs.set('includeArchived', 'true');
+      if (params.limit != null) qs.set('limit', String(params.limit));
+      if (params.offset != null) qs.set('offset', String(params.offset));
       const suffix = qs.toString() ? `?${qs}` : '';
-      return api<{ items: Asset[] }>(`/api/assets${suffix}`);
+      return api<{ items: Asset[]; total: number }>(`/api/assets${suffix}`);
     },
     get: (code: string) => api<{ asset: Asset }>(`/api/assets/${encodeURIComponent(code)}`),
     create: (input: CreateAssetInput) =>
@@ -474,6 +478,7 @@ export const apiClient = {
     eventsAll: (limit = 200) =>
       api<{
         items: (AssetEventRow & { assetCode: string | null; assetName: string | null })[];
+        total: number;
       }>(`/api/assets/events/all?limit=${limit}`),
     qrUrl: (code: string, opts: { compact?: boolean } = {}) =>
       `/api/assets/${encodeURIComponent(code)}/qr${opts.compact ? '?compact=1' : ''}`,

@@ -119,15 +119,26 @@ export const assetRoutes = new Hono<AppContext>()
     if (locationId) conditions.push(eq(assets.locationId, locationId));
     if (!includeArchived) conditions.push(isNull(assets.archivedAt));
 
+    const where = conditions.length ? and(...conditions) : undefined;
+    const limit = Math.min(Number(c.req.query('limit') ?? '100') || 100, 500);
+    const offset = Math.max(Number(c.req.query('offset') ?? '0') || 0, 0);
+
+    const total = db
+      .select({ n: sql<number>`count(*)` })
+      .from(assets)
+      .where(where)
+      .get();
+
     const rows = db
       .select()
       .from(assets)
-      .where(conditions.length ? and(...conditions) : undefined)
+      .where(where)
       .orderBy(desc(assets.createdAt))
-      .limit(500)
+      .limit(limit)
+      .offset(offset)
       .all();
 
-    return c.json({ items: rows });
+    return c.json({ items: rows, total: total?.n ?? rows.length });
   })
   .post('/', zValidator('json', createAssetInput), (c) => {
     const db = c.get('db');
@@ -595,7 +606,8 @@ export const assetRoutes = new Hono<AppContext>()
   })
   .get('/events/all', (c) => {
     const db = c.get('db');
-    const limit = Math.min(Number(c.req.query('limit') ?? '200') || 200, 500);
+    const limit = Math.min(Number(c.req.query('limit') ?? '200') || 200, 1000);
+    const total = db.select({ n: sql<number>`count(*)` }).from(assetEvents).get();
     const rows = db
       .select({
         id: assetEvents.id,
@@ -612,7 +624,7 @@ export const assetRoutes = new Hono<AppContext>()
       .orderBy(desc(assetEvents.occurredAt))
       .limit(limit)
       .all();
-    return c.json({ items: rows });
+    return c.json({ items: rows, total: total?.n ?? rows.length });
   })
   .get('/:code/events', (c) => {
     const db = c.get('db');

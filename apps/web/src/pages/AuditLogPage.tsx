@@ -1,9 +1,9 @@
-import { useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { errorMessage } from '../lib/errors.js';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
-import { Card, Input, Select, SkeletonList, formatDate } from '../components/ui.js';
+import { Button, Card, Input, Select, SkeletonList, formatDate } from '../components/ui.js';
 
 const EVENT_LABELS: Record<string, string> = {
   created: 'Vytvořen',
@@ -27,10 +27,14 @@ const EVENT_LABELS: Record<string, string> = {
   repair_finished: 'Oprava dokončena',
 };
 
+const PAGE = 300;
+
 export function AuditLogPage() {
+  const [limit, setLimit] = useState(PAGE);
   const { data, isLoading, error } = useQuery({
-    queryKey: ['audit-log'],
-    queryFn: () => apiClient.assets.eventsAll(300),
+    queryKey: ['audit-log', limit],
+    queryFn: () => apiClient.assets.eventsAll(limit),
+    placeholderData: keepPreviousData,
   });
   const users = useQuery({
     queryKey: ['users'],
@@ -67,7 +71,7 @@ export function AuditLogPage() {
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">Audit log</h1>
       <p className="text-sm text-slate-500 dark:text-slate-400">
-        Posledních {data?.items.length ?? 0} událostí napříč všemi assety.
+        Zobrazeno {data?.items.length ?? 0} z {data?.total ?? 0} událostí napříč všemi assety.
       </p>
 
       <div className="flex flex-wrap gap-2 items-end">
@@ -155,6 +159,14 @@ export function AuditLogPage() {
         </table>
         </div>
       </Card>
+
+      {data && data.items.length < data.total && (
+        <div className="flex justify-center">
+          <Button variant="secondary" disabled={isLoading} onClick={() => setLimit((l) => l + PAGE)}>
+            Načíst další
+          </Button>
+        </div>
+      )}
     </section>
   );
 }
