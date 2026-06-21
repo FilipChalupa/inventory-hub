@@ -107,7 +107,17 @@ function initialLocale(): Locale {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (saved && (LOCALES as readonly string[]).includes(saved)) return saved as Locale;
   } catch {
-    // localStorage unavailable (SSR / privacy mode) — fall through to default.
+    // localStorage unavailable (SSR / privacy mode) — fall through to detection.
+  }
+  // No saved choice → follow the browser's preferred languages, picking the
+  // first that maps to a locale we ship; default to Czech otherwise.
+  if (typeof navigator !== 'undefined') {
+    const prefs = navigator.languages ?? [navigator.language];
+    for (const pref of prefs) {
+      const base = pref?.toLowerCase().split('-')[0];
+      const match = LOCALES.find((l) => l === base);
+      if (match) return match;
+    }
   }
   return 'cs';
 }
