@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
-import { desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm';
+import { nextServiceDue } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assets, assetTypes, loanItems, loans, locations } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -20,6 +21,8 @@ const ASSET_STATUSES = [
 
 const NO_TYPE_LABEL = '—';
 const TOP_LOCATIONS = 8;
+/** How far ahead warranty expiry / scheduled service is flagged as "due soon". */
+const SOON_WINDOW_DAYS = 30;
 
 export type StatsResponse = {
   totalActive: number;
@@ -28,6 +31,11 @@ export type StatsResponse = {
   byLocation: { locationId: string; locationName: string; count: number }[];
   loans: { active: number; overdue: number; planned: number };
   inRepair: number;
+  totalValue: number;
+  valueByType: { typeId: string; typeName: string; value: number }[];
+  warrantyExpiringSoon: number;
+  serviceDueSoon: number;
+  currency: string;
 };
 
 /**
@@ -37,6 +45,7 @@ export type StatsResponse = {
  */
 export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) => {
   const db = c.get('db');
+  const env = c.get('env');
   const now = Date.now();
 
   // Non-archived assets grouped by status. Seeded with every known status so
@@ -128,6 +137,67 @@ export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) =>
     if (due !== null && due.getTime() < now) overdue += 1;
   }
 
+  const soon = new Date(now + SOON_WINDOW_DAYS * 24 * 60 * 60 * 1000);
+
+  // Total capital tied up in the active fleet — sum of purchase prices (minor
+  // units) over non-archived assets. COALESCE keeps it 0 for an empty inventory.
+  const totalValueRow = db
+    .select({ total: sql<number>`coalesce(sum(${assets.purchasePrice}), 0)` })
+    .from(assets)
+    .where(isNull(assets.archivedAt))
+    .get();
+  const totalValue = totalValueRow?.total ?? 0;
+
+  // Value grouped by type (minor units), typeless assets excluded (nothing to
+  // attribute the value to). Only types with a non-zero total are surfaced.
+  const valueTypeRows = db
+    .select({
+      typeId: assets.typeId,
+      typeName: assetTypes.name,
+      value: sql<number>`coalesce(sum(${assets.purchasePrice}), 0)`,
+    })
+    .from(assets)
+    .innerJoin(assetTypes, eq(assets.typeId, assetTypes.id))
+    .where(isNull(assets.archivedAt))
+    .groupBy(assets.typeId)
+    .all();
+  const valueByType = valueTypeRows
+    .filter((r) => r.value > 0)
+    .map((r) => ({ typeId: r.typeId as string, typeName: r.typeName, value: r.value }))
+    .sort((a, b) => b.value - a.value);
+
+  // Non-archived assets whose warranty has expired or lapses within the window.
+  const warrantyRow = db
+    .select({ count: sql<number>`count(*)` })
+    .from(assets)
+    .where(
+      and(
+        isNull(assets.archivedAt),
+        isNotNull(assets.warrantyUntil),
+        lte(assets.warrantyUntil, soon),
+      ),
+    )
+    .get();
+  const warrantyExpiringSoon = warrantyRow?.count ?? 0;
+
+  // Scheduled service that is overdue or due within the window. The next-service
+  // date depends on lastServicedAt/purchasedAt/createdAt, so compute it in JS
+  // over the (bounded) set of assets that actually have a schedule.
+  const serviceCandidates = db
+    .select({
+      serviceIntervalDays: assets.serviceIntervalDays,
+      lastServicedAt: assets.lastServicedAt,
+      purchasedAt: assets.purchasedAt,
+      createdAt: assets.createdAt,
+    })
+    .from(assets)
+    .where(and(isNull(assets.archivedAt), isNotNull(assets.serviceIntervalDays)))
+    .all();
+  const serviceDueSoon = serviceCandidates.filter((a) => {
+    const due = nextServiceDue(a);
+    return due !== null && due <= soon;
+  }).length;
+
   const body: StatsResponse = {
     totalActive,
     byStatus,
@@ -135,6 +205,11 @@ export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) =>
     byLocation,
     loans: { active, overdue, planned },
     inRepair,
+    totalValue,
+    valueByType,
+    warrantyExpiringSoon,
+    serviceDueSoon,
+    currency: env.CURRENCY,
   };
   return c.json(body);
 });

@@ -35,6 +35,11 @@ describe('stats API', () => {
     typeId?: string | null;
     locationId?: string | null;
     archived?: boolean;
+    purchasePrice?: number | null;
+    warrantyUntil?: Date | null;
+    serviceIntervalDays?: number | null;
+    lastServicedAt?: Date | null;
+    purchasedAt?: Date | null;
   }): string {
     assetSeq += 1;
     const id = crypto.randomUUID();
@@ -48,6 +53,11 @@ describe('stats API', () => {
         typeId: input.typeId ?? null,
         locationId: input.locationId ?? null,
         archivedAt: input.archived ? new Date() : null,
+        purchasePrice: input.purchasePrice ?? null,
+        warrantyUntil: input.warrantyUntil ?? null,
+        serviceIntervalDays: input.serviceIntervalDays ?? null,
+        lastServicedAt: input.lastServicedAt ?? null,
+        purchasedAt: input.purchasedAt ?? null,
       })
       .run();
     return id;
@@ -192,6 +202,64 @@ describe('stats API', () => {
     expect(stats.loans.planned).toBe(1);
   });
 
+  it('sums total value of non-archived assets and groups value by type', async () => {
+    const phoneType = crypto.randomUUID();
+    server.db.insert(assetTypes).values({ id: phoneType, name: 'Phone', codePrefix: 'PHN' }).run();
+
+    addAsset({ typeId: server.laptopTypeId, purchasePrice: 100_000 });
+    addAsset({ typeId: server.laptopTypeId, purchasePrice: 50_000 });
+    addAsset({ typeId: phoneType, purchasePrice: 30_000 });
+    addAsset({ typeId: null, purchasePrice: 9_999 }); // counts in total, not in valueByType
+    addAsset({ typeId: server.laptopTypeId, purchasePrice: null }); // no price, no effect
+    addAsset({ typeId: phoneType, purchasePrice: 1_000_000, archived: true }); // excluded
+
+    const stats = await getStats();
+    expect(stats.totalValue).toBe(189_999);
+    expect(stats.currency).toBe('CZK');
+
+    const valueByType = stats.valueByType;
+    // Sorted descending by value — Laptop (150000) before Phone (30000).
+    expect(valueByType.map((r) => [r.typeName, r.value])).toEqual([
+      ['Laptop', 150_000],
+      ['Phone', 30_000],
+    ]);
+    // Typeless assets never appear in valueByType.
+    expect(valueByType.some((r) => r.typeName === '—')).toBe(false);
+  });
+
+  it('counts warranties that are expired or expiring within 30 days', async () => {
+    const day = 86_400_000;
+    addAsset({ warrantyUntil: new Date(Date.now() - 5 * day) }); // expired
+    addAsset({ warrantyUntil: new Date(Date.now() + 10 * day) }); // soon
+    addAsset({ warrantyUntil: new Date(Date.now() + 200 * day) }); // far off
+    addAsset({ warrantyUntil: null }); // none
+    addAsset({ warrantyUntil: new Date(Date.now() + 5 * day), archived: true }); // excluded
+
+    const stats = await getStats();
+    expect(stats.warrantyExpiringSoon).toBe(2);
+  });
+
+  it('counts scheduled service that is overdue or due within 30 days', async () => {
+    const day = 86_400_000;
+    // Serviced 100 days ago, interval 90 → next service was 10 days ago (overdue).
+    addAsset({ serviceIntervalDays: 90, lastServicedAt: new Date(Date.now() - 100 * day) });
+    // Serviced 70 days ago, interval 90 → due in 20 days (soon).
+    addAsset({ serviceIntervalDays: 90, lastServicedAt: new Date(Date.now() - 70 * day) });
+    // Serviced 10 days ago, interval 365 → due far off.
+    addAsset({ serviceIntervalDays: 365, lastServicedAt: new Date(Date.now() - 10 * day) });
+    // No schedule.
+    addAsset({ serviceIntervalDays: null });
+    // Overdue but archived — excluded.
+    addAsset({
+      serviceIntervalDays: 30,
+      lastServicedAt: new Date(Date.now() - 100 * day),
+      archived: true,
+    });
+
+    const stats = await getStats();
+    expect(stats.serviceDueSoon).toBe(2);
+  });
+
   it('returns zeroed aggregates for an empty inventory', async () => {
     const stats = await getStats();
     expect(stats.totalActive).toBe(0);
@@ -200,5 +268,10 @@ describe('stats API', () => {
     expect(stats.byLocation).toEqual([]);
     expect(stats.loans).toEqual({ active: 0, overdue: 0, planned: 0 });
     expect(stats.byStatus.every((s) => s.count === 0)).toBe(true);
+    expect(stats.totalValue).toBe(0);
+    expect(stats.valueByType).toEqual([]);
+    expect(stats.warrantyExpiringSoon).toBe(0);
+    expect(stats.serviceDueSoon).toBe(0);
+    expect(stats.currency).toBe('CZK');
   });
 });

@@ -18,6 +18,14 @@ const envSchema = z.object({
   PUBLIC_APP_URL: z.string().url().default('http://localhost:5173'),
   UPLOAD_DIR: z.string().default('./data/uploads'),
   UPLOAD_MAX_BYTES: z.coerce.number().int().positive().default(5_242_880),
+  // ISO 4217 currency code used to format asset purchase prices and the
+  // dashboard's inventory value. The app is single-org, so one currency.
+  CURRENCY: z
+    .string()
+    .trim()
+    .regex(/^[A-Za-z]{3}$/)
+    .transform((v) => v.toUpperCase())
+    .default('CZK'),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().positive().optional(),
   SMTP_USER: z.string().optional(),
