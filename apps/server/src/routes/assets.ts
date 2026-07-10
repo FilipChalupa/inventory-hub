@@ -72,6 +72,14 @@ const archiveInput = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+const bulkInput = z.object({
+  action: z.enum(['archive', 'move', 'assign', 'unassign']),
+  assetCodes: z.array(z.string()).min(1).max(500),
+  locationId: z.string().uuid().nullable().optional(),
+  userId: z.string().uuid().nullable().optional(),
+  status: z.enum(TERMINAL_ASSET_STATUSES).optional(),
+});
+
 function isTerminalStatus(s: AssetStatus): boolean {
   return (TERMINAL_ASSET_STATUSES as readonly AssetStatus[]).includes(s);
 }
@@ -196,6 +204,92 @@ export const assetRoutes = new Hono<AppContext>()
       .run();
 
     return c.json({ code, id: assetId }, 201);
+  })
+  // Bulk operations over a set of asset codes. Everything runs in a single
+  // transaction; unknown codes are skipped (not counted in `updated`), and
+  // per-action guards mirror the single-asset endpoints so a bulk action can't
+  // put an asset into an inconsistent state (e.g. assigning an on-loan asset).
+  .post('/bulk', requireAuth('admin', 'operator'), zValidator('json', bulkInput), (c) => {
+    const db = c.get('db');
+    const input = c.req.valid('json');
+    const actorUserId = c.get('user')?.id ?? null;
+
+    if (input.action === 'archive' && !input.status) {
+      return c.json({ error: { message: 'Archivace vyžaduje cílový stav' } }, 400);
+    }
+    if (input.action === 'assign' && !input.userId) {
+      return c.json({ error: { message: 'Přiřazení vyžaduje uživatele' } }, 400);
+    }
+
+    const codes = input.assetCodes.map((x) => x.toUpperCase());
+
+    let updated = 0;
+    db.transaction((tx) => {
+      const rows = tx.select().from(assets).where(inArray(assets.code, codes)).all();
+      for (const asset of rows) {
+        const now = new Date();
+        if (input.action === 'move') {
+          const locationId = input.locationId ?? null;
+          tx.update(assets)
+            .set({ locationId, updatedAt: now })
+            .where(eq(assets.id, asset.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({ assetId: asset.id, actorUserId, type: 'moved', payload: { locationId } })
+            .run();
+          updated += 1;
+        } else if (input.action === 'assign') {
+          // Skip assets that can't be internally assigned (mirrors /assign).
+          if (asset.archivedAt || asset.status === 'on_loan') continue;
+          tx.update(assets)
+            .set({ assignedToUserId: input.userId!, status: 'assigned', updatedAt: now })
+            .where(eq(assets.id, asset.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: asset.id,
+              actorUserId,
+              type: 'assigned',
+              payload: { userId: input.userId },
+            })
+            .run();
+          updated += 1;
+        } else if (input.action === 'unassign') {
+          if (asset.status !== 'assigned') continue;
+          tx.update(assets)
+            .set({ assignedToUserId: null, status: 'in_stock', updatedAt: now })
+            .where(eq(assets.id, asset.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: asset.id,
+              actorUserId,
+              type: 'unassigned',
+              payload: { previousAssignee: asset.assignedToUserId },
+            })
+            .run();
+          updated += 1;
+        } else {
+          // archive: skip already-archived assets so counts stay meaningful.
+          if (asset.archivedAt) continue;
+          tx.update(assets)
+            .set({ status: input.status!, archivedAt: now, updatedAt: now })
+            .where(eq(assets.id, asset.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: asset.id,
+              actorUserId,
+              type: 'archived',
+              payload: { status: input.status },
+            })
+            .run();
+          updated += 1;
+        }
+      }
+    });
+
+    return c.json({ updated });
   })
   .get('/:code', (c) => {
     const db = c.get('db');

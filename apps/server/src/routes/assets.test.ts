@@ -315,6 +315,132 @@ describe('assets API', () => {
     });
   });
 
+  describe('POST /api/assets/bulk', () => {
+    async function makeAsset(name: string) {
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name,
+        typeId: server.laptopTypeId,
+      });
+      return ((await r.json()) as { code: string }).code;
+    }
+    async function makeLocation(name: string) {
+      const r = await jsonPost(server, cookie, '/api/locations', { name });
+      return ((await r.json()) as { id: string }).id;
+    }
+
+    it('moves many assets into a location in one call', async () => {
+      const a = await makeAsset('A');
+      const b = await makeAsset('B');
+      const locId = await makeLocation('Sklad');
+
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'move',
+        assetCodes: [a, b],
+        locationId: locId,
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as { updated: number }).toEqual({ updated: 2 });
+
+      for (const code of [a, b]) {
+        const row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+        expect(row.locationId).toBe(locId);
+      }
+    });
+
+    it('assigns many assets to a user', async () => {
+      const a = await makeAsset('A');
+      const b = await makeAsset('B');
+      const target = server.createUser({ email: 'bulk-assignee@example.com', role: 'member' });
+
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'assign',
+        assetCodes: [a, b],
+        userId: target.id,
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as { updated: number }).toEqual({ updated: 2 });
+
+      for (const code of [a, b]) {
+        const row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+        expect(row.assignedToUserId).toBe(target.id);
+        expect(row.status).toBe('assigned');
+      }
+    });
+
+    it('unassigns only assets that are currently assigned', async () => {
+      const a = await makeAsset('A');
+      const b = await makeAsset('B'); // stays in_stock (never assigned)
+      const target = server.createUser({ email: 'bulk-unassignee@example.com', role: 'member' });
+      await jsonPost(server, cookie, `/api/assets/${a}/assign`, { userId: target.id });
+
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'unassign',
+        assetCodes: [a, b],
+      });
+      expect(res.status).toBe(200);
+      // Only `a` was assigned, so only it counts.
+      expect((await res.json()) as { updated: number }).toEqual({ updated: 1 });
+
+      const rowA = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(rowA.assignedToUserId).toBeNull();
+      expect(rowA.status).toBe('in_stock');
+    });
+
+    it('archives many assets and hides them from the default list', async () => {
+      const a = await makeAsset('A');
+      const b = await makeAsset('B');
+
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'archive',
+        assetCodes: [a, b],
+        status: 'retired',
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as { updated: number }).toEqual({ updated: 2 });
+
+      for (const code of [a, b]) {
+        const row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+        expect(row.status).toBe('retired');
+        expect(row.archivedAt).not.toBeNull();
+      }
+      const list = await server.authRequest('/api/assets', { cookie });
+      expect(((await list.json()) as { items: unknown[] }).items).toHaveLength(0);
+    });
+
+    it('requires a terminal status for archive', async () => {
+      const a = await makeAsset('A');
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'archive',
+        assetCodes: [a],
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('skips unknown codes (not counted in updated)', async () => {
+      const a = await makeAsset('A');
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'archive',
+        assetCodes: [a, 'LAP-99999', 'DOES-NOT-EXIST'],
+        status: 'lost',
+      });
+      expect(res.status).toBe(200);
+      expect((await res.json()) as { updated: number }).toEqual({ updated: 1 });
+    });
+
+    it('forbids a member from bulk actions (403)', async () => {
+      const a = await makeAsset('A');
+      const memberCookie = server.loginAs(
+        server.createUser({ role: 'member', email: 'bulk-member@example.com' }),
+      );
+      const res = await jsonPost(server, memberCookie, '/api/assets/bulk', {
+        action: 'archive',
+        assetCodes: [a],
+        status: 'retired',
+      });
+      expect(res.status).toBe(403);
+    });
+  });
+
   describe('PATCH /api/assets/:code', () => {
     it('validates customFields against the type schema on update', async () => {
       server.db
