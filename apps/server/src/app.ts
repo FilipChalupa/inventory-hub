@@ -5,7 +5,6 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
-import { logger } from 'hono/logger';
 import { secureHeaders } from 'hono/secure-headers';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Db } from './db/client.js';
@@ -47,23 +46,42 @@ export type AppContext = {
     env: Env;
     emailSender: EmailSender;
     user?: UserRow;
+    requestId: string;
   };
 };
+
+/** Redacts the `?token=…` calendar-feed secret from a path before logging. */
+function redactToken(path: string): string {
+  return path.replace(/([?&]token=)[^&\s]+/gi, '$1[redacted]');
+}
 
 export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender }) {
   const app = new Hono<AppContext>();
   const emailSender = deps.emailSender ?? createEmailSender(deps.env);
 
-  // The calendar feed carries its API key as `?token=…` (calendar clients
-  // can't send headers), and hono's logger prints the full request path. Redact
-  // the token so it never lands in access logs. Bearer keys live in headers,
-  // which aren't logged.
-  app.use(
-    '*',
-    logger((message, ...rest) =>
-      console.log(message.replace(/([?&]token=)[^&\s]+/gi, '$1[redacted]'), ...rest),
-    ),
-  );
+  // Request ID: reuse an inbound `X-Request-Id` (e.g. from a reverse proxy)
+  // or mint one, expose it on the context and echo it on the response so a
+  // log line can be correlated with a client-visible id.
+  app.use('*', async (c, next) => {
+    const inbound = c.req.header('x-request-id');
+    const requestId = inbound && inbound.length <= 200 ? inbound : crypto.randomUUID();
+    c.set('requestId', requestId);
+    c.header('X-Request-Id', requestId);
+    await next();
+  });
+
+  // Access log: one line per request tagged with the request id, HTTP method,
+  // path, status and duration. The calendar feed carries its API key as
+  // `?token=…` (clients can't send headers), so redact it; Bearer keys live in
+  // headers, which aren't logged.
+  app.use('*', async (c, next) => {
+    const start = Date.now();
+    await next();
+    const ms = Date.now() - start;
+    const url = new URL(c.req.url);
+    const path = redactToken(url.pathname + url.search);
+    console.log(`[${c.get('requestId')}] ${c.req.method} ${path} ${c.res.status} ${ms}ms`);
+  });
   app.use('*', cors({ origin: deps.env.PUBLIC_APP_URL, credentials: true }));
   // CSRF: rejects state-changing requests whose Origin/Sec-Fetch-Site
   // doesn't match our public URL. Cookies are SameSite=Lax which already
@@ -237,7 +255,8 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
 
   app.onError((err, c) => {
     const status = err instanceof HTTPException ? err.status : 500;
-    if (!(err instanceof HTTPException)) console.error('Request error:', err);
+    if (!(err instanceof HTTPException))
+      console.error(`[${c.get('requestId')}] Request error:`, err);
 
     // Browser navigations (non-API GETs that accept text/html) get a styled
     // HTML page; the SPA and API clients keep getting JSON.

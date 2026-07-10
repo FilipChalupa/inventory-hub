@@ -1,5 +1,5 @@
 import { createMiddleware } from 'hono/factory';
-import { getCookie } from 'hono/cookie';
+import { getCookie, setCookie } from 'hono/cookie';
 import { eq } from 'drizzle-orm';
 import type { AppContext } from '../app.js';
 import { apiKeys, users, type UserRow } from '../db/schema.js';
@@ -12,6 +12,17 @@ export const authLoader = createMiddleware<AppContext>(async (c, next) => {
   const session = loadSession(db, token);
   if (session) {
     c.set('user', session.user);
+    // Sliding expiry: mirror the extended DB expiry onto the browser cookie so
+    // an active session doesn't lapse client-side either.
+    if (session.refreshed && token) {
+      setCookie(c, SESSION_COOKIE, token, {
+        httpOnly: true,
+        sameSite: 'Lax',
+        secure: c.get('env').NODE_ENV === 'production',
+        path: '/',
+        expires: session.expiresAt,
+      });
+    }
     return next();
   }
 
