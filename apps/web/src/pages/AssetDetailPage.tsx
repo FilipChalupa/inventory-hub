@@ -25,10 +25,12 @@ import { locationPath } from '../lib/locations.js';
 import type { LocationRow } from '../lib/api.js';
 import {
   MAX_DAMAGE_PHOTOS,
+  nextServiceDue,
   validateCustomFieldValues,
   type CustomFieldsSchema,
   type DamageSeverity,
 } from '@inventory-hub/shared';
+import { toast } from '../components/Toast.js';
 import { useT, getLocale } from '../i18n/index.js';
 import { localeTag } from '../i18n/util.js';
 
@@ -134,6 +136,14 @@ export function AssetDetailPage() {
     mutationFn: (id: string) => apiClient.damages.resolve(id),
     onSuccess: invalidateAll,
   });
+  const recordService = useMutation({
+    mutationFn: () => apiClient.assets.service(code),
+    onSuccess: () => {
+      toast.success(t.assetDetail.serviceRecorded);
+      invalidateAll();
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
 
   // Every archive action is destructive (asset leaves the active list), so it
   // is gated behind a confirmation before the mutation fires.
@@ -170,6 +180,9 @@ export function AssetDetailPage() {
   };
   const assetType = types.data?.items.find((type) => type.id === a.typeId);
   const customSchema: CustomFieldsSchema = assetType?.customFieldsSchema ?? [];
+
+  const nextDue = nextServiceDue(a);
+  const serviceState = serviceStatus(nextDue);
 
   const blockReason = nonLoanableReason(a.status);
   const loanWindows: BusyWindow[] = (assetLoans.data?.items ?? []).map((loan) => ({
@@ -260,6 +273,15 @@ export function AssetDetailPage() {
         <Button variant="secondary" onClick={() => setShowDamageForm((v) => !v)}>
           {t.assetDetail.reportDamage}
         </Button>
+        {!isArchived && a.serviceIntervalDays != null && (
+          <Button
+            variant="secondary"
+            disabled={recordService.isPending}
+            onClick={() => recordService.mutate()}
+          >
+            {t.assetDetail.recordService}
+          </Button>
+        )}
         {!isArchived ? (
           <>
             {a.status === 'in_repair' ? (
@@ -326,6 +348,8 @@ export function AssetDetailPage() {
             warrantyUntil: toDateInput(a.warrantyUntil),
             purchasePrice: a.purchasePrice != null ? (a.purchasePrice / 100).toFixed(2) : '',
             supplier: a.supplier ?? '',
+            serviceIntervalDays: a.serviceIntervalDays != null ? String(a.serviceIntervalDays) : '',
+            lastServicedAt: toDateInput(a.lastServicedAt),
           }}
           types={types.data?.items ?? []}
           locationsList={locations.data?.items ?? []}
@@ -333,6 +357,8 @@ export function AssetDetailPage() {
           onSubmit={async (values) => {
             const price = values.purchasePrice.trim().replace(',', '.');
             const priceNum = price ? Number(price) : NaN;
+            const intervalRaw = values.serviceIntervalDays.trim();
+            const intervalNum = intervalRaw ? Number(intervalRaw) : NaN;
             await apiClient.assets.update(code, {
               name: values.name,
               typeId: values.typeId || null,
@@ -344,6 +370,11 @@ export function AssetDetailPage() {
                 : null,
               purchasePrice: Number.isFinite(priceNum) ? Math.round(priceNum * 100) : null,
               supplier: values.supplier.trim() || null,
+              serviceIntervalDays:
+                Number.isFinite(intervalNum) && intervalNum > 0 ? Math.round(intervalNum) : null,
+              lastServicedAt: values.lastServicedAt
+                ? new Date(values.lastServicedAt).toISOString()
+                : null,
             });
             setShowEditForm(false);
             invalidateAll();
@@ -415,6 +446,34 @@ export function AssetDetailPage() {
           <dd>{a.purchasePrice != null ? formatPrice(a.purchasePrice) : t.common.none}</dd>
           <dt className="text-slate-500">{t.assetDetail.supplier}</dt>
           <dd>{a.supplier || t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.serviceIntervalLabel}</dt>
+          <dd>
+            {a.serviceIntervalDays
+              ? t.assetDetail.serviceIntervalDays(a.serviceIntervalDays)
+              : t.common.none}
+          </dd>
+          <dt className="text-slate-500">{t.assetDetail.lastServicedAt}</dt>
+          <dd>{a.lastServicedAt ? formatDateOnly(a.lastServicedAt) : t.common.none}</dd>
+          {a.serviceIntervalDays && nextDue && (
+            <>
+              <dt className="text-slate-500">{t.assetDetail.nextServiceDue}</dt>
+              <dd>
+                <span
+                  className={
+                    serviceState === 'overdue'
+                      ? 'text-red-600 dark:text-red-400 font-medium'
+                      : serviceState === 'soon'
+                        ? 'text-amber-600 dark:text-amber-400 font-medium'
+                        : undefined
+                  }
+                >
+                  {formatDateOnly(nextDue)}
+                  {serviceState === 'overdue' && ` · ${t.assetDetail.serviceOverdue}`}
+                  {serviceState === 'soon' && ` · ${t.assetDetail.serviceDueSoon}`}
+                </span>
+              </dd>
+            </>
+          )}
           {customSchema.map((f) => {
             const value = (a.customFields ?? {})[f.key];
             return (
@@ -917,6 +976,8 @@ function EditAssetForm({
     warrantyUntil: string;
     purchasePrice: string;
     supplier: string;
+    serviceIntervalDays: string;
+    lastServicedAt: string;
   };
   types: { id: string; name: string; codePrefix: string }[];
   locationsList: LocationRow[];
@@ -930,6 +991,8 @@ function EditAssetForm({
     warrantyUntil: string;
     purchasePrice: string;
     supplier: string;
+    serviceIntervalDays: string;
+    lastServicedAt: string;
   }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -1005,6 +1068,19 @@ function EditAssetForm({
             <Field label={t.assetDetail.supplier}>
               <Input placeholder={t.assetDetail.supplierPlaceholder} {...register('supplier')} />
             </Field>
+            <Field label={t.assetDetail.serviceIntervalLabel}>
+              <Input
+                type="number"
+                inputMode="numeric"
+                step="1"
+                min="1"
+                placeholder={t.assetDetail.serviceIntervalPlaceholder}
+                {...register('serviceIntervalDays')}
+              />
+            </Field>
+            <Field label={t.assetDetail.lastServicedAt}>
+              <Input type="date" {...register('lastServicedAt')} />
+            </Field>
           </div>
         </div>
         {customSchema.length > 0 && (
@@ -1064,6 +1140,20 @@ function warrantyStatus(warrantyUntil: Date | null): 'expired' | 'soon' | null {
   const end = new Date(warrantyUntil).getTime();
   if (end < now) return 'expired';
   if (end - now <= WARRANTY_SOON_DAYS * 24 * 60 * 60 * 1000) return 'soon';
+  return null;
+}
+
+/**
+ * Classifies the next-service date relative to now: 'overdue' once it has
+ * passed, 'soon' within the next 30 days, otherwise null (no emphasis).
+ * Mirrors {@link warrantyStatus} so both lifecycle cues read consistently.
+ */
+function serviceStatus(nextDue: Date | null): 'overdue' | 'soon' | null {
+  if (!nextDue) return null;
+  const now = Date.now();
+  const due = new Date(nextDue).getTime();
+  if (due < now) return 'overdue';
+  if (due - now <= WARRANTY_SOON_DAYS * 24 * 60 * 60 * 1000) return 'soon';
   return null;
 }
 

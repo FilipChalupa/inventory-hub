@@ -20,6 +20,8 @@ type FormValues = {
   warrantyUntil: string;
   purchasePrice: string;
   supplier: string;
+  serviceIntervalDays: string;
+  lastServicedAt: string;
 };
 
 export function NewAssetPage() {
@@ -36,6 +38,8 @@ export function NewAssetPage() {
       warrantyUntil: '',
       purchasePrice: '',
       supplier: '',
+      serviceIntervalDays: '',
+      lastServicedAt: '',
     },
   });
 
@@ -59,6 +63,8 @@ export function NewAssetPage() {
     mutationFn: async (values: FormValues) => {
       const price = values.purchasePrice.trim().replace(',', '.');
       const priceNum = price ? Number(price) : NaN;
+      const intervalRaw = values.serviceIntervalDays.trim();
+      const intervalNum = intervalRaw ? Number(intervalRaw) : NaN;
       return apiClient.assets.create({
         name: values.name,
         code: values.code.trim() ? values.code.trim().toUpperCase() : undefined,
@@ -71,6 +77,9 @@ export function NewAssetPage() {
         // User enters a decimal amount; store minor units (cents/haléře).
         purchasePrice: Number.isFinite(priceNum) ? Math.round(priceNum * 100) : null,
         supplier: values.supplier.trim() || null,
+        serviceIntervalDays:
+          Number.isFinite(intervalNum) && intervalNum > 0 ? Math.round(intervalNum) : null,
+        lastServicedAt: values.lastServicedAt ? new Date(values.lastServicedAt) : null,
       });
     },
     onSuccess: async (res) => {
@@ -155,6 +164,19 @@ export function NewAssetPage() {
             </Field>
             <Field label={t.newAsset.supplierLabel}>
               <Input placeholder={t.newAsset.supplierPlaceholder} {...register('supplier')} />
+            </Field>
+            <Field label={t.newAsset.serviceIntervalLabel}>
+              <Input
+                type="number"
+                inputMode="numeric"
+                step="1"
+                min="1"
+                placeholder={t.newAsset.serviceIntervalPlaceholder}
+                {...register('serviceIntervalDays')}
+              />
+            </Field>
+            <Field label={t.newAsset.lastServicedAtLabel}>
+              <Input type="date" {...register('lastServicedAt')} />
             </Field>
           </div>
         </div>

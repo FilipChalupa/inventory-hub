@@ -337,6 +337,11 @@ export type DashboardStats = {
   byLocation: { locationId: string; locationName: string; count: number }[];
   loans: { active: number; overdue: number; planned: number };
   inRepair: number;
+  totalValue: number;
+  valueByType: { typeId: string; typeName: string; value: number }[];
+  warrantyExpiringSoon: number;
+  serviceDueSoon: number;
+  currency: string;
 };
 
 export const apiClient = {
@@ -418,12 +423,16 @@ export const apiClient = {
         warrantyUntil?: string | Date | null;
         purchasePrice?: number | null;
         supplier?: string | null;
+        serviceIntervalDays?: number | null;
+        lastServicedAt?: string | Date | null;
       },
     ) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}`, {
         method: 'PATCH',
         body: input,
       }),
+    service: (code: string) =>
+      api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/service`, { method: 'POST' }),
     bulk: (input: BulkAssetsInput) =>
       api<{ updated: number }>('/api/assets/bulk', { method: 'POST', body: input }),
     archive: (code: string, status: 'sold' | 'lost' | 'retired' | 'damaged', note?: string) =>

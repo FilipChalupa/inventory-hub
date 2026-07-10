@@ -3,7 +3,22 @@ import { Link } from 'react-router-dom';
 import { apiClient, type DashboardStats } from '../lib/api.js';
 import { errorMessage } from '../lib/errors.js';
 import { Card, SkeletonList } from '../components/ui.js';
-import { useT } from '../i18n/index.js';
+import { useT, getLocale } from '../i18n/index.js';
+import { localeTag } from '../i18n/util.js';
+
+/** Formats a minor-unit (cents/haléře) amount as a localized currency string. */
+function formatMoney(minorUnits: number, currency: string): string {
+  try {
+    return new Intl.NumberFormat(localeTag(getLocale()), {
+      style: 'currency',
+      currency,
+      maximumFractionDigits: 0,
+    }).format(minorUnits / 100);
+  } catch {
+    // Unknown currency code — fall back to a plain number so we never crash.
+    return `${(minorUnits / 100).toFixed(0)} ${currency}`;
+  }
+}
 
 export function DashboardPage() {
   const t = useT();
@@ -41,12 +56,17 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
   return (
     <div className="space-y-8">
       {/* Stat tiles */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
         <Tile
           label={t.dashboard.totalActive}
           value={stats.totalActive}
           to="/assets"
           accent="slate"
+        />
+        <Tile
+          label={t.dashboard.totalValue}
+          value={formatMoney(stats.totalValue, stats.currency)}
+          accent="emerald"
         />
         <Tile label={t.dashboard.onLoan} value={stats.loans.active} to="/loans" accent="amber" />
         <Tile
@@ -67,6 +87,12 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
           to="/loans?status=planned"
           accent="violet"
         />
+        <Tile
+          label={t.dashboard.warrantyExpiringSoon}
+          value={stats.warrantyExpiringSoon}
+          accent="amber"
+        />
+        <Tile label={t.dashboard.serviceDueSoon} value={stats.serviceDueSoon} accent="orange" />
       </div>
 
       {/* Breakdown bar charts */}
@@ -101,11 +127,25 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
           }))}
         />
       </div>
+
+      {/* Value by type — monetary breakdown */}
+      {stats.valueByType.length > 0 && (
+        <BarChart
+          title={t.dashboard.valueByType}
+          rows={stats.valueByType.map((row) => ({
+            key: row.typeId,
+            label: row.typeName,
+            count: row.value,
+            to: `/assets?typeId=${row.typeId}`,
+          }))}
+          format={(v) => formatMoney(v, stats.currency)}
+        />
+      )}
     </div>
   );
 }
 
-type Accent = 'slate' | 'amber' | 'red' | 'orange' | 'violet';
+type Accent = 'slate' | 'amber' | 'red' | 'orange' | 'violet' | 'emerald';
 
 const accentText: Record<Accent, string> = {
   slate: 'text-slate-900 dark:text-slate-100',
@@ -113,6 +153,7 @@ const accentText: Record<Accent, string> = {
   red: 'text-red-600 dark:text-red-400',
   orange: 'text-orange-600 dark:text-orange-400',
   violet: 'text-violet-600 dark:text-violet-400',
+  emerald: 'text-emerald-600 dark:text-emerald-400',
 };
 
 function Tile({
@@ -122,7 +163,7 @@ function Tile({
   accent,
 }: {
   label: string;
-  value: number;
+  value: string | number;
   to?: string;
   accent: Accent;
 }) {
@@ -149,7 +190,15 @@ function Tile({
 
 type BarRow = { key: string; label: string; count: number; to?: string };
 
-function BarChart({ title, rows }: { title: string; rows: BarRow[] }) {
+function BarChart({
+  title,
+  rows,
+  format,
+}: {
+  title: string;
+  rows: BarRow[];
+  format?: (value: number) => string;
+}) {
   const t = useT();
   const max = Math.max(1, ...rows.map((r) => r.count));
 
@@ -162,7 +211,13 @@ function BarChart({ title, rows }: { title: string; rows: BarRow[] }) {
         <ul className="space-y-2">
           {rows.map((row) => (
             <li key={row.key}>
-              <Bar label={row.label} count={row.count} pct={(row.count / max) * 100} to={row.to} />
+              <Bar
+                label={row.label}
+                count={row.count}
+                pct={(row.count / max) * 100}
+                to={row.to}
+                format={format}
+              />
             </li>
           ))}
         </ul>
@@ -176,11 +231,13 @@ function Bar({
   count,
   pct,
   to,
+  format,
 }: {
   label: string;
   count: number;
   pct: number;
   to?: string;
+  format?: (value: number) => string;
 }) {
   const t = useT();
   const content = (
@@ -188,7 +245,7 @@ function Bar({
       <div className="mb-0.5 flex items-baseline justify-between gap-2">
         <span className="truncate text-sm text-slate-700 dark:text-slate-200">{label}</span>
         <span className="shrink-0 text-xs tabular-nums text-slate-500 dark:text-slate-400">
-          {t.dashboard.pieces(count)}
+          {format ? format(count) : t.dashboard.pieces(count)}
         </span>
       </div>
       <div className="h-2 overflow-hidden rounded bg-slate-100 dark:bg-slate-700">
