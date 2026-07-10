@@ -37,7 +37,7 @@
     "@types/qrcode": "^1.5.5",
     "@types/swagger-ui-dist": "^3.30.6",
     "drizzle-kit": "^0.31.10",
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.0",
     "typescript": "^5.7.0",
     "vitest": "^4.1.10"
   }
