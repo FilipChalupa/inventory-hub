@@ -98,6 +98,12 @@ export const common = ns({
     copied: 'Zkopírováno',
     role: 'Role',
     required: 'Povinné',
+    roles: {
+      admin: 'Administrátor',
+      operator: 'Operátor',
+      member: 'Člen',
+      auditor: 'Auditor',
+    } as Record<string, string>,
   },
   en: {
     cancel: 'Cancel',
@@ -117,5 +123,11 @@ export const common = ns({
     copied: 'Copied',
     role: 'Role',
     required: 'Required',
+    roles: {
+      admin: 'Admin',
+      operator: 'Operator',
+      member: 'Member',
+      auditor: 'Auditor',
+    } as Record<string, string>,
   },
 });

@@ -149,9 +149,7 @@ export function ImportAssetsPage() {
           <h2 className="font-semibold mb-2">
             {t.importAssets.previewTitle(preview.length)}
             {hasErrors
-              ? t.importAssets.previewWithErrors(
-                  preview.filter((p) => p.issues.length > 0).length,
-                )
+              ? t.importAssets.previewWithErrors(preview.filter((p) => p.issues.length > 0).length)
               : ''}
             {t.importAssets.previewClose}
           </h2>

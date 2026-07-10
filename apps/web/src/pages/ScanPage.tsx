@@ -80,9 +80,7 @@ export function ScanPage() {
           className="w-full max-w-md mx-auto aspect-square bg-slate-100 rounded"
         />
         {!scanning && !error && (
-          <p className="text-sm text-slate-500 text-center mt-3">
-            {t.scan.initializing}
-          </p>
+          <p className="text-sm text-slate-500 text-center mt-3">{t.scan.initializing}</p>
         )}
         {error && <p className="text-sm text-red-600 mt-3">{error}</p>}
       </Card>

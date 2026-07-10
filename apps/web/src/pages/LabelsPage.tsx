@@ -12,7 +12,12 @@ export function LabelsPage() {
   const [params] = useSearchParams();
   const queryClient = useQueryClient();
   const isAdmin = hasRole(useCurrentUser(), 'admin');
-  const initial = params.get('codes')?.split(',').map((c) => c.trim()).filter(Boolean) ?? [];
+  const initial =
+    params
+      .get('codes')
+      ?.split(',')
+      .map((c) => c.trim())
+      .filter(Boolean) ?? [];
   const [codesInput, setCodesInput] = useState(initial.join('\n'));
   const [filter, setFilter] = useState('');
 
@@ -33,8 +38,7 @@ export function LabelsPage() {
   }, [org.data]);
 
   const saveDefaults = useMutation({
-    mutationFn: () =>
-      apiClient.org.putLabelSettings({ compact, showName, note: note.trim() }),
+    mutationFn: () => apiClient.org.putLabelSettings({ compact, showName, note: note.trim() }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['org'] }),
   });
 
@@ -81,7 +85,10 @@ export function LabelsPage() {
             className="font-mono"
           />
           <div className="flex gap-2 mt-3">
-            <Button onClick={() => labels.mutate(codes)} disabled={codes.length === 0 || labels.isPending}>
+            <Button
+              onClick={() => labels.mutate(codes)}
+              disabled={codes.length === 0 || labels.isPending}
+            >
               {t.labels.loadLabels(codes.length)}
             </Button>
             {labels.data && (
@@ -134,11 +141,19 @@ export function LabelsPage() {
         <h2 className="font-semibold">{t.labels.labelSettings}</h2>
         <div className="flex flex-wrap gap-x-6 gap-y-2">
           <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={compact} onChange={(e) => setCompact(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={compact}
+              onChange={(e) => setCompact(e.target.checked)}
+            />
             {t.labels.compactOption}
           </label>
           <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" checked={showName} onChange={(e) => setShowName(e.target.checked)} />
+            <input
+              type="checkbox"
+              checked={showName}
+              onChange={(e) => setShowName(e.target.checked)}
+            />
             {t.labels.showNameOption}
           </label>
         </div>
@@ -168,9 +183,7 @@ export function LabelsPage() {
             )}
           </div>
         )}
-        {!isAdmin && (
-          <p className="text-xs text-slate-400">{t.labels.nonAdminHint}</p>
-        )}
+        {!isAdmin && <p className="text-xs text-slate-400">{t.labels.nonAdminHint}</p>}
       </Card>
 
       {labels.data && (

@@ -71,7 +71,9 @@ export function LoginPage() {
                 <div className="w-full border-t border-slate-200 dark:border-slate-700"></div>
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">{t.login.devMode}</span>
+                <span className="bg-white px-2 text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                  {t.login.devMode}
+                </span>
               </div>
             </div>
             <form className="space-y-3" onSubmit={devLogin}>

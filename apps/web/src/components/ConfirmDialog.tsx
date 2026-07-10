@@ -53,15 +53,48 @@ export function ConfirmViewport() {
     () => current,
   );
   const confirmRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  // The element focused before the dialog opened, so focus can be restored
+  // to it once the dialog closes (keyboard users don't lose their place).
+  const openerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     if (!pending) return;
+    openerRef.current = document.activeElement as HTMLElement | null;
     confirmRef.current?.focus();
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') settle(false);
+      if (e.key === 'Escape') {
+        settle(false);
+        return;
+      }
+      // Focus trap: keep Tab / Shift+Tab cycling within the dialog panel.
+      if (e.key === 'Tab') {
+        const panel = panelRef.current;
+        if (!panel) return;
+        const focusables = panel.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        );
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (!first || !last) return;
+        const active = document.activeElement;
+        if (e.shiftKey) {
+          if (active === first || !panel.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else if (active === last || !panel.contains(active)) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
     }
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      // Restore focus to whatever opened the dialog.
+      openerRef.current?.focus?.();
+    };
   }, [pending]);
 
   if (!pending) return null;
@@ -76,6 +109,7 @@ export function ConfirmViewport() {
       }}
     >
       <div
+        ref={panelRef}
         role="alertdialog"
         aria-modal="true"
         aria-label={opts.title}

@@ -86,10 +86,7 @@ export function LocationsPage() {
     <section className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t.locations.title}</h1>
-        <Link
-          to="/assets/import?kind=locations"
-          className="text-sm text-blue-600 hover:underline"
-        >
+        <Link to="/assets/import?kind=locations" className="text-sm text-blue-600 hover:underline">
           {t.locations.importCsv}
         </Link>
       </div>
@@ -121,9 +118,7 @@ export function LocationsPage() {
             {t.common.add}
           </Button>
         </form>
-        {create.error && (
-          <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>
-        )}
+        {create.error && <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>}
       </Card>
 
       <DndContext sensors={sensors} onDragStart={onDragStart} onDragEnd={onDragEnd}>
@@ -200,7 +195,12 @@ function LocationRowItem({
   onReparent: (parentId: string | null) => void;
 }) {
   const t = useT();
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+  const {
+    attributes,
+    listeners,
+    setNodeRef: setDragRef,
+    isDragging,
+  } = useDraggable({
     id: row.id,
   });
   const { isOver, setNodeRef: setDropRef } = useDroppable({ id: row.id });
@@ -233,9 +233,7 @@ function LocationRowItem({
           {depth > 0 && <span className="text-slate-400 mr-1">└</span>}
           {row.name}
         </p>
-        {depth > 0 && (
-          <p className="text-xs text-slate-500">{locationPath(allRows, row.id)}</p>
-        )}
+        {depth > 0 && <p className="text-xs text-slate-500">{locationPath(allRows, row.id)}</p>}
       </div>
       <div className="flex items-center gap-2">
         <LocationSelect

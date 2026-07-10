@@ -108,69 +108,71 @@ export function AuditLogPage() {
 
       <Card className="p-0 overflow-hidden">
         <div className="overflow-x-auto">
-        <table className="text-sm w-full">
-          <thead className="bg-slate-50 dark:bg-slate-900/40 text-left">
-            <tr>
-              <th className="py-2 px-3">{t.audit.colWhen}</th>
-              <th className="py-2 px-3">{t.audit.colType}</th>
-              <th className="py-2 px-3">{t.audit.colAsset}</th>
-              <th className="py-2 px-3">{t.audit.colWho}</th>
-              <th className="py-2 px-3">{t.audit.colDetail}</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-            {filtered.length === 0 && (
+          <table className="text-sm w-full">
+            <thead className="bg-slate-50 dark:bg-slate-900/40 text-left">
               <tr>
-                <td colSpan={5} className="py-4 px-3 text-slate-500 text-center">
-                  {t.audit.emptyFiltered}
-                </td>
+                <th className="py-2 px-3">{t.audit.colWhen}</th>
+                <th className="py-2 px-3">{t.audit.colType}</th>
+                <th className="py-2 px-3">{t.audit.colAsset}</th>
+                <th className="py-2 px-3">{t.audit.colWho}</th>
+                <th className="py-2 px-3">{t.audit.colDetail}</th>
               </tr>
-            )}
-            {filtered.map((e) => (
-              <tr key={e.id}>
-                <td className="py-1.5 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                  {formatDate(e.occurredAt)}
-                </td>
-                <td className="py-1.5 px-3">
-                  <span className="text-xs font-medium">
-                    {t.audit.events[e.type] ?? e.type}
-                  </span>
-                </td>
-                <td className="py-1.5 px-3">
-                  {e.assetCode ? (
-                    <Link
-                      to={`/a/${e.assetCode}`}
-                      className="text-blue-600 dark:text-blue-400 hover:underline font-mono text-xs"
-                    >
-                      {e.assetCode}
-                    </Link>
-                  ) : (
-                    <span className="text-slate-400">{t.audit.assetDeleted}</span>
-                  )}
-                  {e.assetName && (
-                    <div className="text-xs text-slate-500 dark:text-slate-400">
-                      {e.assetName}
-                    </div>
-                  )}
-                </td>
-                <td className="py-1.5 px-3 text-xs text-slate-600 dark:text-slate-300">
-                  {e.actorUserId
-                    ? userById.get(e.actorUserId) ?? t.common.none
-                    : t.audit.system}
-                </td>
-                <td className="py-1.5 px-3 text-xs text-slate-500 dark:text-slate-400 max-w-md truncate">
-                  {payloadSummary(e.payload)}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-4 px-3 text-slate-500 text-center">
+                    {t.audit.emptyFiltered}
+                  </td>
+                </tr>
+              )}
+              {filtered.map((e) => (
+                <tr key={e.id}>
+                  <td className="py-1.5 px-3 text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                    {formatDate(e.occurredAt)}
+                  </td>
+                  <td className="py-1.5 px-3">
+                    <span className="text-xs font-medium">{t.audit.events[e.type] ?? e.type}</span>
+                  </td>
+                  <td className="py-1.5 px-3">
+                    {e.assetCode ? (
+                      <Link
+                        to={`/a/${e.assetCode}`}
+                        className="text-blue-600 dark:text-blue-400 hover:underline font-mono text-xs"
+                      >
+                        {e.assetCode}
+                      </Link>
+                    ) : (
+                      <span className="text-slate-400">{t.audit.assetDeleted}</span>
+                    )}
+                    {e.assetName && (
+                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                        {e.assetName}
+                      </div>
+                    )}
+                  </td>
+                  <td className="py-1.5 px-3 text-xs text-slate-600 dark:text-slate-300">
+                    {e.actorUserId
+                      ? (userById.get(e.actorUserId) ?? t.common.none)
+                      : t.audit.system}
+                  </td>
+                  <td className="py-1.5 px-3 text-xs text-slate-500 dark:text-slate-400 max-w-md truncate">
+                    {payloadSummary(e.payload)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       </Card>
 
       {data && data.items.length < data.total && (
         <div className="flex justify-center">
-          <Button variant="secondary" disabled={isLoading} onClick={() => setLimit((l) => l + PAGE)}>
+          <Button
+            variant="secondary"
+            disabled={isLoading}
+            onClick={() => setLimit((l) => l + PAGE)}
+          >
             {t.common.loadMore}
           </Button>
         </div>

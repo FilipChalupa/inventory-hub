@@ -49,11 +49,7 @@ describe('locationsAsTree', () => {
   });
 
   it('sorts siblings alphabetically (Czech locale)', () => {
-    const rows: LocationRow[] = [
-      loc('z', 'Žižkov'),
-      loc('a', 'Adamov'),
-      loc('c', 'Černý Most'),
-    ];
+    const rows: LocationRow[] = [loc('z', 'Žižkov'), loc('a', 'Adamov'), loc('c', 'Černý Most')];
     expect(locationsAsTree(rows).map((x) => x.row.name)).toEqual([
       'Adamov',
       'Černý Most',
@@ -83,16 +79,8 @@ describe('locationsAsTree', () => {
   });
 
   it('handles multiple roots independently', () => {
-    const rows: LocationRow[] = [
-      loc('r1', 'Alpha'),
-      loc('r2', 'Beta'),
-      loc('c1', 'Gamma', 'r1'),
-    ];
+    const rows: LocationRow[] = [loc('r1', 'Alpha'), loc('r2', 'Beta'), loc('c1', 'Gamma', 'r1')];
     const out = locationsAsTree(rows);
-    expect(out.map((x) => `${x.depth}:${x.row.name}`)).toEqual([
-      '0:Alpha',
-      '1:Gamma',
-      '0:Beta',
-    ]);
+    expect(out.map((x) => `${x.depth}:${x.row.name}`)).toEqual(['0:Alpha', '1:Gamma', '0:Beta']);
   });
 });

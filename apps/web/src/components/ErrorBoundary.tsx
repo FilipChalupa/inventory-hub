@@ -28,10 +28,7 @@ export class ErrorBoundary extends Component<Props, State> {
     // The class itself can't call the useT hook, so the localized fallback UI
     // lives in a function component rendered from here.
     return (
-      <ErrorFallback
-        error={this.state.error}
-        onRetry={() => this.setState({ error: null })}
-      />
+      <ErrorFallback error={this.state.error} onRetry={() => this.setState({ error: null })} />
     );
   }
 }
@@ -43,9 +40,7 @@ function ErrorFallback({ error, onRetry }: { error: unknown; onRetry: () => void
       <h1 className="text-lg font-semibold text-red-700 dark:text-red-300">
         {t.components.errorTitle}
       </h1>
-      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-        {t.components.errorBody}
-      </p>
+      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{t.components.errorBody}</p>
       <p className="mt-2 break-words rounded bg-slate-100 p-2 font-mono text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-400">
         {errorMessage(error)}
       </p>

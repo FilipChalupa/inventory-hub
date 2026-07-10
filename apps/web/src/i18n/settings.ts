@@ -35,8 +35,10 @@ export const settings = ns({
     calendarIntroReadOnly: 'jen čtení',
     calendarIntro2:
       ' termínů výpůjček, k API ani datům se s ním nedostaneš. Token uvidíš jen jednou; zrušením odkazu odběr okamžitě přestane fungovat.',
-    calendarCreatedTitle: (name: string) => `Odkaz „${name}" — zkopíruj teď (uvidíš ho jen jednou):`,
-    calendarCreatedHint: 'Vlož jako odebíraný kalendář v Google / Apple kalendáři (URL veřejné adresy).',
+    calendarCreatedTitle: (name: string) =>
+      `Odkaz „${name}" — zkopíruj teď (uvidíš ho jen jednou):`,
+    calendarCreatedHint:
+      'Vlož jako odebíraný kalendář v Google / Apple kalendáři (URL veřejné adresy).',
     copiedDone: 'Mám zkopírováno',
     linkNameLabel: 'Název odkazu',
     linkNamePlaceholder: 'např. Můj telefon',
@@ -92,16 +94,6 @@ export const settings = ns({
     mcpFooter3:
       ' (jen čtení). Nástroje kopírují REST API — assety, výpůjčky, kontakty, poškození, lokace, typy a (pro adminy) správu organizace.',
 
-    // Demo data
-    demoTitle: 'Demo data',
-    demoTemporary: '(dočasné)',
-    demoIntro:
-      'Vloží ukázková data do databáze: typy assetů, lokace, desítky assetů v různých stavech, kontakty, výpůjčky a hlášení poškození. Lze spustit opakovaně – pokaždé přidá novou sadu.',
-    demoDone: (assets: number, locations: number, loans: number, damages: number) =>
-      `✅ Hotovo! Vytvořeno: ${assets} assetů, ${locations} lokací, ${loans} výpůjček, ${damages} hlášení poškození.`,
-    demoSeeding: 'Vkládám data…',
-    demoSeed: 'Vložit demo data',
-
     // Invitations
     invitationsTitle: 'Pozvánky uživatelů',
     invitationsIntro:
@@ -152,7 +144,8 @@ export const settings = ns({
     calendarIntroReadOnly: 'read-only',
     calendarIntro2:
       ' access to loan dates; it cannot reach the API or your data. You will see the token only once; cancelling the link stops the subscription immediately.',
-    calendarCreatedTitle: (name: string) => `Link "${name}" — copy it now (you will see it only once):`,
+    calendarCreatedTitle: (name: string) =>
+      `Link "${name}" — copy it now (you will see it only once):`,
     calendarCreatedHint: 'Add it as a subscribed calendar in Google / Apple Calendar (public URL).',
     copiedDone: 'Copied',
     linkNameLabel: 'Link name',
@@ -208,16 +201,6 @@ export const settings = ns({
     mcpFooterReadOnly: 'read-only',
     mcpFooter3:
       ' (read only). The tools mirror the REST API — assets, loans, contacts, damages, locations, types and (for admins) organization management.',
-
-    // Demo data
-    demoTitle: 'Demo data',
-    demoTemporary: '(temporary)',
-    demoIntro:
-      'Inserts sample data into the database: asset types, locations, dozens of assets in various states, contacts, loans and damage reports. Can be run repeatedly — each run adds a new set.',
-    demoDone: (assets: number, locations: number, loans: number, damages: number) =>
-      `✅ Done! Created: ${assets} assets, ${locations} locations, ${loans} loans, ${damages} damage reports.`,
-    demoSeeding: 'Inserting data…',
-    demoSeed: 'Insert demo data',
 
     // Invitations
     invitationsTitle: 'User invitations',

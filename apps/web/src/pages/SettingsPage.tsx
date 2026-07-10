@@ -63,16 +63,11 @@ export function SettingsPage() {
             </Field>
             <Field
               label={t.settings.codePrefixLabel}
-              error={
-                formState.errors.codePrefix
-                  ? t.settings.codePrefixError
-                  : undefined
-              }
+              error={formState.errors.codePrefix ? t.settings.codePrefixError : undefined}
             >
               <Input
                 {...register('codePrefix', {
-                  validate: (v) =>
-                    !v.trim() || /^[A-Za-z0-9]{2,6}$/.test(v.trim()) || 'invalid',
+                  validate: (v) => !v.trim() || /^[A-Za-z0-9]{2,6}$/.test(v.trim()) || 'invalid',
                 })}
                 placeholder="ACME"
                 className="font-mono w-32"
@@ -108,9 +103,7 @@ export function SettingsPage() {
 
       <Card>
         <h2 className="font-semibold mb-2">{t.settings.exportTitle}</h2>
-        <p className="text-xs text-slate-500 mb-3">
-          {t.settings.exportNote}
-        </p>
+        <p className="text-xs text-slate-500 mb-3">{t.settings.exportNote}</p>
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/export/assets.csv"
@@ -144,9 +137,6 @@ export function SettingsPage() {
       <ApiKeysSection />
 
       <McpConnectionSection />
-
-      {/* TODO: Dočasné – tuto sekci odebrat před finálním nasazením. */}
-      <DemoDataSection />
     </section>
   );
 }
@@ -234,9 +224,7 @@ function CalendarFeedSection() {
           <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {calendarFeedUrl(created.token)}
           </code>
-          <p className="text-xs text-slate-500 mt-1">
-            {t.settings.calendarCreatedHint}
-          </p>
+          <p className="text-xs text-slate-500 mt-1">{t.settings.calendarCreatedHint}</p>
           <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
             {t.settings.copiedDone}
           </Button>
@@ -276,7 +264,9 @@ function CalendarFeedSection() {
                 <span className="font-medium">{k.name}</span>{' '}
                 <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>
                 <div className="text-xs text-slate-500">
-                  {k.lastUsedAt ? t.settings.lastUsed(formatDate(k.lastUsedAt)) : t.settings.neverUsed}
+                  {k.lastUsedAt
+                    ? t.settings.lastUsed(formatDate(k.lastUsedAt))
+                    : t.settings.neverUsed}
                   {k.expiresAt && ` · ${t.settings.validUntil(formatDate(k.expiresAt))}`}
                 </div>
               </div>
@@ -293,7 +283,9 @@ function CalendarFeedSection() {
                       danger: true,
                     })
                   ) {
-                    remove.mutate(k.id, { onSuccess: () => toast.success(t.settings.linkCancelled) });
+                    remove.mutate(k.id, {
+                      onSuccess: () => toast.success(t.settings.linkCancelled),
+                    });
                   }
                 }}
               >
@@ -340,7 +332,12 @@ function ApiKeysSection() {
     <Card>
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-semibold">{t.settings.apiKeysTitle}</h2>
-        <a href="/docs" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-blue-600 hover:underline"
+        >
           {t.settings.apiDocsLink}
         </a>
       </div>
@@ -371,7 +368,11 @@ function ApiKeysSection() {
       >
         <div className="flex-1 min-w-[180px]">
           <Field label={t.settings.keyNameLabel} required>
-            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.settings.keyNamePlaceholder} />
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t.settings.keyNamePlaceholder}
+            />
           </Field>
         </div>
         <ExpiryField value={expiresAt} onChange={setExpiresAt} />
@@ -396,7 +397,9 @@ function ApiKeysSection() {
                   </span>
                 )}
                 <div className="text-xs text-slate-500">
-                  {k.lastUsedAt ? t.settings.lastUsed(formatDate(k.lastUsedAt)) : t.settings.neverUsed}
+                  {k.lastUsedAt
+                    ? t.settings.lastUsed(formatDate(k.lastUsedAt))
+                    : t.settings.neverUsed}
                   {k.expiresAt && ` · ${t.settings.validUntil(formatDate(k.expiresAt))}`}
                 </div>
               </div>
@@ -413,7 +416,9 @@ function ApiKeysSection() {
                       danger: true,
                     })
                   ) {
-                    remove.mutate(k.id, { onSuccess: () => toast.success(t.settings.keyCancelled) });
+                    remove.mutate(k.id, {
+                      onSuccess: () => toast.success(t.settings.keyCancelled),
+                    });
                   }
                 }}
               >
@@ -438,13 +443,16 @@ function McpConnectionSection() {
     <Card>
       <div className="flex items-center justify-between mb-2">
         <h2 className="font-semibold">{t.settings.mcpTitle}</h2>
-        <a href="/docs" target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline">
+        <a
+          href="/docs"
+          target="_blank"
+          rel="noreferrer"
+          className="text-xs text-blue-600 hover:underline"
+        >
           {t.settings.apiDocsLink}
         </a>
       </div>
-      <p className="text-xs text-slate-500 mb-3">
-        {t.settings.mcpIntro}
-      </p>
+      <p className="text-xs text-slate-500 mb-3">{t.settings.mcpIntro}</p>
 
       {info.isLoading && <p className="text-sm text-slate-500">{t.common.loading}</p>}
 
@@ -506,59 +514,6 @@ function CopyField({ label, text }: { label: string; text: string }) {
   );
 }
 
-// TODO: Dočasné – tato komponenta slouží pouze pro vývoj a ukázky.
-// Vloží do DB sadu demo dat (typy assetů, lokace, assety, kontakt, výpůjčku
-// a hlášení poškození). Smazat spolu s /api/demo routou na serveru.
-function DemoDataSection() {
-  const t = useT();
-  const qc = useQueryClient();
-
-  const seed = useMutation({
-    mutationFn: () => apiClient.demo.seed(),
-    onSuccess: () => {
-      // Invalidujeme všechny cache, aby se UI okamžitě překreslilo s novými daty.
-      void qc.invalidateQueries();
-    },
-  });
-
-  return (
-    <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700">
-      <h2 className="font-semibold mb-1 text-amber-900 dark:text-amber-300">
-        🧪 {t.settings.demoTitle}{' '}
-        <span className="text-xs font-normal text-amber-700 dark:text-amber-400">
-          {t.settings.demoTemporary}
-        </span>
-      </h2>
-      <p className="text-xs text-amber-800 dark:text-amber-400 mb-3">
-        {t.settings.demoIntro}
-      </p>
-
-      {seed.isSuccess && seed.data && (
-        <div className="mb-3 p-2 rounded bg-emerald-50 border border-emerald-200 text-xs dark:bg-emerald-900/20 dark:border-emerald-700 dark:text-emerald-300">
-          {t.settings.demoDone(
-            seed.data.summary.assetsCreated,
-            seed.data.summary.locationsCreated,
-            seed.data.summary.loansCreated,
-            seed.data.summary.damageReportsCreated,
-          )}
-        </div>
-      )}
-
-      {seed.error && (
-        <p className="text-sm text-red-600 mb-2">{errorMessage(seed.error)}</p>
-      )}
-
-      <Button
-        variant="secondary"
-        onClick={() => seed.mutate()}
-        disabled={seed.isPending}
-      >
-        {seed.isPending ? t.settings.demoSeeding : t.settings.demoSeed}
-      </Button>
-    </Card>
-  );
-}
-
 function InvitationsSection() {
   const t = useT();
   const qc = useQueryClient();
@@ -584,9 +539,7 @@ function InvitationsSection() {
   return (
     <Card>
       <h2 className="font-semibold mb-2">{t.settings.invitationsTitle}</h2>
-      <p className="text-xs text-slate-500 mb-3">
-        {t.settings.invitationsIntro}
-      </p>
+      <p className="text-xs text-slate-500 mb-3">{t.settings.invitationsIntro}</p>
 
       <form
         className="flex flex-wrap gap-2 items-end"
@@ -608,10 +561,10 @@ function InvitationsSection() {
         <div className="w-40">
           <Field label={t.common.role}>
             <Select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-              <option value="member">member</option>
-              <option value="operator">operator</option>
-              <option value="auditor">auditor</option>
-              <option value="admin">admin</option>
+              <option value="member">{t.common.roles.member}</option>
+              <option value="operator">{t.common.roles.operator}</option>
+              <option value="auditor">{t.common.roles.auditor}</option>
+              <option value="admin">{t.common.roles.admin}</option>
             </Select>
           </Field>
         </div>
@@ -620,9 +573,7 @@ function InvitationsSection() {
         </Button>
       </form>
 
-      {create.error && (
-        <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>
-      )}
+      {create.error && <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>}
 
       {lastUrl && (
         <div className="mt-3 p-3 rounded bg-emerald-50 border border-emerald-200 text-xs space-y-1">
@@ -647,7 +598,10 @@ function InvitationsSection() {
             <div>
               <p className="text-sm font-medium">{inv.email}</p>
               <p className="text-xs text-slate-500">
-                {t.settings.invitationMeta(inv.role, formatDate(inv.expiresAt))}
+                {t.settings.invitationMeta(
+                  t.common.roles[inv.role] ?? inv.role,
+                  formatDate(inv.expiresAt),
+                )}
               </p>
             </div>
             <Button
@@ -691,7 +645,9 @@ function AllowedDomainsEditor({
         {value.map((d) => (
           <li key={d.domain} className="flex items-center justify-between p-2 gap-2">
             <span className="font-mono text-sm">{d.domain}</span>
-            <span className="text-xs text-slate-500">→ {d.defaultRole}</span>
+            <span className="text-xs text-slate-500">
+              → {t.common.roles[d.defaultRole] ?? d.defaultRole}
+            </span>
             <Button
               variant="ghost"
               className="text-red-600 text-xs"
@@ -725,10 +681,10 @@ function AllowedDomainsEditor({
         <div className="w-40">
           <Field label={t.settings.defaultRoleLabel}>
             <Select value={role} onChange={(e) => setRole(e.target.value as UserRole)}>
-              <option value="member">member</option>
-              <option value="operator">operator</option>
-              <option value="auditor">auditor</option>
-              <option value="admin">admin</option>
+              <option value="member">{t.common.roles.member}</option>
+              <option value="operator">{t.common.roles.operator}</option>
+              <option value="auditor">{t.common.roles.auditor}</option>
+              <option value="admin">{t.common.roles.admin}</option>
             </Select>
           </Field>
         </div>

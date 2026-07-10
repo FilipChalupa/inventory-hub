@@ -154,7 +154,10 @@ export function AvailabilityCalendar({
           const selected = inSelection(day);
           const title = isBlocked
             ? blocked.reason
-            : state.windows.map((w) => w.label).filter(Boolean).join(', ');
+            : state.windows
+                .map((w) => w.label)
+                .filter(Boolean)
+                .join(', ');
           const ring = selected
             ? 'ring-2 ring-inset ring-blue-500 font-semibold'
             : isToday
@@ -178,7 +181,9 @@ export function AvailabilityCalendar({
                 type="button"
                 onClick={() => pick(day)}
                 aria-pressed={selected}
-                aria-label={t.availabilityCalendar.dayFreeSelectLabel(day.toLocaleDateString(localeTag(getLocale())))}
+                aria-label={t.availabilityCalendar.dayFreeSelectLabel(
+                  day.toLocaleDateString(localeTag(getLocale())),
+                )}
                 className={className}
               >
                 {day.getDate()}
@@ -208,7 +213,9 @@ export function AvailabilityCalendar({
                   sel.start.toLocaleDateString(localeTag(getLocale())),
                   sel.end.toLocaleDateString(localeTag(getLocale())),
                 )
-              : t.availabilityCalendar.startPrompt(sel.start.toLocaleDateString(localeTag(getLocale())))}
+              : t.availabilityCalendar.startPrompt(
+                  sel.start.toLocaleDateString(localeTag(getLocale())),
+                )}
           </span>
           <span className="flex-1" />
           <Button onClick={() => onCreateLoan(sel.start, sel.end ?? sel.start)}>

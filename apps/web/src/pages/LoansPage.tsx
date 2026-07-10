@@ -2,6 +2,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient, type LoanRow } from '../lib/api.js';
+import { errorMessage } from '../lib/errors.js';
 import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
 import { LoansCalendar } from '../components/LoansCalendar.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
@@ -140,7 +141,9 @@ export function LoansPage() {
         </div>
       )}
 
-      {view === 'list' && loadedCount === 0 && !borrower && (
+      {view === 'list' && list.error && <p className="text-red-600">{errorMessage(list.error)}</p>}
+
+      {view === 'list' && !list.error && loadedCount === 0 && !borrower && (
         <Card>
           <h2 className="font-semibold mb-1">{t.loans.emptyTitle}</h2>
           <p className="text-slate-600 text-sm mb-3">{t.loans.emptyBody}</p>

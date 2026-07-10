@@ -69,7 +69,9 @@ describe('monthGridRange', () => {
     const grid = monthGridDays(2026, 0);
     const [from, to] = monthGridRange(2026, 0);
     expect(from).toEqual(grid[0]);
-    expect(to).toEqual(new Date(grid[41]!.getFullYear(), grid[41]!.getMonth(), grid[41]!.getDate() + 1));
+    expect(to).toEqual(
+      new Date(grid[41]!.getFullYear(), grid[41]!.getMonth(), grid[41]!.getDate() + 1),
+    );
   });
 });
 

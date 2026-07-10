@@ -13,8 +13,7 @@ export const importAssets = ns({
       assets:
         'Povinný: name. Volitelné: code, type (codePrefix existujícího typu), notes. Další sloupce = vlastní pole.',
       'asset-types': 'Povinné: name, code_prefix.',
-      locations:
-        'Povinný: name. Volitelné: parent_name (musí odpovídat jménu existující lokace).',
+      locations: 'Povinný: name. Volitelné: parent_name (musí odpovídat jménu existující lokace).',
     },
     kindLimits: {
       assets: '1 MB, max 1000 řádků',

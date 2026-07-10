@@ -124,9 +124,7 @@ export function NewAssetPage() {
           </div>
         )}
 
-        {create.error && (
-          <p className="text-sm text-red-600">{errorMessage(create.error)}</p>
-        )}
+        {create.error && <p className="text-sm text-red-600">{errorMessage(create.error)}</p>}
 
         <div className="flex gap-2">
           <Button type="submit" disabled={create.isPending}>

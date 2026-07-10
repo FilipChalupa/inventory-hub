@@ -25,7 +25,9 @@ export function UsersPage() {
       <h1 className="text-2xl font-bold">{t.users.title}</h1>
       <p className="text-sm text-slate-600">
         {t.users.introBefore}
-        <a href="/settings" className="text-blue-600 hover:underline">{t.users.introSettingsLink}</a>
+        <a href="/settings" className="text-blue-600 hover:underline">
+          {t.users.introSettingsLink}
+        </a>
         {t.users.introAfter}
       </p>
 
@@ -49,7 +51,8 @@ export function UsersPage() {
                   )}
                   <div>
                     <p className="font-medium">
-                      {u.name} {isMe && <span className="text-xs text-slate-500">{t.users.you}</span>}
+                      {u.name}{' '}
+                      {isMe && <span className="text-xs text-slate-500">{t.users.you}</span>}
                     </p>
                     <p className="text-xs text-slate-500">{u.email}</p>
                   </div>
@@ -110,9 +113,7 @@ export function UsersPage() {
             );
           })}
         </ul>
-        {update.error && (
-          <p className="text-sm text-red-600 mt-2">{errorMessage(update.error)}</p>
-        )}
+        {update.error && <p className="text-sm text-red-600 mt-2">{errorMessage(update.error)}</p>}
       </Card>
     </section>
   );

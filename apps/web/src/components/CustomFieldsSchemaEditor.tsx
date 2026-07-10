@@ -48,12 +48,18 @@ export function CustomFieldsSchemaEditor({
           <li className="text-xs text-slate-500">{t.components.schemaEmpty}</li>
         )}
         {value.map((f, idx) => (
-          <li key={f.key} className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end p-2 border rounded bg-slate-50 dark:bg-slate-900 dark:border-slate-700">
+          <li
+            key={f.key}
+            className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end p-2 border rounded bg-slate-50 dark:bg-slate-900 dark:border-slate-700"
+          >
             <Field label={t.components.schemaKey}>
               <Input value={f.key} disabled className="font-mono text-xs bg-slate-100" />
             </Field>
             <Field label={t.components.schemaLabel}>
-              <Input value={f.label} onChange={(e) => update(idx, { ...f, label: e.target.value })} />
+              <Input
+                value={f.label}
+                onChange={(e) => update(idx, { ...f, label: e.target.value })}
+              />
             </Field>
             <Field label={t.components.schemaType}>
               <Select
@@ -106,7 +112,9 @@ export function CustomFieldsSchemaEditor({
           <Field label={t.components.schemaKeyHint}>
             <Input
               value={draft.key}
-              onChange={(e) => setDraft({ ...draft, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })}
+              onChange={(e) =>
+                setDraft({ ...draft, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '') })
+              }
               placeholder={t.components.schemaKeyPlaceholder}
               className="font-mono"
             />
@@ -119,7 +127,10 @@ export function CustomFieldsSchemaEditor({
             />
           </Field>
           <Field label={t.components.schemaType}>
-            <Select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as CustomFieldType })}>
+            <Select
+              value={draft.type}
+              onChange={(e) => setDraft({ ...draft, type: e.target.value as CustomFieldType })}
+            >
               {customFieldTypes.map((t) => (
                 <option key={t} value={t}>
                   {TYPE_LABELS[t]}

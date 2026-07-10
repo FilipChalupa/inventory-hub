@@ -63,10 +63,7 @@ export function clampLoanRange(windows: BusyWindow[], start: Date, target: Date)
   return end;
 }
 
-export type NextFree =
-  | { kind: 'now' }
-  | { kind: 'date'; date: Date }
-  | { kind: 'never' };
+export type NextFree = { kind: 'now' } | { kind: 'date'; date: Date } | { kind: 'never' };
 
 /**
  * The moment an asset is next free, walking forward from `from` and jumping

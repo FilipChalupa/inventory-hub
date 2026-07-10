@@ -36,4 +36,26 @@ describe('ConfirmDialog', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(await p).toBe(false);
   });
+
+  it('focuses the confirm button on open and restores focus on close', async () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    expect(document.activeElement).toBe(opener);
+
+    renderWithI18n(<ConfirmViewport />);
+    let p!: Promise<boolean>;
+    act(() => {
+      p = confirm({ title: 'Pokračovat?' });
+    });
+    // Confirm button is autofocused while the dialog is open.
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Potvrdit' }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Zrušit' }));
+    expect(await p).toBe(false);
+    // Focus returns to whatever opened the dialog.
+    expect(document.activeElement).toBe(opener);
+
+    opener.remove();
+  });
 });

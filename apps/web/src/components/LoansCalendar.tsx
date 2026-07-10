@@ -194,7 +194,9 @@ export function LoansCalendar() {
                   <span
                     className={clsx(
                       'inline-block text-xs px-1 rounded',
-                      inMonth ? 'text-slate-500 dark:text-slate-400' : 'text-slate-300 dark:text-slate-600',
+                      inMonth
+                        ? 'text-slate-500 dark:text-slate-400'
+                        : 'text-slate-300 dark:text-slate-600',
                       isToday &&
                         'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 font-semibold',
                     )}

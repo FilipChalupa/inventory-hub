@@ -10,7 +10,15 @@ import {
   type InventorySessionRow,
   type ScanResult,
 } from '../lib/api.js';
-import { Button, Card, Input, SkeletonList, StatusBadge, Textarea, formatDate } from '../components/ui.js';
+import {
+  Button,
+  Card,
+  Input,
+  SkeletonList,
+  StatusBadge,
+  Textarea,
+  formatDate,
+} from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
@@ -50,7 +58,9 @@ export function InventorySessionPage() {
   // GET /api/* stale-while-revalidate, so relying on a refetch would show
   // stale counts until a reload — the mutations return the report instead.
   const applyReport = (next: InventoryReport) =>
-    queryClient.setQueryData<Detail>(['inventory', id], (old) => (old ? { ...old, report: next } : old));
+    queryClient.setQueryData<Detail>(['inventory', id], (old) =>
+      old ? { ...old, report: next } : old,
+    );
 
   const scan = useMutation({
     mutationFn: (code: string) => apiClient.inventory.scan(id, code),
@@ -137,13 +147,15 @@ export function InventorySessionPage() {
     locId ? locationPath(locations.data?.items ?? [], locId) || '—' : '—';
 
   if (detail.isLoading) return <SkeletonList rows={5} />;
-  if (!session || !report) {
+  if (detail.error || !session || !report) {
     return (
       <section className="space-y-3">
         <Link to="/inventory" className="text-sm text-slate-500 hover:underline">
           {t.inventorySession.backToInventories}
         </Link>
-        <p className="text-sm text-red-600">{t.inventorySession.notFound}</p>
+        <p className="text-sm text-red-600">
+          {detail.error ? errorMessage(detail.error) : t.inventorySession.notFound}
+        </p>
       </section>
     );
   }
@@ -197,7 +209,11 @@ export function InventorySessionPage() {
         <Stat label={t.inventorySession.statExpected} value={report.counts.expected} />
         <Stat label={t.inventorySession.statFound} value={report.counts.found} tone="emerald" />
         <Stat label={t.inventorySession.statMissing} value={report.counts.missing} tone="red" />
-        <Stat label={t.inventorySession.statUnexpected} value={report.counts.unexpected} tone="amber" />
+        <Stat
+          label={t.inventorySession.statUnexpected}
+          value={report.counts.unexpected}
+          tone="amber"
+        />
       </div>
 
       <SessionNote
@@ -243,9 +259,12 @@ export function InventorySessionPage() {
                     danger: true,
                   })
                 ) {
-                  markLost.mutate(losable.map((m) => m.code), {
-                    onSuccess: () => toast.success(t.inventorySession.markLostSuccess),
-                  });
+                  markLost.mutate(
+                    losable.map((m) => m.code),
+                    {
+                      onSuccess: () => toast.success(t.inventorySession.markLostSuccess),
+                    },
+                  );
                 }
               }}
             >
@@ -581,7 +600,9 @@ function ReportItem({
                 setEditing((v) => !v);
               }}
               className="rounded px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
-              title={asset.note ? t.inventorySession.editNoteTitle : t.inventorySession.addNoteTitle}
+              title={
+                asset.note ? t.inventorySession.editNoteTitle : t.inventorySession.addNoteTitle
+              }
               aria-label={t.inventorySession.itemNoteAriaLabel}
             >
               📝

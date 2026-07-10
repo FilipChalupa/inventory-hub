@@ -36,10 +36,10 @@ export function AcceptInvitePage() {
 
         {!token && <p className="text-sm text-red-600">{t.acceptInvite.missingToken}</p>}
 
-        {invite.isLoading && <p className="text-sm text-slate-500">{t.acceptInvite.loadingInvite}</p>}
-        {invite.error && (
-          <p className="text-sm text-red-600">{errorMessage(invite.error)}</p>
+        {invite.isLoading && (
+          <p className="text-sm text-slate-500">{t.acceptInvite.loadingInvite}</p>
         )}
+        {invite.error && <p className="text-sm text-red-600">{errorMessage(invite.error)}</p>}
 
         {invite.data && (
           <>
@@ -57,11 +57,13 @@ export function AcceptInvitePage() {
               }}
             >
               <Field label={t.acceptInvite.yourName} required>
-                <Input value={name} onChange={(e) => setName(e.target.value)} placeholder={t.acceptInvite.namePlaceholder} />
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder={t.acceptInvite.namePlaceholder}
+                />
               </Field>
-              {accept.error && (
-                <p className="text-sm text-red-600">{errorMessage(accept.error)}</p>
-              )}
+              {accept.error && <p className="text-sm text-red-600">{errorMessage(accept.error)}</p>}
               <Button type="submit" disabled={accept.isPending || !name.trim()} className="w-full">
                 {accept.isPending ? t.acceptInvite.creatingAccount : t.acceptInvite.accept}
               </Button>

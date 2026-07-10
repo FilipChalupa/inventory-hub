@@ -41,8 +41,7 @@ export const audit = ns({
   },
   en: {
     title: 'Audit log',
-    shownOf: (n: number, total: number) =>
-      `Showing ${n} of ${total} events across all assets.`,
+    shownOf: (n: number, total: number) => `Showing ${n} of ${total} events across all assets.`,
     asset: 'Asset',
     assetPlaceholder: 'Code or name…',
     type: 'Type',

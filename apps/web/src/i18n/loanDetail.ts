@@ -115,7 +115,8 @@ export const loanDetail = ns({
     returnByLabel: 'Return by',
 
     // StartLoanBar
-    plannedNotice: 'The loan is planned. It will start automatically on its date, or you can start it now.',
+    plannedNotice:
+      'The loan is planned. It will start automatically on its date, or you can start it now.',
     starting: 'Starting…',
     startLoan: 'Start loan',
 

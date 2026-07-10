@@ -243,19 +243,6 @@ export type ImportResult = {
   created: number;
 };
 
-// TODO: Dočasné – odebrat po skončení potřeby demo seedování.
-export type DemoSeedResult = {
-  ok: true;
-  summary: {
-    assetTypesEnsured: number;
-    locationsCreated: number;
-    assetsCreated: number;
-    contactsCreated: number;
-    loansCreated: number;
-    damageReportsCreated: number;
-  };
-};
-
 export type InventorySessionRow = {
   id: string;
   name: string;
@@ -300,11 +287,7 @@ export type ScanResult = {
   report: InventoryReport;
 };
 
-async function uploadImportCsv(
-  path: string,
-  file: File,
-  dryRun: boolean,
-): Promise<ImportResult> {
+async function uploadImportCsv(path: string, file: File, dryRun: boolean): Promise<ImportResult> {
   const form = new FormData();
   form.append('file', file);
   form.append('dryRun', dryRun ? 'true' : 'false');
@@ -359,12 +342,11 @@ export const apiClient = {
   invitations: {
     list: () => api<{ items: InvitationRow[] }>('/api/invitations'),
     create: (input: { email: string; role: UserRole }) =>
-      api<{ id: string; email: string; role: UserRole; acceptUrl: string }>(
-        '/api/invitations',
-        { method: 'POST', body: input },
-      ),
-    remove: (id: string) =>
-      api<{ ok: true }>(`/api/invitations/${id}`, { method: 'DELETE' }),
+      api<{ id: string; email: string; role: UserRole; acceptUrl: string }>('/api/invitations', {
+        method: 'POST',
+        body: input,
+      }),
+    remove: (id: string) => api<{ ok: true }>(`/api/invitations/${id}`, { method: 'DELETE' }),
   },
 
   users: {
@@ -492,15 +474,18 @@ export const apiClient = {
 
   assetTypes: {
     list: () => api<{ items: AssetTypeRow[] }>('/api/asset-types'),
-    create: (input: { name: string; codePrefix: string; customFieldsSchema?: CustomFieldsSchema }) =>
-      api<AssetTypeRow>('/api/asset-types', { method: 'POST', body: input }),
+    create: (input: {
+      name: string;
+      codePrefix: string;
+      customFieldsSchema?: CustomFieldsSchema;
+    }) => api<AssetTypeRow>('/api/asset-types', { method: 'POST', body: input }),
     update: (
       id: string,
       input: { name?: string; codePrefix?: string; customFieldsSchema?: CustomFieldsSchema },
     ) => api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'PATCH', body: input }),
-    remove: (id: string) =>
-      api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'DELETE' }),
-    import: async (file: File, dryRun: boolean) => uploadImportCsv('/api/asset-types/import', file, dryRun),
+    remove: (id: string) => api<{ ok: true }>(`/api/asset-types/${id}`, { method: 'DELETE' }),
+    import: async (file: File, dryRun: boolean) =>
+      uploadImportCsv('/api/asset-types/import', file, dryRun),
   },
 
   locations: {
@@ -510,7 +495,8 @@ export const apiClient = {
     update: (id: string, input: { name?: string; parentId?: string | null }) =>
       api<{ ok: true }>(`/api/locations/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) => api<{ ok: true }>(`/api/locations/${id}`, { method: 'DELETE' }),
-    import: async (file: File, dryRun: boolean) => uploadImportCsv('/api/locations/import', file, dryRun),
+    import: async (file: File, dryRun: boolean) =>
+      uploadImportCsv('/api/locations/import', file, dryRun),
   },
 
   damages: {
@@ -521,15 +507,12 @@ export const apiClient = {
         method: 'POST',
         body: input,
       }),
-    resolve: (id: string) =>
-      api<{ ok: true }>(`/api/damages/${id}/resolve`, { method: 'POST' }),
+    resolve: (id: string) => api<{ ok: true }>(`/api/damages/${id}/resolve`, { method: 'POST' }),
   },
 
   contacts: {
     list: (q?: string) =>
-      api<{ items: ContactRow[] }>(
-        `/api/contacts${q ? `?q=${encodeURIComponent(q)}` : ''}`,
-      ),
+      api<{ items: ContactRow[] }>(`/api/contacts${q ? `?q=${encodeURIComponent(q)}` : ''}`),
     get: (id: string) =>
       api<{ contact: ContactRow; loans: { id: string; borrowerName: string }[] }>(
         `/api/contacts/${id}`,
@@ -538,8 +521,7 @@ export const apiClient = {
       api<ContactRow>('/api/contacts', { method: 'POST', body: input }),
     update: (id: string, input: Partial<ContactInput>) =>
       api<{ ok: true }>(`/api/contacts/${id}`, { method: 'PATCH', body: input }),
-    remove: (id: string) =>
-      api<{ ok: true }>(`/api/contacts/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => api<{ ok: true }>(`/api/contacts/${id}`, { method: 'DELETE' }),
   },
 
   loans: {
@@ -551,8 +533,7 @@ export const apiClient = {
       const suffix = qs.toString() ? `?${qs}` : '';
       return api<{ items: LoanRow[]; total: number }>(`/api/loans${suffix}`);
     },
-    events: (id: string) =>
-      api<{ items: LoanEventRow[] }>(`/api/loans/${id}/events`),
+    events: (id: string) => api<{ items: LoanEventRow[] }>(`/api/loans/${id}/events`),
     get: (id: string) => api<{ loan: LoanRow }>(`/api/loans/${id}`),
     create: (input: CreateLoanInput) =>
       api<{ id: string }>('/api/loans', { method: 'POST', body: input }),
@@ -569,7 +550,13 @@ export const apiClient = {
     forAsset: (code: string) =>
       api<{ items: LoanForAssetRow[] }>(`/api/loans/for-asset/${encodeURIComponent(code)}`),
     calendar: (
-      params: { q?: string; freeFrom?: string; freeTo?: string; limit?: number; offset?: number } = {},
+      params: {
+        q?: string;
+        freeFrom?: string;
+        freeTo?: string;
+        limit?: number;
+        offset?: number;
+      } = {},
     ) => {
       const qs = new URLSearchParams();
       if (params.q) qs.set('q', params.q);
@@ -596,8 +583,7 @@ export const apiClient = {
       const suffix = qs.toString() ? `?${qs}` : '';
       return api<{ items: LoanAvailabilityAsset[] }>(`/api/loans/availability${suffix}`);
     },
-    start: (id: string) =>
-      api<{ ok: true }>(`/api/loans/${id}/start`, { method: 'POST' }),
+    start: (id: string) => api<{ ok: true }>(`/api/loans/${id}/start`, { method: 'POST' }),
     returnAll: (id: string, returnedAt?: Date) =>
       api<{ ok: true; returned: number }>(`/api/loans/${id}/return-all`, {
         method: 'POST',
@@ -625,10 +611,8 @@ export const apiClient = {
         `/api/inventory/${id}/items/${encodeURIComponent(assetId)}/note`,
         { method: 'PUT', body: { note } },
       ),
-    close: (id: string) =>
-      api<{ ok: true }>(`/api/inventory/${id}/close`, { method: 'POST' }),
-    reopen: (id: string) =>
-      api<{ ok: true }>(`/api/inventory/${id}/reopen`, { method: 'POST' }),
+    close: (id: string) => api<{ ok: true }>(`/api/inventory/${id}/close`, { method: 'POST' }),
+    reopen: (id: string) => api<{ ok: true }>(`/api/inventory/${id}/reopen`, { method: 'POST' }),
     markLost: (id: string, codes: string[]) =>
       api<{ ok: true; archived: number; report: InventoryReport }>(
         `/api/inventory/${id}/mark-lost`,
@@ -644,10 +628,5 @@ export const apiClient = {
         { method: 'POST', body: input },
       ),
     remove: (id: string) => api<{ ok: true }>(`/api/api-keys/${id}`, { method: 'DELETE' }),
-  },
-
-  // TODO: Dočasné – odebrat po skončení potřeby demo seedování.
-  demo: {
-    seed: () => api<DemoSeedResult>('/api/demo/seed', { method: 'POST' }),
   },
 };

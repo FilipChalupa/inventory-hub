@@ -121,6 +121,37 @@ export function AssetDetailPage() {
     mutationFn: () => apiClient.assets.repairFinish(code),
     onSuccess: invalidateAll,
   });
+  const assign = useMutation({
+    mutationFn: (userId: string) => apiClient.assets.assign(code, userId),
+    onSuccess: invalidateAll,
+  });
+  const unassign = useMutation({
+    mutationFn: () => apiClient.assets.unassign(code),
+    onSuccess: invalidateAll,
+  });
+  const resolveDamage = useMutation({
+    mutationFn: (id: string) => apiClient.damages.resolve(id),
+    onSuccess: invalidateAll,
+  });
+
+  // Every archive action is destructive (asset leaves the active list), so it
+  // is gated behind a confirmation before the mutation fires.
+  const archiveWithConfirm = async (
+    status: 'sold' | 'lost' | 'retired',
+    title: string,
+    confirmLabel: string,
+  ) => {
+    if (
+      await confirm({
+        title,
+        message: t.assetDetail.archiveMessage,
+        confirmLabel,
+        danger: true,
+      })
+    ) {
+      archive.mutate(status);
+    }
+  };
 
   const [showDamageForm, setShowDamageForm] = useState(false);
   const [showEditForm, setShowEditForm] = useState(false);
@@ -131,12 +162,17 @@ export function AssetDetailPage() {
 
   const a = asset.data.asset;
   const isArchived = a.archivedAt !== null;
+  const severityLabels: Record<DamageSeverity, string> = {
+    minor: t.assetDetail.severityMinor,
+    major: t.assetDetail.severityMajor,
+    total: t.assetDetail.severityTotal,
+  };
   const assetType = types.data?.items.find((type) => type.id === a.typeId);
   const customSchema: CustomFieldsSchema = assetType?.customFieldsSchema ?? [];
 
   const blockReason = nonLoanableReason(a.status);
   const loanWindows: BusyWindow[] = (assetLoans.data?.items ?? []).map((loan) => ({
-    start: new Date(loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt),
+    start: new Date(loan.status === 'planned' ? loan.loanedAt : (loan.startedAt ?? loan.loanedAt)),
     end: loan.expectedReturnAt ? new Date(loan.expectedReturnAt) : null,
     status: loan.status,
     label: loan.borrowerName,
@@ -164,7 +200,10 @@ export function AssetDetailPage() {
             alt={t.assetDetail.qrAlt(a.code)}
             className="w-32 h-32 border rounded bg-white"
           />
-          <Link to={`/labels?codes=${encodeURIComponent(a.code)}`} className="text-xs text-blue-600 hover:underline">
+          <Link
+            to={`/labels?codes=${encodeURIComponent(a.code)}`}
+            className="text-xs text-blue-600 hover:underline"
+          >
             {t.assetDetail.printLabel}
           </Link>
         </div>
@@ -180,10 +219,8 @@ export function AssetDetailPage() {
             </p>
             <Button
               variant="secondary"
-              onClick={async () => {
-                await apiClient.assets.unassign(code);
-                invalidateAll();
-              }}
+              disabled={unassign.isPending}
+              onClick={() => unassign.mutate()}
             >
               {t.assetDetail.removeAssignment}
             </Button>
@@ -192,14 +229,13 @@ export function AssetDetailPage() {
           <div className="flex items-center gap-2">
             <Select
               className="flex-1"
-              onChange={async (e) => {
+              onChange={(e) => {
                 if (!e.target.value) return;
-                await apiClient.assets.assign(code, e.target.value);
+                assign.mutate(e.target.value);
                 e.target.value = '';
-                invalidateAll();
               }}
               defaultValue=""
-              disabled={isArchived || a.status === 'on_loan'}
+              disabled={isArchived || a.status === 'on_loan' || assign.isPending}
             >
               <option value="" disabled>
                 {t.assetDetail.selectUser}
@@ -239,13 +275,35 @@ export function AssetDetailPage() {
                 {t.assetDetail.repairStart}
               </Button>
             )}
-            <Button variant="danger" onClick={() => archive.mutate('sold')}>
+            <Button
+              variant="danger"
+              disabled={archive.isPending}
+              onClick={() =>
+                archiveWithConfirm('sold', t.assetDetail.archiveSoldTitle, t.assetDetail.markSold)
+              }
+            >
               {t.assetDetail.markSold}
             </Button>
-            <Button variant="danger" onClick={() => archive.mutate('lost')}>
+            <Button
+              variant="danger"
+              disabled={archive.isPending}
+              onClick={() =>
+                archiveWithConfirm('lost', t.assetDetail.archiveLostTitle, t.assetDetail.markLost)
+              }
+            >
               {t.assetDetail.markLost}
             </Button>
-            <Button variant="danger" onClick={() => archive.mutate('retired')}>
+            <Button
+              variant="danger"
+              disabled={archive.isPending}
+              onClick={() =>
+                archiveWithConfirm(
+                  'retired',
+                  t.assetDetail.archiveRetiredTitle,
+                  t.assetDetail.retire,
+                )
+              }
+            >
               {t.assetDetail.retire}
             </Button>
           </>
@@ -360,7 +418,9 @@ export function AssetDetailPage() {
                 </>
               )}
               {nextFree.kind === 'date' && (
-                <>{t.assetDetail.freeFrom(nextFree.date.toLocaleDateString(localeTag(getLocale())))}</>
+                <>
+                  {t.assetDetail.freeFrom(nextFree.date.toLocaleDateString(localeTag(getLocale())))}
+                </>
               )}
               {nextFree.kind === 'never' && <>{t.assetDetail.loanedNoReturn}</>}
             </span>
@@ -392,7 +452,9 @@ export function AssetDetailPage() {
               </Link>
               <span className="flex items-center gap-2">
                 <span className="text-xs text-slate-500">
-                  {formatDate(loan.status === 'planned' ? loan.loanedAt : loan.startedAt ?? loan.loanedAt)}
+                  {formatDate(
+                    loan.status === 'planned' ? loan.loanedAt : (loan.startedAt ?? loan.loanedAt),
+                  )}
                   {' – '}
                   {loan.expectedReturnAt ? formatDate(loan.expectedReturnAt) : t.assetDetail.open}
                 </span>
@@ -435,7 +497,7 @@ export function AssetDetailPage() {
                             : 'text-slate-700'
                       }
                     >
-                      {d.severity}
+                      {severityLabels[d.severity]}
                     </span>
                   </p>
                 </div>
@@ -447,10 +509,8 @@ export function AssetDetailPage() {
                   <Button
                     variant="ghost"
                     className="text-xs"
-                    onClick={async () => {
-                      await apiClient.damages.resolve(d.id);
-                      invalidateAll();
-                    }}
+                    disabled={resolveDamage.isPending}
+                    onClick={() => resolveDamage.mutate(d.id)}
                   >
                     {t.assetDetail.markResolved}
                   </Button>
@@ -485,7 +545,9 @@ export function AssetDetailPage() {
         <ul className="divide-y text-sm">
           {events.data?.items.map((e) => (
             <li key={e.id} className="py-1.5 flex justify-between gap-4">
-              <span className="font-mono text-xs text-slate-500">{e.type}</span>
+              <span className="text-xs text-slate-500">
+                {t.assetDetail.eventLabels[e.type] ?? e.type}
+              </span>
               <span className="text-xs text-slate-500">{formatDate(e.occurredAt)}</span>
             </li>
           ))}
@@ -585,11 +647,7 @@ function AssetDocumentsCard({
                 >
                   {isPdf ? '📄' : '🖼️'} {name}
                 </a>
-                <Button
-                  variant="ghost"
-                  className="text-red-600 text-xs"
-                  onClick={() => remove(p)}
-                >
+                <Button variant="ghost" className="text-red-600 text-xs" onClick={() => remove(p)}>
                   {t.assetDetail.remove}
                 </Button>
               </li>
@@ -667,7 +725,11 @@ function ExternalIdsCard({
                 </span>
                 <span className="font-mono">{eid.value}</span>
               </span>
-              <Button variant="ghost" className="text-red-600 text-xs" onClick={() => remove(eid.id)}>
+              <Button
+                variant="ghost"
+                className="text-red-600 text-xs"
+                onClick={() => remove(eid.id)}
+              >
                 {t.assetDetail.remove}
               </Button>
             </li>
@@ -772,7 +834,12 @@ function AssetPhotosCard({
               key={p}
               className="relative w-24 h-24 rounded border overflow-hidden bg-slate-50 group"
             >
-              <a href={`/api/uploads/${p}`} target="_blank" rel="noreferrer" className="block w-full h-full">
+              <a
+                href={`/api/uploads/${p}`}
+                target="_blank"
+                rel="noreferrer"
+                className="block w-full h-full"
+              >
                 <img src={`/api/uploads/${p}`} alt="" className="w-full h-full object-cover" />
               </a>
               <button
@@ -866,7 +933,9 @@ function EditAssetForm({
         </Field>
         {customSchema.length > 0 && (
           <div className="border-t pt-3">
-            <h3 className="font-medium text-sm text-slate-700 mb-2">{t.assetDetail.customFields}</h3>
+            <h3 className="font-medium text-sm text-slate-700 mb-2">
+              {t.assetDetail.customFields}
+            </h3>
             <CustomFieldsValuesForm
               schema={customSchema}
               values={customFieldValues}

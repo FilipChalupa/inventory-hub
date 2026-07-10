@@ -43,7 +43,8 @@ export const inventory = ns({
     scopePlaceholder: '— whole organization —',
     assetTypesLabel: 'Asset types (optional)',
     noTypes: 'No types.',
-    scopeHint: 'Without a selection the whole organization is checked. Location and types combine (intersection).',
+    scopeHint:
+      'Without a selection the whole organization is checked. Location and types combine (intersection).',
     pickAssetsLabel: 'Or pick assets manually (optional)',
     assetSearchPlaceholder: 'Search code / name…',
     noAssetsMatch: 'No assets match the search.',

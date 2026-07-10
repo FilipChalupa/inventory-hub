@@ -3,7 +3,16 @@ import { errorMessage } from '../lib/errors.js';
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { apiClient, type LoanEventRow, type LoanItemRow, type LoanRow } from '../lib/api.js';
-import { Button, Card, Field, Input, Select, SkeletonList, Textarea, formatDate } from '../components/ui.js';
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  Select,
+  SkeletonList,
+  Textarea,
+  formatDate,
+} from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
@@ -83,21 +92,21 @@ export function LoanDetailPage() {
                   }
                 }}
               >
-                {cancel.isPending ? t.loanDetail.cancellingReservation : t.loanDetail.cancelReservation}
+                {cancel.isPending
+                  ? t.loanDetail.cancellingReservation
+                  : t.loanDetail.cancelReservation}
               </Button>
             )}
           </div>
         </div>
-        {cancel.error && (
-          <p className="text-sm text-red-600 mt-1">{errorMessage(cancel.error)}</p>
-        )}
+        {cancel.error && <p className="text-sm text-red-600 mt-1">{errorMessage(cancel.error)}</p>}
         {l.borrowerContact && <p className="text-sm text-slate-600">{l.borrowerContact}</p>}
         {l.purpose && <p className="text-sm mt-2">{t.loanDetail.purpose(l.purpose)}</p>}
         <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1 text-sm mt-2">
           <dt className="text-slate-500">
             {planned ? t.loanDetail.plannedStart : t.loanDetail.loanedOut}
           </dt>
-          <dd>{formatDate(planned ? l.loanedAt : l.startedAt ?? l.loanedAt)}</dd>
+          <dd>{formatDate(planned ? l.loanedAt : (l.startedAt ?? l.loanedAt))}</dd>
           <dt className="text-slate-500">{t.loanDetail.returnBy}</dt>
           <dd>{l.expectedReturnAt ? formatDate(l.expectedReturnAt) : t.common.none}</dd>
         </dl>
@@ -165,7 +174,8 @@ function ReturnAllButton({
   const [open, setOpen] = useState(false);
   const [returnedAt, setReturnedAt] = useState(() => new Date().toISOString().slice(0, 10));
   const returnAll = useMutation({
-    mutationFn: () => apiClient.loans.returnAll(loanId, returnedAt ? new Date(returnedAt) : undefined),
+    mutationFn: () =>
+      apiClient.loans.returnAll(loanId, returnedAt ? new Date(returnedAt) : undefined),
     onSuccess: () => {
       setOpen(false);
       onDone();
@@ -197,9 +207,7 @@ function ReturnAllButton({
         {t.common.cancel}
       </Button>
       {returnAll.error && (
-        <p className="w-full text-right text-sm text-red-600">
-          {errorMessage(returnAll.error)}
-        </p>
+        <p className="w-full text-right text-sm text-red-600">{errorMessage(returnAll.error)}</p>
       )}
     </div>
   );
@@ -289,9 +297,7 @@ function StartLoanBar({ loanId, onStarted }: { loanId: string; onStarted: () => 
       <Button onClick={() => start.mutate()} disabled={start.isPending}>
         {start.isPending ? t.loanDetail.starting : t.loanDetail.startLoan}
       </Button>
-      {start.error && (
-        <p className="text-sm text-red-600">{errorMessage(start.error)}</p>
-      )}
+      {start.error && <p className="text-sm text-red-600">{errorMessage(start.error)}</p>}
     </div>
   );
 }
@@ -451,7 +457,10 @@ function LoanItemRowComp({
     <li className="py-3">
       <div className="flex items-center justify-between gap-4">
         <div>
-          <Link to={`/a/${item.assetCode}`} className="font-mono text-xs text-slate-500 hover:underline">
+          <Link
+            to={`/a/${item.assetCode}`}
+            className="font-mono text-xs text-slate-500 hover:underline"
+          >
             {item.assetCode}
           </Link>
           <p>{item.assetName}</p>
@@ -491,9 +500,7 @@ function LoanItemRowComp({
           </div>
         )}
       </div>
-      {remove.error && (
-        <p className="text-sm text-red-600 mt-1">{errorMessage(remove.error)}</p>
-      )}
+      {remove.error && <p className="text-sm text-red-600 mt-1">{errorMessage(remove.error)}</p>}
 
       {open && (
         <div className="mt-3 space-y-2">
@@ -506,7 +513,10 @@ function LoanItemRowComp({
             />
           </Field>
           <Field label={t.loanDetail.returnConditionLabel}>
-            <Select value={condition} onChange={(e) => setCondition(e.target.value as 'ok' | 'damaged')}>
+            <Select
+              value={condition}
+              onChange={(e) => setCondition(e.target.value as 'ok' | 'damaged')}
+            >
               <option value="ok">{t.loanDetail.conditionOk}</option>
               <option value="damaged">{t.loanDetail.conditionDamaged}</option>
             </Select>
@@ -522,9 +532,7 @@ function LoanItemRowComp({
               {t.common.cancel}
             </Button>
           </div>
-          {mutate.error && (
-            <p className="text-sm text-red-600">{errorMessage(mutate.error)}</p>
-          )}
+          {mutate.error && <p className="text-sm text-red-600">{errorMessage(mutate.error)}</p>}
         </div>
       )}
     </li>
@@ -559,14 +567,16 @@ function LoanHistoryCard({ events }: { events: LoanEventRow[] }) {
                   )}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {e.actorName ?? t.loanDetail.system} · {new Date(e.occurredAt).toLocaleString(localeTag(getLocale()))}
+                  {e.actorName ?? t.loanDetail.system} ·{' '}
+                  {new Date(e.occurredAt).toLocaleString(localeTag(getLocale()))}
                 </span>
               </div>
               {changes && (
                 <ul className="mt-1 ml-3 list-inside list-disc text-xs text-slate-500">
                   {Object.entries(changes).map(([field, ch]) => (
                     <li key={field}>
-                      {t.loanDetail.fieldLabels[field] ?? field}: {fmtEventValue(ch.from, t.common.none)} →{' '}
+                      {t.loanDetail.fieldLabels[field] ?? field}:{' '}
+                      {fmtEventValue(ch.from, t.common.none)} →{' '}
                       {fmtEventValue(ch.to, t.common.none)}
                     </li>
                   ))}

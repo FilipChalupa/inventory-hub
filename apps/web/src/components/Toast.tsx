@@ -14,12 +14,6 @@ let toasts: Toast[] = [];
 let seq = 0;
 const listeners = new Set<() => void>();
 
-function emit() {
-  // New array identity so useSyncExternalStore notices the change.
-  toasts = [...toasts];
-  listeners.forEach((l) => l());
-}
-
 function dismiss(id: number) {
   toasts = toasts.filter((x) => x.id !== id);
   listeners.forEach((l) => l());
@@ -57,7 +51,11 @@ const kindIcon: Record<ToastKind, string> = { success: '✓', error: '⚠', info
 
 export function ToastViewport() {
   const t = useT();
-  const items = useSyncExternalStore(subscribe, () => toasts, () => toasts);
+  const items = useSyncExternalStore(
+    subscribe,
+    () => toasts,
+    () => toasts,
+  );
   if (items.length === 0) return null;
   return (
     <div

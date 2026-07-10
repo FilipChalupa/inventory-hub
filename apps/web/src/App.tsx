@@ -1,4 +1,12 @@
-import { lazy, Suspense, type ComponentType, type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  lazy,
+  Suspense,
+  type ComponentType,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from 'react';
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
@@ -99,8 +107,7 @@ function Shell() {
     );
   }
 
-  const isPublicRoute =
-    location.pathname === '/login' || location.pathname === '/accept-invite';
+  const isPublicRoute = location.pathname === '/login' || location.pathname === '/accept-invite';
 
   if (!state?.authenticated) {
     if (isPublicRoute) {
@@ -181,30 +188,30 @@ function Shell() {
           {/* key on the path remounts the boundary on navigation, so a crashed
               page doesn't keep showing its fallback after you move away. */}
           <ErrorBoundary key={location.pathname}>
-          <Suspense fallback={<RouteFallback />}>
-          <Routes>
-            <Route path="/" element={<TodayPage />} />
-            <Route path="/assets" element={<AssetsPage />} />
-            <Route path="/assets/new" element={<NewAssetPage />} />
-            <Route path="/assets/import" element={<ImportAssetsPage />} />
-            <Route path="/scan" element={<ScanPage />} />
-            <Route path="/a/:code" element={<AssetDetailPage />} />
-            <Route path="/asset-types" element={<AssetTypesPage />} />
-            <Route path="/locations" element={<LocationsPage />} />
-            <Route path="/loans" element={<LoansPage />} />
-            <Route path="/loans/new" element={<NewLoanPage />} />
-            <Route path="/loans/:id" element={<LoanDetailPage />} />
-            <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/inventory" element={<InventoryPage />} />
-            <Route path="/inventory/:id" element={<InventorySessionPage />} />
-            <Route path="/labels" element={<LabelsPage />} />
-            <Route path="/audit" element={<AuditLogPage />} />
-            <Route path="/users" element={<UsersPage />} />
-            <Route path="/contacts" element={<ContactsPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/login" element={<Navigate to="/" replace />} />
-          </Routes>
-          </Suspense>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/" element={<TodayPage />} />
+                <Route path="/assets" element={<AssetsPage />} />
+                <Route path="/assets/new" element={<NewAssetPage />} />
+                <Route path="/assets/import" element={<ImportAssetsPage />} />
+                <Route path="/scan" element={<ScanPage />} />
+                <Route path="/a/:code" element={<AssetDetailPage />} />
+                <Route path="/asset-types" element={<AssetTypesPage />} />
+                <Route path="/locations" element={<LocationsPage />} />
+                <Route path="/loans" element={<LoansPage />} />
+                <Route path="/loans/new" element={<NewLoanPage />} />
+                <Route path="/loans/:id" element={<LoanDetailPage />} />
+                <Route path="/calendar" element={<CalendarPage />} />
+                <Route path="/inventory" element={<InventoryPage />} />
+                <Route path="/inventory/:id" element={<InventorySessionPage />} />
+                <Route path="/labels" element={<LabelsPage />} />
+                <Route path="/audit" element={<AuditLogPage />} />
+                <Route path="/users" element={<UsersPage />} />
+                <Route path="/contacts" element={<ContactsPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/login" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
           </ErrorBoundary>
         </div>
       </main>
@@ -290,7 +297,7 @@ function UserMenu() {
           <span className="text-right hidden sm:block">
             <span className="block text-sm font-medium">{u.name}</span>
             <span className="block text-xs text-slate-500 dark:text-slate-400">
-              {u.role}
+              {t.common.roles[u.role] ?? u.role}
             </span>
           </span>
           {u.imageUrl ? (
@@ -379,11 +386,7 @@ function Dropdown({
         onClick={() => setOpen((value) => !value)}
         className={
           triggerClassName ??
-          clsx(
-            navItemClass,
-            'flex items-center gap-1',
-            navItemState(Boolean(active) || open),
-          )
+          clsx(navItemClass, 'flex items-center gap-1', navItemState(Boolean(active) || open))
         }
       >
         {trigger}
@@ -418,13 +421,7 @@ function Dropdown({
   );
 }
 
-function DropdownLink({
-  to,
-  children,
-}: {
-  to: string;
-  children: ReactNode;
-}) {
+function DropdownLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <NavLink
       to={to}

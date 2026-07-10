@@ -163,9 +163,7 @@ export function CalendarPage() {
       )}
 
       {calendar.isLoading && <p className="text-slate-500">{t.calendar.loading}</p>}
-      {calendar.error && (
-        <p className="text-red-600">{errorMessage(calendar.error)}</p>
-      )}
+      {calendar.error && <p className="text-red-600">{errorMessage(calendar.error)}</p>}
 
       {calendar.data && rows.length === 0 && (
         <p className="text-sm text-slate-500">{t.calendar.noMatches}</p>
@@ -203,10 +201,7 @@ export function CalendarPage() {
                 return (
                   <tr key={asset.id} className="border-b border-slate-100 dark:border-slate-700/50">
                     <th className="sticky left-0 z-10 bg-white dark:bg-slate-800 px-3 py-1.5 text-left font-normal whitespace-nowrap">
-                      <Link
-                        to={`/a/${encodeURIComponent(asset.code)}`}
-                        className="hover:underline"
-                      >
+                      <Link to={`/a/${encodeURIComponent(asset.code)}`} className="hover:underline">
                         <span className="font-mono text-slate-500 dark:text-slate-400">
                           {asset.code}
                         </span>{' '}
@@ -227,7 +222,10 @@ export function CalendarPage() {
                         dayBounds(day)[0].getTime() >= todayStart.getTime();
                       const title = isBlocked
                         ? blockReason
-                        : state.windows.map((w) => w.label).filter(Boolean).join(', ');
+                        : state.windows
+                            .map((w) => w.label)
+                            .filter(Boolean)
+                            .join(', ');
                       return (
                         <td
                           key={day.toISOString()}
@@ -236,7 +234,9 @@ export function CalendarPage() {
                           className={clsx(
                             'h-7 border-l border-slate-100 dark:border-slate-700/50',
                             cellClasses[state.status],
-                            isToday && state.status === 'free' && 'bg-slate-100 dark:bg-slate-700/40',
+                            isToday &&
+                              state.status === 'free' &&
+                              'bg-slate-100 dark:bg-slate-700/40',
                           )}
                         />
                       );
@@ -258,9 +258,7 @@ export function CalendarPage() {
           >
             {calendar.isFetching ? t.calendar.loading : t.calendar.loadMore}
           </Button>
-          <span className="text-xs text-slate-500">
-            {t.calendar.shownOf(rows.length, total)}
-          </span>
+          <span className="text-xs text-slate-500">{t.calendar.shownOf(rows.length, total)}</span>
         </div>
       )}
 

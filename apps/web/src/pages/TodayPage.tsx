@@ -23,7 +23,9 @@ export function TodayPage() {
     <section className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">{t.today.title}</h1>
-        <span className="text-sm text-slate-500">{now.toLocaleDateString(localeTag(getLocale()))}</span>
+        <span className="text-sm text-slate-500">
+          {now.toLocaleDateString(localeTag(getLocale()))}
+        </span>
       </div>
 
       {todayQuery.isLoading && <SkeletonList rows={3} />}
@@ -91,7 +93,10 @@ function LoanGroup({
               >
                 <span className="truncate">
                   {loan.borrowerName}
-                  <span className="text-xs text-slate-400"> · {t.today.pieces(loan.itemCount)}</span>
+                  <span className="text-xs text-slate-400">
+                    {' '}
+                    · {t.today.pieces(loan.itemCount)}
+                  </span>
                 </span>
                 <span className="text-xs text-slate-500 whitespace-nowrap">
                   {formatDate(loan.date)}

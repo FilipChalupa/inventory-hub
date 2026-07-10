@@ -3,7 +3,8 @@ import { ns } from './util.js';
 export const users = ns({
   cs: {
     title: 'Uživatelé',
-    introBefore: 'Spravuj role a deaktivuj uživatele, kteří už nemají mít přístup. Pozvánky se zakládají v ',
+    introBefore:
+      'Spravuj role a deaktivuj uživatele, kteří už nemají mít přístup. Pozvánky se zakládají v ',
     introSettingsLink: 'Nastavení',
     introAfter: '.',
     empty: 'Žádní uživatelé.',
@@ -17,7 +18,8 @@ export const users = ns({
   },
   en: {
     title: 'Users',
-    introBefore: 'Manage roles and deactivate users who should no longer have access. Invitations are created in ',
+    introBefore:
+      'Manage roles and deactivate users who should no longer have access. Invitations are created in ',
     introSettingsLink: 'Settings',
     introAfter: '.',
     empty: 'No users.',

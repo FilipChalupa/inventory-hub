@@ -25,7 +25,8 @@ export const labels = ns({
   en: {
     title: 'Print labels',
     codes: 'Codes',
-    codesHint: 'Paste codes one per line (or comma-separated), or pick from the assets on the right.',
+    codesHint:
+      'Paste codes one per line (or comma-separated), or pick from the assets on the right.',
     codesPlaceholder: 'LAP-00001\nMON-00001',
     loadLabels: (n: number) => `Load ${n || ''} labels`,
     print: 'Print',

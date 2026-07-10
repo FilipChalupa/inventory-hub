@@ -2,7 +2,16 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type InventorySessionRow } from '../lib/api.js';
-import { Button, Card, Field, Input, SkeletonList, Textarea, formatDate } from '../components/ui.js';
+import { errorMessage } from '../lib/errors.js';
+import {
+  Button,
+  Card,
+  Field,
+  Input,
+  SkeletonList,
+  Textarea,
+  formatDate,
+} from '../components/ui.js';
 import { LocationSelect } from '../components/LocationSelect.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { locationPath } from '../lib/locations.js';
@@ -75,9 +84,7 @@ export function InventoryPage() {
         )}
       </div>
 
-      <p className="text-sm text-slate-600 dark:text-slate-300">
-        {t.inventory.intro}
-      </p>
+      <p className="text-sm text-slate-600 dark:text-slate-300">{t.inventory.intro}</p>
 
       {creating && (
         <Card className="space-y-3">
@@ -125,9 +132,7 @@ export function InventoryPage() {
                 </div>
               )}
             </div>
-            <p className="text-xs text-slate-500">
-              {t.inventory.scopeHint}
-            </p>
+            <p className="text-xs text-slate-500">{t.inventory.scopeHint}</p>
           </div>
 
           <Field label={t.inventory.pickAssetsLabel}>
@@ -164,11 +169,7 @@ export function InventoryPage() {
             {picking && (
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
                 {t.inventory.pickedSummary(pickedAssetCodes.length)}{' '}
-                <button
-                  type="button"
-                  className="underline"
-                  onClick={() => setPickedAssetCodes([])}
-                >
+                <button type="button" className="underline" onClick={() => setPickedAssetCodes([])}>
                   {t.inventory.clearSelection}
                 </button>
               </p>
@@ -199,7 +200,9 @@ export function InventoryPage() {
 
       {sessions.isLoading && <SkeletonList rows={4} />}
 
-      {!sessions.isLoading && items.length === 0 && !creating && (
+      {sessions.error && <p className="text-red-600">{errorMessage(sessions.error)}</p>}
+
+      {!sessions.isLoading && !sessions.error && items.length === 0 && !creating && (
         <Card>
           <p className="text-slate-600 text-sm">
             {t.inventory.empty} {canWrite ? t.inventory.emptyHint : ''}

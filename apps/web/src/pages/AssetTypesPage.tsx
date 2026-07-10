@@ -19,7 +19,10 @@ export function AssetTypesPage() {
     queryFn: () => apiClient.assetTypes.list(),
   });
 
-  const { register, handleSubmit, reset, formState } = useForm<{ name: string; codePrefix: string }>({
+  const { register, handleSubmit, reset, formState } = useForm<{
+    name: string;
+    codePrefix: string;
+  }>({
     defaultValues: { name: '', codePrefix: '' },
   });
 
@@ -64,7 +67,11 @@ export function AssetTypesPage() {
             </Field>
           </div>
           <div className="w-32">
-            <Field label={t.assetTypes.prefix} required error={formState.errors.codePrefix?.message}>
+            <Field
+              label={t.assetTypes.prefix}
+              required
+              error={formState.errors.codePrefix?.message}
+            >
               <Input
                 {...register('codePrefix', {
                   required: t.common.required,
@@ -79,9 +86,7 @@ export function AssetTypesPage() {
             {t.common.add}
           </Button>
         </form>
-        {create.error && (
-          <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>
-        )}
+        {create.error && <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>}
       </Card>
 
       <div className="space-y-3">
@@ -169,9 +174,7 @@ function AssetTypeRow({
               {t.assetTypes.reset}
             </Button>
           </div>
-          {save.error && (
-            <p className="text-xs text-red-600">{errorMessage(save.error)}</p>
-          )}
+          {save.error && <p className="text-xs text-red-600">{errorMessage(save.error)}</p>}
         </div>
       )}
     </Card>
