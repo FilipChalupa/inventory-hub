@@ -3,6 +3,7 @@ import { ns } from './util.js';
 /** Navigation labels. */
 export const nav = ns({
   cs: {
+    dashboard: 'Přehled',
     assets: 'Assety',
     scan: 'Sken',
     loans: 'Výpůjčky',
@@ -19,6 +20,7 @@ export const nav = ns({
     logout: 'Odhlásit',
   },
   en: {
+    dashboard: 'Dashboard',
     assets: 'Assets',
     scan: 'Scan',
     loans: 'Loans',

@@ -28,6 +28,7 @@ import { invitationRoutes } from './routes/invitations.js';
 import { userRoutes } from './routes/users.js';
 import { contactRoutes } from './routes/contacts.js';
 import { apiKeyRoutes } from './routes/api-keys.js';
+import { statsRoutes } from './routes/stats.js';
 import { authRoutes } from './routes/auth.js';
 import { authLoader, requireAuth } from './middleware/auth.js';
 import { isMcpCsrfExempt, mountMcp } from './mcp/http.js';
@@ -230,6 +231,7 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/users', userRoutes);
   app.route('/api/contacts', contactRoutes);
   app.route('/api/api-keys', apiKeyRoutes);
+  app.route('/api/stats', statsRoutes);
 
   // Remote MCP server: OAuth 2.1 authorization-server + resource-server
   // endpoints (well-known metadata, /register, /authorize, /token) and the

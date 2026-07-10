@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { LOCALES, type Locale } from './util.js';
 import { nav, assetStatuses, loanStatuses, common } from './core.js';
+import { dashboard } from './dashboard.js';
 import { today } from './today.js';
 import { login } from './login.js';
 import { acceptInvite } from './acceptInvite.js';
@@ -34,6 +35,7 @@ const catalog = {
     assetStatuses: assetStatuses.cs,
     loanStatuses: loanStatuses.cs,
     common: common.cs,
+    dashboard: dashboard.cs,
     today: today.cs,
     login: login.cs,
     acceptInvite: acceptInvite.cs,
@@ -64,6 +66,7 @@ const catalog = {
     assetStatuses: assetStatuses.en,
     loanStatuses: loanStatuses.en,
     common: common.en,
+    dashboard: dashboard.en,
     today: today.en,
     login: login.en,
     acceptInvite: acceptInvite.en,

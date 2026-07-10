@@ -322,6 +322,15 @@ export async function uploadFile(file: File): Promise<{ path: string; url: strin
   return res.json() as Promise<{ path: string; url: string }>;
 }
 
+export type DashboardStats = {
+  totalActive: number;
+  byStatus: { status: AssetStatus; count: number }[];
+  byType: { typeId: string | null; typeName: string; count: number }[];
+  byLocation: { locationId: string; locationName: string; count: number }[];
+  loans: { active: number; overdue: number; planned: number };
+  inRepair: number;
+};
+
 export const apiClient = {
   health: () => api<{ status: string; time: string }>('/health'),
 
@@ -621,6 +630,10 @@ export const apiClient = {
         `/api/inventory/${id}/mark-lost`,
         { method: 'POST', body: { codes } },
       ),
+  },
+
+  stats: {
+    get: () => api<DashboardStats>('/api/stats'),
   },
 
   apiKeys: {

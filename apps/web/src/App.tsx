@@ -26,6 +26,7 @@ function page<T extends Record<string, ComponentType<object>>>(
   return lazy(() => loader().then((m) => ({ default: m[name] })));
 }
 
+const DashboardPage = page(() => import('./pages/DashboardPage.js'), 'DashboardPage');
 const AssetsPage = page(() => import('./pages/AssetsPage.js'), 'AssetsPage');
 const AssetDetailPage = page(() => import('./pages/AssetDetailPage.js'), 'AssetDetailPage');
 const NewAssetPage = page(() => import('./pages/NewAssetPage.js'), 'NewAssetPage');
@@ -58,6 +59,7 @@ type NavItem = { to: string; key: NavKey; end?: boolean };
 
 // Primary workflow — always visible in the bar.
 const mainNav: NavItem[] = [
+  { to: '/dashboard', key: 'dashboard' },
   { to: '/assets', key: 'assets' },
   { to: '/scan', key: 'scan' },
   { to: '/loans', key: 'loans' },
@@ -191,6 +193,7 @@ function Shell() {
             <Suspense fallback={<RouteFallback />}>
               <Routes>
                 <Route path="/" element={<TodayPage />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/assets" element={<AssetsPage />} />
                 <Route path="/assets/new" element={<NewAssetPage />} />
                 <Route path="/assets/import" element={<ImportAssetsPage />} />
