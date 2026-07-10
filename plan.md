@@ -43,9 +43,6 @@ kompletní historii pohybů, poškození a výpůjček.
 - RFID / Bluetooth tagy.
 - API pro integrace.
 - Billing & subscription tiers.
-- **Role u mutací výpůjček (nice to have)** — teď může výpůjčky zakládat,
-  editovat, mazat i z nich odebírat položky kterýkoli přihlášený uživatel
-  (`requireAuth()` v `app.ts`). Zvážit omezení mazání/úprav jen na admina.
 
 ## 5. Unikátní identifikátor assetu
 
@@ -61,6 +58,7 @@ instance může prefix zapnout, default je bez něj.
 - `SEQ` — zero-padded sekvence v rámci kategorie, ≥ 5 míst.
 
 Pravidla:
+
 - Pouze `A–Z`, `0–9` a `-`.
 - Case-insensitive při vyhledávání.
 - Kód je primární identifikátor v URL: `/a/LAP-000123`.
@@ -72,23 +70,23 @@ hlavního vyhledávání i ze skeneru.
 
 ## 6. Tech stack souhrn
 
-| Vrstva       | Technologie                                  |
-|--------------|----------------------------------------------|
-| Frontend     | Vite + React + TypeScript                    |
-| Styling      | Tailwind (+ dark mode `class`)               |
-| State/Data   | TanStack Query                               |
-| Validace     | Zod (sdílená mezi FE a BE)                   |
-| Backend      | Node + Hono + TypeScript                     |
-| ORM          | Drizzle (auto-migrate na startu)             |
-| Databáze     | SQLite (WAL mode)                            |
-| Auth         | Custom session + Google OAuth (PKCE)         |
-| QR           | `html5-qrcode`                               |
-| Storage      | lokální FS (volume), volitelně S3-compatible |
-| Deployment   | Docker (single image, SPA + API z jednoho portu) + docker-compose |
-| Zálohy       | Litestream → S3-compatible                   |
-| CI           | GitHub Actions (typecheck + unit + E2E)      |
-| Testy        | Vitest + Playwright (E2E)                    |
-| Offline      | Service worker (read-only cache)             |
+| Vrstva     | Technologie                                                       |
+| ---------- | ----------------------------------------------------------------- |
+| Frontend   | Vite + React + TypeScript                                         |
+| Styling    | Tailwind (+ dark mode `class`)                                    |
+| State/Data | TanStack Query                                                    |
+| Validace   | Zod (sdílená mezi FE a BE)                                        |
+| Backend    | Node + Hono + TypeScript                                          |
+| ORM        | Drizzle (auto-migrate na startu)                                  |
+| Databáze   | SQLite (WAL mode)                                                 |
+| Auth       | Custom session + Google OAuth (PKCE)                              |
+| QR         | `html5-qrcode`                                                    |
+| Storage    | lokální FS (volume), volitelně S3-compatible                      |
+| Deployment | Docker (single image, SPA + API z jednoho portu) + docker-compose |
+| Zálohy     | Litestream → S3-compatible                                        |
+| CI         | GitHub Actions (typecheck + unit + E2E)                           |
+| Testy      | Vitest + Playwright (E2E)                                         |
+| Offline    | Service worker (read-only cache)                                  |
 
 ## 7. Rozhodnuté otázky (historie)
 
@@ -107,8 +105,8 @@ hlavního vyhledávání i ze skeneru.
 5. **Custom fields v MVP** — ano, přes `customFieldsSchema` na asset typu.
 6. **Offline support** — základní read-only přes service worker. Writes
    pass-through s offline banner; queue offline mutací odložen.
-7. **Lokalizace** — zatím jen CZ, infrastruktura (`messages.ts`) připravená;
-   EN doplníme až ji někdo bude potřebovat.
+7. **Lokalizace** — CZ + EN hotové (per-namespace katalogy v `i18n/`,
+   runtime přepínač jazyka, default z jazyka prohlížeče).
 8. **Compliance** — TODO koment ve `lib/sessions.ts`. GDPR v scope, další
    regimes (HIPAA, SOC 2, ISO 27001…) explicitně mimo MVP.
 
