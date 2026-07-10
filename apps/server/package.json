@@ -29,7 +29,7 @@
     "nodemailer": "^9.0.3",
     "qrcode": "^1.5.4",
     "swagger-ui-dist": "^5.32.6",
-    "zod": "^3.23.8",
+    "zod": "^4.4.3",
     "zod-to-json-schema": "^3.25.2"
   },
   "devDependencies": {
