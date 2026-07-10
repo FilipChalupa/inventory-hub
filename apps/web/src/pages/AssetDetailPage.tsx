@@ -14,6 +14,7 @@ import {
   StatusBadge,
   Textarea,
   formatDate,
+  formatDateOnly,
 } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
 import { CustomFieldsValuesForm } from '../components/CustomFieldsValuesForm.js';
@@ -386,7 +387,7 @@ export function AssetDetailPage() {
           <dt className="text-slate-500">{t.assetDetail.archivedAt}</dt>
           <dd>{a.archivedAt ? formatDate(a.archivedAt) : t.common.none}</dd>
           <dt className="text-slate-500">{t.assetDetail.purchasedAt}</dt>
-          <dd>{a.purchasedAt ? formatDate(a.purchasedAt) : t.common.none}</dd>
+          <dd>{a.purchasedAt ? formatDateOnly(a.purchasedAt) : t.common.none}</dd>
           <dt className="text-slate-500">{t.assetDetail.warrantyUntil}</dt>
           <dd>
             {a.warrantyUntil
@@ -402,7 +403,7 @@ export function AssetDetailPage() {
                             : undefined
                       }
                     >
-                      {formatDate(a.warrantyUntil)}
+                      {formatDateOnly(a.warrantyUntil)}
                       {w === 'expired' && ` · ${t.assetDetail.warrantyExpired}`}
                       {w === 'soon' && ` · ${t.assetDetail.warrantyExpiringSoon}`}
                     </span>

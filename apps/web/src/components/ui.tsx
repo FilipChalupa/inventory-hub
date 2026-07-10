@@ -171,3 +171,15 @@ export function formatDate(value: string | Date | null | undefined): string {
   const d = typeof value === 'string' ? new Date(value) : value;
   return d.toLocaleString(localeTag(getLocale()), { dateStyle: 'medium', timeStyle: 'short' });
 }
+
+/**
+ * Formats a date-only value (no time) in UTC. Date-only fields (purchase /
+ * warranty dates) are stored as UTC midnight, so rendering in the viewer's
+ * local zone would drop the time noise but could also shift the day; pinning
+ * to UTC keeps the displayed day equal to the entered one everywhere.
+ */
+export function formatDateOnly(value: string | Date | null | undefined): string {
+  if (!value) return '—';
+  const d = typeof value === 'string' ? new Date(value) : value;
+  return d.toLocaleDateString(localeTag(getLocale()), { dateStyle: 'medium', timeZone: 'UTC' });
+}
