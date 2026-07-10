@@ -1,0 +1,14 @@
+# Litestream configuration — continuous replication of the app's SQLite DB.
+# Mounted read-only into the litestream sidecar at /etc/litestream.yml by
+# docker-compose.litestream.yml. Values are pulled from environment variables
+# (see that file / .env). Access keys come from LITESTREAM_ACCESS_KEY_ID and
+# LITESTREAM_SECRET_ACCESS_KEY, which Litestream reads automatically.
+
+dbs:
+  - path: /data/app.db
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_S3_BUCKET}
+        path: ${LITESTREAM_S3_PATH}
+        endpoint: ${LITESTREAM_S3_ENDPOINT}
+        region: ${LITESTREAM_S3_REGION}

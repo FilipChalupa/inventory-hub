@@ -29,6 +29,33 @@ describe('org API — MCP connection info', () => {
   });
 });
 
+describe('org API — backup status', () => {
+  let server: TestServer;
+  let cookie: string;
+
+  afterEach(() => {
+    server.close();
+  });
+
+  it('reports backupsConfigured false by default', async () => {
+    server = setupTestServer();
+    cookie = server.loginAs(server.createUser({ role: 'admin' }));
+    const res = await server.authRequest('/api/org', { cookie });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { backupsConfigured: boolean };
+    expect(body.backupsConfigured).toBe(false);
+  });
+
+  it('reports backupsConfigured true when the env flag is set', async () => {
+    server = setupTestServer({ BACKUPS_CONFIGURED: true });
+    cookie = server.loginAs(server.createUser({ role: 'admin' }));
+    const res = await server.authRequest('/api/org', { cookie });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { backupsConfigured: boolean };
+    expect(body.backupsConfigured).toBe(true);
+  });
+});
+
 describe('org API — label settings', () => {
   let server: TestServer;
   let cookie: string;

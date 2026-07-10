@@ -7,7 +7,11 @@ import { Button, Card, Field, Input, Select, formatDate } from '../components/ui
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { useT } from '../i18n/index.js';
+import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 import type { AllowedDomain, UserRole } from '@inventory-hub/shared';
+
+const SELF_HOSTING_DOCS_URL =
+  'https://github.com/FilipChalupa/inventory-hub/blob/main/docs/SELF_HOSTING.md#backups';
 
 type SettingsForm = { name: string; codePrefix: string };
 
@@ -50,6 +54,8 @@ export function SettingsPage() {
   return (
     <section className="space-y-6 max-w-2xl">
       <h1 className="text-2xl font-bold">{t.settings.title}</h1>
+
+      <BackupWarning backupsConfigured={org.data?.backupsConfigured} />
 
       <form className="space-y-4" onSubmit={handleSubmit((v) => save.mutate(v))}>
         <Card>
@@ -138,6 +144,38 @@ export function SettingsPage() {
 
       <McpConnectionSection />
     </section>
+  );
+}
+
+/**
+ * Admin-only nudge shown when the server reports no configured backups
+ * (`BACKUPS_CONFIGURED` env unset). Losing the SQLite file is the single
+ * biggest data-loss risk, so we surface it here rather than in the app shell.
+ * Hidden while the flag is still unknown (undefined) to avoid a flash.
+ */
+function BackupWarning({ backupsConfigured }: { backupsConfigured: boolean | undefined }) {
+  const t = useT();
+  const isAdmin = hasRole(useCurrentUser(), 'admin');
+  if (!isAdmin || backupsConfigured !== false) return null;
+  return (
+    <Card className="border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-700">
+      <h2 className="font-semibold text-amber-900 dark:text-amber-200 mb-1">
+        ⚠ {t.settings.backupsWarnTitle}
+      </h2>
+      <p className="text-sm text-amber-900 dark:text-amber-200">
+        {t.settings.backupsWarnBody}
+        <span className="font-mono">BACKUPS_CONFIGURED</span>
+        {t.settings.backupsWarnBody2}
+      </p>
+      <a
+        href={SELF_HOSTING_DOCS_URL}
+        target="_blank"
+        rel="noreferrer"
+        className="mt-2 inline-block text-sm font-medium text-amber-900 underline dark:text-amber-200"
+      >
+        {t.settings.backupsWarnLink}
+      </a>
+    </Card>
   );
 }
 

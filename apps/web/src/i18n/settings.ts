@@ -109,6 +109,13 @@ export const settings = ns({
     // Allowed domains editor
     removeDomain: 'Odebrat',
     addDomain: 'Přidat',
+
+    // Backup warning (admin-only)
+    backupsWarnTitle: 'Zálohy nejsou nakonfigurované',
+    backupsWarnBody:
+      'Databáze se nikam nezálohuje — při ztrátě disku nebo volume přijdeš o všechna data. Nastav zálohy (doporučeně Litestream) a pak nastav env ',
+    backupsWarnBody2: ' na 1.',
+    backupsWarnLink: 'Návod v SELF_HOSTING →',
   },
   en: {
     // Page + org settings
@@ -217,5 +224,12 @@ export const settings = ns({
     // Allowed domains editor
     removeDomain: 'Remove',
     addDomain: 'Add',
+
+    // Backup warning (admin-only)
+    backupsWarnTitle: 'Backups are not configured',
+    backupsWarnBody:
+      'The database is not being backed up anywhere — if the disk or volume is lost, all data is gone. Set up backups (Litestream recommended), then set the env ',
+    backupsWarnBody2: ' to 1.',
+    backupsWarnLink: 'See SELF_HOSTING guide →',
   },
 });

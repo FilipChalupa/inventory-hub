@@ -1,3 +1,7 @@
+# Backups are NOT enabled by default. Losing the /data volume loses everything.
+# For turn-key continuous backups, layer on the Litestream override:
+#   docker compose -f docker-compose.yml -f docker-compose.litestream.yml up -d
+# See docker-compose.litestream.yml and docs/SELF_HOSTING.md.
 services:
   app:
     build:
@@ -15,6 +19,9 @@ services:
       GOOGLE_REDIRECT_URL: ${GOOGLE_REDIRECT_URL:-http://localhost:3001/auth/google/callback}
       PUBLIC_APP_URL: ${PUBLIC_APP_URL:-http://localhost:3001}
       UPLOAD_DIR: /data/uploads
+      # Set to 1 once you've wired up backups (e.g. the Litestream override, or
+      # your own cron). Silences the admin "backups not configured" warning.
+      BACKUPS_CONFIGURED: ${BACKUPS_CONFIGURED:-}
     volumes:
       - inventory_data:/data
     ports:

@@ -21,6 +21,7 @@ const TEST_ENV_BASE: Env = {
   UPLOAD_MAX_BYTES: 5_242_880,
   MCP_ACCESS_TOKEN_TTL: 3600,
   MCP_REFRESH_TOKEN_TTL: 60 * 60 * 24 * 30,
+  BACKUPS_CONFIGURED: false,
 };
 
 function freshTestEnv(): Env {
@@ -57,10 +58,10 @@ export type TestServer = {
  * one default asset type (`LAP`). Returns helpers to spawn users + perform
  * authenticated requests via `app.request`.
  */
-export function setupTestServer(): TestServer {
+export function setupTestServer(envOverrides: Partial<Env> = {}): TestServer {
   const { db, sqlite } = createTestDb();
   const emailSender = new MemoryEmailSender();
-  const env = freshTestEnv();
+  const env = { ...freshTestEnv(), ...envOverrides };
   const app = createApp({ db, env, emailSender });
 
   db.insert(orgSettings)

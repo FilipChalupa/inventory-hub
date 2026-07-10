@@ -4,6 +4,14 @@ const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().positive().default(3001),
   DATABASE_URL: z.string().default('file:./data/app.db'),
+  // The app has no way to know whether backups are actually running — it only
+  // knows what you tell it via env. Set this to `1`/`true` once you've wired up
+  // Litestream (or another backup mechanism); it silences the admin "backups
+  // not configured" warning in Settings. See docs/SELF_HOSTING.md.
+  BACKUPS_CONFIGURED: z
+    .string()
+    .optional()
+    .transform((v) => v === '1' || v?.toLowerCase() === 'true'),
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
   GOOGLE_REDIRECT_URL: z.string().url().optional(),

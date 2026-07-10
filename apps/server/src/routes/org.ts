@@ -19,14 +19,22 @@ export const orgRoutes = new Hono<AppContext>()
     // Public web app base URL — the root for human-facing deep links
     // (e.g. `${appUrl}/a/<code>`, `${appUrl}/loans/<id>`). Surfaced here so
     // API/MCP clients can build clickable links without guessing the host.
-    const appUrl = c.get('env').PUBLIC_APP_URL.replace(/\/$/, '');
+    const env = c.get('env');
+    const appUrl = env.PUBLIC_APP_URL.replace(/\/$/, '');
+    // Surfaced so the admin Settings page can warn when backups aren't wired up
+    // (the app only knows this because someone set BACKUPS_CONFIGURED in env).
+    const backupsConfigured = env.BACKUPS_CONFIGURED;
     const row = db.select().from(orgSettings).where(eq(orgSettings.id, SINGLETON_ID)).get();
     if (!row) {
-      return c.json({ initialized: false, appUrl, labelSettings: DEFAULT_LABEL_SETTINGS }, 200);
+      return c.json(
+        { initialized: false, appUrl, backupsConfigured, labelSettings: DEFAULT_LABEL_SETTINGS },
+        200,
+      );
     }
     return c.json({
       initialized: true,
       appUrl,
+      backupsConfigured,
       settings: {
         name: row.name,
         codePrefix: row.codePrefix,
