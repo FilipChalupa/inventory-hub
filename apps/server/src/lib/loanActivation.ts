@@ -24,7 +24,10 @@ export function activateLoan(
     tx.update(loans).set({ startedAt: now, updatedAt: now }).where(eq(loans.id, loanId)).run();
     for (const it of items) {
       if (it.returnedAt !== null) continue;
-      tx.update(assets).set({ status: 'on_loan', updatedAt: now }).where(eq(assets.id, it.assetId)).run();
+      tx.update(assets)
+        .set({ status: 'on_loan', updatedAt: now })
+        .where(eq(assets.id, it.assetId))
+        .run();
       tx.insert(assetEvents)
         .values({
           assetId: it.assetId,

@@ -309,7 +309,9 @@ export const inventoryScans = sqliteTable(
     assetId: text('asset_id')
       .notNull()
       .references(() => assets.id, { onDelete: 'cascade' }),
-    scannedByUserId: text('scanned_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+    scannedByUserId: text('scanned_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     scannedAt: integer('scanned_at', { mode: 'timestamp_ms' })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),

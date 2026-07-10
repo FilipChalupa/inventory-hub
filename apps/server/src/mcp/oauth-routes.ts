@@ -14,7 +14,7 @@
  * the user is bounced through the existing Google login and returned here.
  */
 import { Hono } from 'hono';
-import { getCookie, setCookie, deleteCookie } from 'hono/cookie';
+import { getCookie, setCookie } from 'hono/cookie';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { getMcpIssuer, getMcpResourceUrl } from '../env.js';

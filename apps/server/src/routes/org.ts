@@ -1,7 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
 import { eq } from 'drizzle-orm';
-import { orgSettingsSchema, labelSettingsSchema, DEFAULT_LABEL_SETTINGS } from '@inventory-hub/shared';
+import {
+  orgSettingsSchema,
+  labelSettingsSchema,
+  DEFAULT_LABEL_SETTINGS,
+} from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { orgSettings } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -70,12 +74,13 @@ export const orgRoutes = new Hono<AppContext>()
   .put('/label-settings', requireAuth('admin'), zValidator('json', labelSettingsSchema), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
-    const row = db.select({ id: orgSettings.id }).from(orgSettings).where(eq(orgSettings.id, SINGLETON_ID)).get();
+    const row = db
+      .select({ id: orgSettings.id })
+      .from(orgSettings)
+      .where(eq(orgSettings.id, SINGLETON_ID))
+      .get();
     if (!row) {
-      return c.json(
-        { error: { message: 'Nejdřív vyplň základní nastavení organizace.' } },
-        400,
-      );
+      return c.json({ error: { message: 'Nejdřív vyplň základní nastavení organizace.' } }, 400);
     }
     db.update(orgSettings)
       .set({ labelSettings: input, updatedAt: new Date() })

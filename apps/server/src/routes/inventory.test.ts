@@ -77,8 +77,9 @@ describe('inventory API', () => {
     expect(((await scanRes.json()) as { result: string }).result).toBe('found');
 
     const detail = await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json();
-    const report = (detail as { report: { counts: Record<string, number>; missing: { code: string }[] } })
-      .report;
+    const report = (
+      detail as { report: { counts: Record<string, number>; missing: { code: string }[] } }
+    ).report;
     expect(report.counts.expected).toBe(2);
     expect(report.counts.found).toBe(1);
     expect(report.counts.missing).toBe(1);
@@ -212,14 +213,18 @@ describe('inventory API', () => {
       codePrefix: 'MON',
     });
     const monTypeId = ((await typeRes.json()) as { id: string }).id;
-    const monRes = await jsonPost(server, cookie, '/api/assets', { name: 'Mon', typeId: monTypeId });
+    const monRes = await jsonPost(server, cookie, '/api/assets', {
+      name: 'Mon',
+      typeId: monTypeId,
+    });
     const monCode = ((await monRes.json()) as { code: string }).code;
     await makeAsset(server, cookie, 'Laptop'); // laptop type — outside scope
 
     const sid = await createSession(server, cookie, { typeIds: [monTypeId] });
     const detail = await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json();
-    const report = (detail as { report: { counts: Record<string, number>; missing: { code: string }[] } })
-      .report;
+    const report = (
+      detail as { report: { counts: Record<string, number>; missing: { code: string }[] } }
+    ).report;
     expect(report.counts.expected).toBe(1);
     expect(report.missing.map((m) => m.code)).toEqual([monCode]);
   });
@@ -230,9 +235,11 @@ describe('inventory API', () => {
 
     const sid = await createSession(server, cookie, { assetCodes: [a] });
     expect(
-      ((await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
-        report: { counts: { expected: number } };
-      }).report.counts.expected,
+      (
+        (await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
+          report: { counts: { expected: number } };
+        }
+      ).report.counts.expected,
     ).toBe(1);
 
     // The non-picked asset is out of scope → unexpected when scanned.
@@ -257,7 +264,9 @@ describe('inventory API', () => {
       body: JSON.stringify({ note: 'poškozená krabice' }),
     });
     expect(setRes.status).toBe(200);
-    const setBody = (await setRes.json()) as { report: { missing: { code: string; note: string | null }[] } };
+    const setBody = (await setRes.json()) as {
+      report: { missing: { code: string; note: string | null }[] };
+    };
     expect(setBody.report.missing.find((m) => m.code === a)?.note).toBe('poškozená krabice');
 
     const clearRes = await server.authRequest(`/api/inventory/${sid}/items/${assetId}/note`, {
@@ -266,7 +275,9 @@ describe('inventory API', () => {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ note: '' }),
     });
-    const clearBody = (await clearRes.json()) as { report: { missing: { code: string; note: string | null }[] } };
+    const clearBody = (await clearRes.json()) as {
+      report: { missing: { code: string; note: string | null }[] };
+    };
     expect(clearBody.report.missing.find((m) => m.code === a)?.note).toBeNull();
   });
 
@@ -279,7 +290,9 @@ describe('inventory API', () => {
       body: JSON.stringify({ note: 'obecná poznámka' }),
     });
     expect(res.status).toBe(200);
-    const detail = (await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
+    const detail = (await (
+      await server.authRequest(`/api/inventory/${sid}`, { cookie })
+    ).json()) as {
       session: { note: string | null };
     };
     expect(detail.session.note).toBe('obecná poznámka');

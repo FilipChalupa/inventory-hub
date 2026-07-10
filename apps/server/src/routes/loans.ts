@@ -1,6 +1,20 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm';
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  isNotNull,
+  lt,
+  lte,
+  ne,
+  or,
+  sql,
+} from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createLoanInput,
@@ -11,14 +25,7 @@ import {
   loanWindowsOverlap,
 } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
-import {
-  assetEvents,
-  assets,
-  damageReports,
-  loanItems,
-  loans,
-  users,
-} from '../db/schema.js';
+import { assetEvents, assets, damageReports, loanItems, loans, users } from '../db/schema.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -86,7 +93,12 @@ export const loanRoutes = new Hono<AppContext>()
       ? db
           .select()
           .from(loanItems)
-          .where(inArray(loanItems.loanId, rows.map((l) => l.id)))
+          .where(
+            inArray(
+              loanItems.loanId,
+              rows.map((l) => l.id),
+            ),
+          )
           .all()
       : [];
 
@@ -326,7 +338,12 @@ export const loanRoutes = new Hono<AppContext>()
       ? db
           .select()
           .from(loanItems)
-          .where(inArray(loanItems.loanId, candidates.map((l) => l.id)))
+          .where(
+            inArray(
+              loanItems.loanId,
+              candidates.map((l) => l.id),
+            ),
+          )
           .all()
       : [];
     const itemsByLoan = new Map<string, typeof itemRows>();
@@ -386,7 +403,12 @@ export const loanRoutes = new Hono<AppContext>()
       ? db
           .select()
           .from(loanItems)
-          .where(inArray(loanItems.loanId, rows.map((l) => l.id)))
+          .where(
+            inArray(
+              loanItems.loanId,
+              rows.map((l) => l.id),
+            ),
+          )
           .all()
       : [];
     const itemsByLoan = new Map<string, typeof itemRows>();
@@ -470,7 +492,7 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ items: rows });
   })
-  .patch('/:id', zValidator('json', updateLoanInput), (c) => {
+  .patch('/:id', requireAuth('admin', 'operator'), zValidator('json', updateLoanInput), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
@@ -558,7 +580,10 @@ export const loanRoutes = new Hono<AppContext>()
       input.borrowerContactId !== undefined &&
       (input.borrowerContactId ?? null) !== loan.borrowerContactId
     )
-      changes.borrowerContactId = { from: loan.borrowerContactId, to: input.borrowerContactId ?? null };
+      changes.borrowerContactId = {
+        from: loan.borrowerContactId,
+        to: input.borrowerContactId ?? null,
+      };
     if (
       input.borrowerContact !== undefined &&
       (input.borrowerContact ?? null) !== loan.borrowerContact
@@ -572,7 +597,10 @@ export const loanRoutes = new Hono<AppContext>()
       input.expectedReturnAt !== undefined &&
       (input.expectedReturnAt?.getTime() ?? null) !== (loan.expectedReturnAt?.getTime() ?? null)
     )
-      changes.expectedReturnAt = { from: fmt(loan.expectedReturnAt), to: fmt(input.expectedReturnAt) };
+      changes.expectedReturnAt = {
+        from: fmt(loan.expectedReturnAt),
+        to: fmt(input.expectedReturnAt),
+      };
 
     // Changing the deadline re-arms the overdue notifier; changing a planned
     // start re-arms the "starts soon" reminder. Otherwise a stale flag would
@@ -605,16 +633,13 @@ export const loanRoutes = new Hono<AppContext>()
     });
     return c.json({ ok: true });
   })
-  .delete('/:id', (c) => {
+  .delete('/:id', requireAuth('admin'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const loan = db.select().from(loans).where(eq(loans.id, id)).get();
     if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
     if (loan.startedAt !== null) {
-      return c.json(
-        { error: { message: 'Zahájenou výpůjčku nelze smazat — vrať položky.' } },
-        409,
-      );
+      return c.json({ error: { message: 'Zahájenou výpůjčku nelze smazat — vrať položky.' } }, 409);
     }
 
     const user = c.get('user')!;
@@ -637,115 +662,135 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ ok: true });
   })
-  .post('/:id/items', zValidator('json', addLoanItemsInput), (c) => {
-    const db = c.get('db');
-    const id = c.req.param('id');
-    const input = c.req.valid('json');
-    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
-    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+  .post(
+    '/:id/items',
+    requireAuth('admin', 'operator'),
+    zValidator('json', addLoanItemsInput),
+    (c) => {
+      const db = c.get('db');
+      const id = c.req.param('id');
+      const input = c.req.valid('json');
+      const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+      if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
 
-    const currentItems = db.select().from(loanItems).where(eq(loanItems.loanId, id)).all();
-    if (currentItems.length > 0 && currentItems.every((i) => i.returnedAt !== null)) {
-      return c.json({ error: { message: 'Výpůjčka je už vrácená' } }, 409);
-    }
-
-    const codes = input.assetCodes.map((x) => x.toUpperCase());
-    const targets = db.select().from(assets).where(inArray(assets.code, codes)).all();
-    if (targets.length !== codes.length) {
-      const found = new Set(targets.map((t) => t.code));
-      const missing = codes.filter((x) => !found.has(x));
-      return c.json({ error: { message: `Asset(y) nenalezen(y): ${missing.join(', ')}` } }, 400);
-    }
-
-    const openAssetIds = new Set(
-      currentItems.filter((i) => i.returnedAt === null).map((i) => i.assetId),
-    );
-    const dup = targets.filter((t) => openAssetIds.has(t.id));
-    if (dup.length) {
-      return c.json(
-        { error: { message: `Asset(y) už ve výpůjčce jsou: ${dup.map((d) => d.code).join(', ')}` } },
-        409,
-      );
-    }
-
-    const archived = targets.filter((t) => t.archivedAt !== null);
-    if (archived.length) {
-      return c.json(
-        { error: { message: `Asset(y) jsou archivované: ${archived.map((b) => b.code).join(', ')}` } },
-        409,
-      );
-    }
-    const notLoanable = targets.filter(
-      (t) => !(LOANABLE_STATUSES as readonly string[]).includes(t.status),
-    );
-    if (notLoanable.length) {
-      return c.json(
-        {
-          error: {
-            message: `Asset(y) nelze v tomto stavu půjčit: ${notLoanable
-              .map((b) => `${b.code} (${b.status})`)
-              .join(', ')}`,
-          },
-        },
-        409,
-      );
-    }
-
-    // The added assets must be free in this loan's window vs other loans.
-    const newStart = loan.loanedAt;
-    const newEnd = loan.expectedReturnAt;
-    const targetIds = targets.map((t) => t.id);
-    const others = db
-      .select({
-        code: assets.code,
-        loanedAt: loans.loanedAt,
-        expectedReturnAt: loans.expectedReturnAt,
-      })
-      .from(loanItems)
-      .innerJoin(assets, eq(loanItems.assetId, assets.id))
-      .innerJoin(loans, eq(loanItems.loanId, loans.id))
-      .where(
-        and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt), ne(loanItems.loanId, id)),
-      )
-      .all();
-    const conflicts = [
-      ...new Set(
-        others
-          .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
-          .map((e) => e.code),
-      ),
-    ];
-    if (conflicts.length) {
-      return c.json(
-        { error: { message: `Asset(y) v daném termínu kolidují: ${conflicts.join(', ')}` } },
-        409,
-      );
-    }
-
-    const user = c.get('user')!;
-    const now = new Date();
-    const active = loan.startedAt !== null;
-    db.transaction((tx) => {
-      for (const t of targets) {
-        const itemId = crypto.randomUUID();
-        tx.insert(loanItems).values({ id: itemId, loanId: id, assetId: t.id }).run();
-        if (active) {
-          tx.update(assets).set({ status: 'on_loan', updatedAt: now }).where(eq(assets.id, t.id)).run();
-        }
-        tx.insert(assetEvents)
-          .values({
-            assetId: t.id,
-            actorUserId: user.id,
-            type: 'loan_item_added',
-            payload: { loanId: id, borrower: loan.borrowerName },
-          })
-          .run();
+      const currentItems = db.select().from(loanItems).where(eq(loanItems.loanId, id)).all();
+      if (currentItems.length > 0 && currentItems.every((i) => i.returnedAt !== null)) {
+        return c.json({ error: { message: 'Výpůjčka je už vrácená' } }, 409);
       }
-    });
 
-    return c.json({ ok: true, added: targets.length });
-  })
-  .delete('/:id/items/:itemId', (c) => {
+      const codes = input.assetCodes.map((x) => x.toUpperCase());
+      const targets = db.select().from(assets).where(inArray(assets.code, codes)).all();
+      if (targets.length !== codes.length) {
+        const found = new Set(targets.map((t) => t.code));
+        const missing = codes.filter((x) => !found.has(x));
+        return c.json({ error: { message: `Asset(y) nenalezen(y): ${missing.join(', ')}` } }, 400);
+      }
+
+      const openAssetIds = new Set(
+        currentItems.filter((i) => i.returnedAt === null).map((i) => i.assetId),
+      );
+      const dup = targets.filter((t) => openAssetIds.has(t.id));
+      if (dup.length) {
+        return c.json(
+          {
+            error: {
+              message: `Asset(y) už ve výpůjčce jsou: ${dup.map((d) => d.code).join(', ')}`,
+            },
+          },
+          409,
+        );
+      }
+
+      const archived = targets.filter((t) => t.archivedAt !== null);
+      if (archived.length) {
+        return c.json(
+          {
+            error: {
+              message: `Asset(y) jsou archivované: ${archived.map((b) => b.code).join(', ')}`,
+            },
+          },
+          409,
+        );
+      }
+      const notLoanable = targets.filter(
+        (t) => !(LOANABLE_STATUSES as readonly string[]).includes(t.status),
+      );
+      if (notLoanable.length) {
+        return c.json(
+          {
+            error: {
+              message: `Asset(y) nelze v tomto stavu půjčit: ${notLoanable
+                .map((b) => `${b.code} (${b.status})`)
+                .join(', ')}`,
+            },
+          },
+          409,
+        );
+      }
+
+      // The added assets must be free in this loan's window vs other loans.
+      const newStart = loan.loanedAt;
+      const newEnd = loan.expectedReturnAt;
+      const targetIds = targets.map((t) => t.id);
+      const others = db
+        .select({
+          code: assets.code,
+          loanedAt: loans.loanedAt,
+          expectedReturnAt: loans.expectedReturnAt,
+        })
+        .from(loanItems)
+        .innerJoin(assets, eq(loanItems.assetId, assets.id))
+        .innerJoin(loans, eq(loanItems.loanId, loans.id))
+        .where(
+          and(
+            inArray(loanItems.assetId, targetIds),
+            isNull(loanItems.returnedAt),
+            ne(loanItems.loanId, id),
+          ),
+        )
+        .all();
+      const conflicts = [
+        ...new Set(
+          others
+            .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
+            .map((e) => e.code),
+        ),
+      ];
+      if (conflicts.length) {
+        return c.json(
+          { error: { message: `Asset(y) v daném termínu kolidují: ${conflicts.join(', ')}` } },
+          409,
+        );
+      }
+
+      const user = c.get('user')!;
+      const now = new Date();
+      const active = loan.startedAt !== null;
+      db.transaction((tx) => {
+        for (const t of targets) {
+          const itemId = crypto.randomUUID();
+          tx.insert(loanItems).values({ id: itemId, loanId: id, assetId: t.id }).run();
+          if (active) {
+            tx.update(assets)
+              .set({ status: 'on_loan', updatedAt: now })
+              .where(eq(assets.id, t.id))
+              .run();
+          }
+          tx.insert(assetEvents)
+            .values({
+              assetId: t.id,
+              actorUserId: user.id,
+              type: 'loan_item_added',
+              payload: { loanId: id, borrower: loan.borrowerName },
+            })
+            .run();
+        }
+      });
+
+      return c.json({ ok: true, added: targets.length });
+    },
+  )
+  .delete('/:id/items/:itemId', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const loanId = c.req.param('id');
     const itemId = c.req.param('itemId');
@@ -777,7 +822,10 @@ export const loanRoutes = new Hono<AppContext>()
       tx.delete(loanItems).where(eq(loanItems.id, itemId)).run();
       // On an active loan the asset was out — put it back in stock.
       if (loan.startedAt !== null && asset && asset.status === 'on_loan') {
-        tx.update(assets).set({ status: 'in_stock', updatedAt: now }).where(eq(assets.id, item.assetId)).run();
+        tx.update(assets)
+          .set({ status: 'in_stock', updatedAt: now })
+          .where(eq(assets.id, item.assetId))
+          .run();
       }
       tx.insert(assetEvents)
         .values({
@@ -791,7 +839,7 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ ok: true });
   })
-  .post('/', zValidator('json', createLoanInput), (c) => {
+  .post('/', requireAuth('admin', 'operator'), zValidator('json', createLoanInput), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
 
@@ -932,7 +980,7 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ id: loanId }, 201);
   })
-  .post('/:id/start', (c) => {
+  .post('/:id/start', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const loan = db.select().from(loans).where(eq(loans.id, id)).get();
@@ -944,56 +992,61 @@ export const loanRoutes = new Hono<AppContext>()
     activateLoan(db, id, user.id, new Date());
     return c.json({ ok: true });
   })
-  .post('/:id/return-all', zValidator('json', z.object({ returnedAt: z.coerce.date().optional() })), (c) => {
-    const db = c.get('db');
-    const loanId = c.req.param('id');
-    const input = c.req.valid('json');
-    const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
-    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
-    if (loan.startedAt === null) {
-      return c.json({ error: { message: 'Výpůjčka ještě nezačala' } }, 409);
-    }
-
-    const open = db
-      .select()
-      .from(loanItems)
-      .where(and(eq(loanItems.loanId, loanId), isNull(loanItems.returnedAt)))
-      .all();
-    if (open.length === 0) {
-      return c.json({ error: { message: 'Žádné nevrácené položky' } }, 409);
-    }
-
-    const user = c.get('user')!;
-    const now = new Date();
-    const returnedAt = input.returnedAt ?? now;
-    const dateError = returnDateError(returnedAt, loan.startedAt ?? loan.loanedAt, now);
-    if (dateError) return c.json({ error: { message: dateError } }, 400);
-    // Bulk return treats everything as returned in good condition; damaged
-    // items still go through the per-item flow that files a damage report.
-    db.transaction((tx) => {
-      for (const item of open) {
-        tx.update(loanItems)
-          .set({ returnedAt, returnCondition: 'ok', returnNotes: null })
-          .where(eq(loanItems.id, item.id))
-          .run();
-        tx.update(assets)
-          .set({ status: 'in_stock', updatedAt: now })
-          .where(eq(assets.id, item.assetId))
-          .run();
-        tx.insert(assetEvents)
-          .values({
-            assetId: item.assetId,
-            actorUserId: user.id,
-            type: 'loan_item_returned',
-            occurredAt: returnedAt,
-            payload: { loanId, itemId: item.id, condition: 'ok' },
-          })
-          .run();
+  .post(
+    '/:id/return-all',
+    requireAuth('admin', 'operator'),
+    zValidator('json', z.object({ returnedAt: z.coerce.date().optional() })),
+    (c) => {
+      const db = c.get('db');
+      const loanId = c.req.param('id');
+      const input = c.req.valid('json');
+      const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
+      if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+      if (loan.startedAt === null) {
+        return c.json({ error: { message: 'Výpůjčka ještě nezačala' } }, 409);
       }
-    });
 
-    return c.json({ ok: true, returned: open.length });
-  })
+      const open = db
+        .select()
+        .from(loanItems)
+        .where(and(eq(loanItems.loanId, loanId), isNull(loanItems.returnedAt)))
+        .all();
+      if (open.length === 0) {
+        return c.json({ error: { message: 'Žádné nevrácené položky' } }, 409);
+      }
+
+      const user = c.get('user')!;
+      const now = new Date();
+      const returnedAt = input.returnedAt ?? now;
+      const dateError = returnDateError(returnedAt, loan.startedAt ?? loan.loanedAt, now);
+      if (dateError) return c.json({ error: { message: dateError } }, 400);
+      // Bulk return treats everything as returned in good condition; damaged
+      // items still go through the per-item flow that files a damage report.
+      db.transaction((tx) => {
+        for (const item of open) {
+          tx.update(loanItems)
+            .set({ returnedAt, returnCondition: 'ok', returnNotes: null })
+            .where(eq(loanItems.id, item.id))
+            .run();
+          tx.update(assets)
+            .set({ status: 'in_stock', updatedAt: now })
+            .where(eq(assets.id, item.assetId))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: item.assetId,
+              actorUserId: user.id,
+              type: 'loan_item_returned',
+              occurredAt: returnedAt,
+              payload: { loanId, itemId: item.id, condition: 'ok' },
+            })
+            .run();
+        }
+      });
+
+      return c.json({ ok: true, returned: open.length });
+    },
+  )
   .post('/notify-overdue', requireAuth('admin'), async (c) => {
     const db = c.get('db');
     const env = c.get('env');
@@ -1001,87 +1054,92 @@ export const loanRoutes = new Hono<AppContext>()
     const result = await runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL });
     return c.json(result);
   })
-  .post('/:id/items/:itemId/return', zValidator('json', returnLoanItemInput.omit({ loanItemId: true })), (c) => {
-    const db = c.get('db');
-    const loanId = c.req.param('id');
-    const itemId = c.req.param('itemId');
-    const input = c.req.valid('json');
+  .post(
+    '/:id/items/:itemId/return',
+    requireAuth('admin', 'operator'),
+    zValidator('json', returnLoanItemInput.omit({ loanItemId: true })),
+    (c) => {
+      const db = c.get('db');
+      const loanId = c.req.param('id');
+      const itemId = c.req.param('itemId');
+      const input = c.req.valid('json');
 
-    const item = db
-      .select()
-      .from(loanItems)
-      .where(and(eq(loanItems.id, itemId), eq(loanItems.loanId, loanId)))
-      .get();
-    if (!item) return c.json({ error: { message: 'Položka výpůjčky nenalezena' } }, 404);
-    if (item.returnedAt !== null) {
-      return c.json({ error: { message: 'Položka už je vrácená' } }, 409);
-    }
+      const item = db
+        .select()
+        .from(loanItems)
+        .where(and(eq(loanItems.id, itemId), eq(loanItems.loanId, loanId)))
+        .get();
+      if (!item) return c.json({ error: { message: 'Položka výpůjčky nenalezena' } }, 404);
+      if (item.returnedAt !== null) {
+        return c.json({ error: { message: 'Položka už je vrácená' } }, 409);
+      }
 
-    const asset = db.select().from(assets).where(eq(assets.id, item.assetId)).get();
-    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      const asset = db.select().from(assets).where(eq(assets.id, item.assetId)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
 
-    const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
-    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+      const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
+      if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
 
-    const user = c.get('user')!;
+      const user = c.get('user')!;
 
-    const now = new Date();
-    const returnedAt = input.returnedAt ?? now;
-    const dateError = returnDateError(returnedAt, loan.startedAt ?? loan.loanedAt, now);
-    if (dateError) return c.json({ error: { message: dateError } }, 400);
+      const now = new Date();
+      const returnedAt = input.returnedAt ?? now;
+      const dateError = returnDateError(returnedAt, loan.startedAt ?? loan.loanedAt, now);
+      if (dateError) return c.json({ error: { message: dateError } }, 400);
 
-    db.transaction((tx) => {
-      tx.update(loanItems)
-        .set({
-          returnedAt,
-          returnCondition: input.returnCondition,
-          returnNotes: input.returnNotes ?? null,
-        })
-        .where(eq(loanItems.id, itemId))
-        .run();
-
-      // Asset status update — when item returns ok and is the last open
-      // item, asset goes back in_stock. When damaged, asset goes
-      // in_repair and we also create a damage report.
-      const targetStatus = input.returnCondition === 'damaged' ? 'in_repair' : 'in_stock';
-      tx.update(assets)
-        .set({ status: targetStatus, updatedAt: now })
-        .where(eq(assets.id, asset.id))
-        .run();
-
-      if (input.returnCondition === 'damaged') {
-        const damageId = crypto.randomUUID();
-        tx.insert(damageReports)
-          .values({
-            id: damageId,
-            assetId: asset.id,
-            occurredAt: returnedAt,
-            reportedByUserId: user.id,
-            description: input.returnNotes ?? 'Poškození zjištěno při vrácení výpůjčky.',
-            severity: 'minor',
+      db.transaction((tx) => {
+        tx.update(loanItems)
+          .set({
+            returnedAt,
+            returnCondition: input.returnCondition,
+            returnNotes: input.returnNotes ?? null,
           })
+          .where(eq(loanItems.id, itemId))
           .run();
+
+        // Asset status update — when item returns ok and is the last open
+        // item, asset goes back in_stock. When damaged, asset goes
+        // in_repair and we also create a damage report.
+        const targetStatus = input.returnCondition === 'damaged' ? 'in_repair' : 'in_stock';
+        tx.update(assets)
+          .set({ status: targetStatus, updatedAt: now })
+          .where(eq(assets.id, asset.id))
+          .run();
+
+        if (input.returnCondition === 'damaged') {
+          const damageId = crypto.randomUUID();
+          tx.insert(damageReports)
+            .values({
+              id: damageId,
+              assetId: asset.id,
+              occurredAt: returnedAt,
+              reportedByUserId: user.id,
+              description: input.returnNotes ?? 'Poškození zjištěno při vrácení výpůjčky.',
+              severity: 'minor',
+            })
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: asset.id,
+              actorUserId: user.id,
+              type: 'damage_reported',
+              occurredAt: returnedAt,
+              payload: { source: 'loan_return', loanId, damageReportId: damageId },
+            })
+            .run();
+        }
+
         tx.insert(assetEvents)
           .values({
             assetId: asset.id,
             actorUserId: user.id,
-            type: 'damage_reported',
+            type: 'loan_item_returned',
             occurredAt: returnedAt,
-            payload: { source: 'loan_return', loanId, damageReportId: damageId },
+            payload: { loanId, itemId, condition: input.returnCondition },
           })
           .run();
-      }
+      });
 
-      tx.insert(assetEvents)
-        .values({
-          assetId: asset.id,
-          actorUserId: user.id,
-          type: 'loan_item_returned',
-          occurredAt: returnedAt,
-          payload: { loanId, itemId, condition: input.returnCondition },
-        })
-        .run();
-    });
-
-    return c.json({ ok: true });
-  });
+      return c.json({ ok: true });
+    },
+  );

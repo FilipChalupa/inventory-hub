@@ -32,7 +32,11 @@ export const feedRoutes = new Hono<AppContext>().get('/loans.ics', (c) => {
 
   const token = c.req.query('token');
   if (!token) return c.json({ error: { message: 'Chybí token' } }, 401);
-  const key = db.select().from(apiKeys).where(eq(apiKeys.tokenHash, hashApiKey(token))).get();
+  const key = db
+    .select()
+    .from(apiKeys)
+    .where(eq(apiKeys.tokenHash, hashApiKey(token)))
+    .get();
   if (!key || (key.expiresAt && key.expiresAt <= now)) {
     return c.json({ error: { message: 'Neplatný token' } }, 401);
   }

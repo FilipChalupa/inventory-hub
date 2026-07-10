@@ -41,24 +41,14 @@ describe('asset-types import', () => {
   });
 
   it('rejects duplicate prefix (already in DB)', async () => {
-    const res = await importCsv(
-      server,
-      adminCookie,
-      'name,code_prefix\r\nLaptopX,LAP\r\n',
-      false,
-    );
+    const res = await importCsv(server, adminCookie, 'name,code_prefix\r\nLaptopX,LAP\r\n', false);
     expect(res.status).toBe(400);
     const body = (await res.json()) as { preview: { issues: string[] }[] };
     expect(body.preview[0]!.issues.some((s) => /existuje/.test(s))).toBe(true);
   });
 
   it('rejects duplicate prefix within the CSV itself', async () => {
-    const res = await importCsv(
-      server,
-      adminCookie,
-      'name,code_prefix\r\nA,XX\r\nB,XX\r\n',
-      true,
-    );
+    const res = await importCsv(server, adminCookie, 'name,code_prefix\r\nA,XX\r\nB,XX\r\n', true);
     const body = (await res.json()) as { preview: { issues: string[] }[]; hasErrors: boolean };
     expect(body.hasErrors).toBe(true);
     expect(body.preview[1]!.issues.some((s) => /Duplicitn/.test(s))).toBe(true);

@@ -60,7 +60,13 @@ try {
     // (locations have no natural unique key beyond id).
     const officeId = '00000000-0000-0000-0000-000000002001';
     const storageId = '00000000-0000-0000-0000-000000002002';
-    const existing = new Set(db.select({ id: locations.id }).from(locations).all().map((r) => r.id));
+    const existing = new Set(
+      db
+        .select({ id: locations.id })
+        .from(locations)
+        .all()
+        .map((r) => r.id),
+    );
     if (!existing.has(officeId)) {
       db.insert(locations).values({ id: officeId, name: 'Kancelář', parentId: null }).run();
     }
@@ -81,7 +87,8 @@ try {
   // is naturally idempotent across reseeds.
   const officeForAsset = isE2e
     ? '00000000-0000-0000-0000-000000002001'
-    : db.select({ id: locations.id }).from(locations).where(eq(locations.name, 'Kancelář')).get()?.id;
+    : db.select({ id: locations.id }).from(locations).where(eq(locations.name, 'Kancelář')).get()
+        ?.id;
   const storageForAsset = isE2e
     ? '00000000-0000-0000-0000-000000002002'
     : db.select({ id: locations.id }).from(locations).where(eq(locations.name, 'Sklad')).get()?.id;
@@ -106,7 +113,10 @@ try {
     .onConflictDoNothing()
     .run();
 
-  const count = db.select({ c: sql<number>`count(*)` }).from(assets).get();
+  const count = db
+    .select({ c: sql<number>`count(*)` })
+    .from(assets)
+    .get();
   console.log(`Hotovo. Assetů v DB: ${count?.c ?? 0}`);
 } finally {
   sqlite.close();

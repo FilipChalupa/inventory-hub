@@ -9,6 +9,8 @@ import { loadEnv } from './env.js';
 import { createEmailSender } from './lib/email.js';
 import { activateDueLoans } from './lib/loanActivation.js';
 import { runOverdueCheck, runStartReminders } from './lib/overdue.js';
+import { pruneRateLimits } from './lib/rate-limit.js';
+import { pruneExpiredSessions } from './lib/sessions.js';
 import { pruneExpiredOauth } from './mcp/oauth-store.js';
 
 const env = loadEnv();
@@ -78,6 +80,18 @@ const runActivation = () => {
   } catch (err) {
     console.error('oauth prune failed:', err);
   }
+  // Sweep expired login sessions so the table doesn't grow without bound.
+  try {
+    pruneExpiredSessions(db);
+  } catch (err) {
+    console.error('session prune failed:', err);
+  }
+  // Evict stale in-memory rate-limit buckets (one entry per client IP).
+  try {
+    pruneRateLimits();
+  } catch (err) {
+    console.error('rate-limit prune failed:', err);
+  }
 };
 runActivation();
 const activationTimer = setInterval(runActivation, ACTIVATION_INTERVAL_MS);
@@ -87,6 +101,13 @@ const shutdown = () => {
   clearTimeout(initialTimer);
   clearInterval(overdueTimer);
   clearInterval(activationTimer);
+  // Force-exit fallback: if server.close() hangs (e.g. a stuck keep-alive
+  // connection never drains), don't wait forever. `.unref()` so this timer
+  // itself doesn't keep the process alive if close finishes promptly.
+  setTimeout(() => {
+    console.error('Vynucené ukončení – server.close() nedoběhl včas.');
+    process.exit(1);
+  }, 10_000).unref();
   server.close(() => {
     sqlite.close();
     process.exit(0);

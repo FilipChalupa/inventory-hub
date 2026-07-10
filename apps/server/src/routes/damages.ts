@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { MAX_DAMAGE_PHOTOS, damageSeverities } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assetEvents, assets, damageReports } from '../db/schema.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const createInput = z.object({
   occurredAt: z.coerce.date(),
@@ -78,15 +79,14 @@ export const damageRoutes = new Hono<AppContext>()
 
     return c.json({ id }, 201);
   })
-  .post('/:id/resolve', (c) => {
+  // Reporting a damage (POST /by-asset/:code) stays open to any signed-in
+  // user (members report defects); resolving one is an operator action.
+  .post('/:id/resolve', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const report = db.select().from(damageReports).where(eq(damageReports.id, id)).get();
     if (!report) return c.json({ error: { message: 'Report nenalezen' } }, 404);
-    db.update(damageReports)
-      .set({ resolvedAt: new Date() })
-      .where(eq(damageReports.id, id))
-      .run();
+    db.update(damageReports).set({ resolvedAt: new Date() }).where(eq(damageReports.id, id)).run();
     db.insert(assetEvents)
       .values({
         assetId: report.assetId,

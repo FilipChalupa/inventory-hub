@@ -6,6 +6,7 @@ import { cors } from 'hono/cors';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import { logger } from 'hono/logger';
+import { secureHeaders } from 'hono/secure-headers';
 import { serveStatic } from '@hono/node-server/serve-static';
 import type { Db } from './db/client.js';
 import type { Env } from './env.js';
@@ -34,12 +35,11 @@ import { isMcpCsrfExempt, mountMcp } from './mcp/http.js';
 import {
   openApiDocument,
   DOCS_HTML,
+  SWAGGER_INIT_JS,
   SWAGGER_UI_DIR,
   SWAGGER_UI_FILES,
 } from './lib/openapi.js';
 import { join } from 'node:path';
-// TODO: Dočasné – odebrat import a registraci demoRoutes před finálním releasem.
-import { demoRoutes } from './routes/demo.js';
 
 export type AppContext = {
   Variables: {
@@ -86,6 +86,39 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
     return csrf({ origin: deps.env.PUBLIC_APP_URL })(c, next);
   });
 
+  // Security response headers on every response. CSP is deliberately tuned for
+  // this app rather than locked to defaults:
+  //  - script-src 'self': the SPA loads only its own bundled JS (Vite emits
+  //    external module scripts; the Swagger init is externalised too), so no
+  //    'unsafe-inline'/'unsafe-eval' is needed.
+  //  - style-src allows 'unsafe-inline' because the Vite build and the styled
+  //    error page inject inline <style>/style attributes.
+  //  - img-src allows data: and blob: for QR codes, camera captures and
+  //    locally-previewed photos before upload.
+  //  - connect-src 'self': the frontend talks only to this same origin.
+  //  - frame-ancestors 'none' + X-Frame-Options: DENY: no embedding anywhere.
+  // Google OAuth uses a top-level redirect (not a popup/iframe), so none of
+  // these directives interfere with the login flow.
+  app.use(
+    '*',
+    secureHeaders({
+      xFrameOptions: 'DENY',
+      xContentTypeOptions: 'nosniff',
+      referrerPolicy: 'strict-origin-when-cross-origin',
+      strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+      contentSecurityPolicy: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:'],
+        connectSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+      },
+    }),
+  );
+
   app.use('*', async (c, next) => {
     c.set('db', deps.db);
     c.set('env', deps.env);
@@ -103,6 +136,14 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   // Swagger UI (no external CDN).
   app.get('/openapi.json', (c) => c.json(openApiDocument()));
   app.get('/docs', (c) => c.html(DOCS_HTML));
+  // Externalised Swagger bootstrap (kept out of the HTML so CSP script-src can
+  // stay 'self'). Registered before the generic /docs/:file handler.
+  app.get('/docs/swagger-initializer.js', (c) =>
+    c.body(SWAGGER_INIT_JS, 200, {
+      'content-type': 'application/javascript; charset=utf-8',
+      'cache-control': 'public, max-age=86400',
+    }),
+  );
   app.get('/docs/:file', (c) => {
     const file = c.req.param('file');
     // Defense in depth on top of the whitelist below: a docs asset is always
@@ -115,7 +156,10 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
     if (!contentType) return c.notFound();
     try {
       const body = readFileSync(join(SWAGGER_UI_DIR, file), 'utf8');
-      return c.body(body, 200, { 'content-type': contentType, 'cache-control': 'public, max-age=86400' });
+      return c.body(body, 200, {
+        'content-type': contentType,
+        'cache-control': 'public, max-age=86400',
+      });
     } catch {
       return c.notFound();
     }
@@ -128,6 +172,18 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   // All /api/* routes require an authenticated session. Org PUT additionally
   // requires admin role — handled inside the org router.
   app.use('/api/*', requireAuth());
+
+  // Role model (enforced per-route with `requireAuth(...roles)` in each router):
+  //  - admin:    everything, including destructive deletes (asset type,
+  //              location, contact, loan) and privileged imports.
+  //  - operator: all inventory mutations (create/update/patch/archive/repair/
+  //              assign/external-ids, loans, inventory sessions, damage
+  //              resolve, bulk import) but NOT the admin-only deletes above.
+  //  - member:   read-only across the API, plus may file a damage report
+  //              (POST /api/damages/by-asset/:code) and upload its photo.
+  //  - auditor:  read-only everywhere (enforced globally just below).
+  // GET stays open to any authenticated role; mutations carry an explicit
+  // `requireAuth('admin', ...)` / `requireAuth('admin', 'operator')` guard.
 
   // `auditor` is a read-only role: reject any state-changing request across the
   // whole API in one place, rather than role-guarding every mutation route.
@@ -156,8 +212,6 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.route('/api/users', userRoutes);
   app.route('/api/contacts', contactRoutes);
   app.route('/api/api-keys', apiKeyRoutes);
-  // TODO: Dočasné – odebrat před finálním releasem.
-  app.route('/api/demo', demoRoutes);
 
   // Remote MCP server: OAuth 2.1 authorization-server + resource-server
   // endpoints (well-known metadata, /register, /authorize, /token) and the
@@ -195,7 +249,12 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
         err instanceof HTTPException ? err.message : 'Na serveru došlo k neočekávané chybě.';
       return c.html(renderErrorPage(status, message, { homeUrl: deps.env.PUBLIC_APP_URL }), status);
     }
-    return c.json({ error: { message: err.message } }, status);
+    // Never leak internal error details (stack-adjacent messages, SQL, paths)
+    // to API clients. HTTPExceptions are deliberate, client-safe messages;
+    // anything else is an unexpected 500 and gets a generic body (the real
+    // error is logged above).
+    const message = err instanceof HTTPException ? err.message : 'Interní chyba serveru';
+    return c.json({ error: { message } }, status);
   });
 
   return app;

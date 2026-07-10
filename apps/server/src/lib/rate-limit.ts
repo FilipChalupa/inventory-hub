@@ -54,6 +54,21 @@ export function rateLimit(options: RateLimitOptions) {
 }
 
 /**
+ * Drops expired entries (and any bucket left empty) so the in-memory maps
+ * don't grow unbounded with one entry per distinct client IP. Safe to call
+ * periodically; the per-request path re-creates entries lazily.
+ */
+export function pruneRateLimits(): void {
+  const now = Date.now();
+  for (const [bucketName, map] of buckets) {
+    for (const [ip, entry] of map) {
+      if (entry.resetAt < now) map.delete(ip);
+    }
+    if (map.size === 0) buckets.delete(bucketName);
+  }
+}
+
+/**
  * Test-only: wipe all buckets so tests don't leak state across cases.
  */
 export function _resetRateLimits(): void {

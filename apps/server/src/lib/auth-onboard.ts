@@ -26,7 +26,11 @@ export function findOrCreateUserForGoogle(db: Db, identity: GoogleUser): UserRow
         .set({ googleSubject: identity.sub, imageUrl: identity.picture ?? byEmail.imageUrl })
         .where(eq(users.id, byEmail.id))
         .run();
-      return { ...byEmail, googleSubject: identity.sub, imageUrl: identity.picture ?? byEmail.imageUrl ?? null };
+      return {
+        ...byEmail,
+        googleSubject: identity.sub,
+        imageUrl: identity.picture ?? byEmail.imageUrl ?? null,
+      };
     }
     return byEmail;
   }

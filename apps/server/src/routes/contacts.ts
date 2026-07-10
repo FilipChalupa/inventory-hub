@@ -4,6 +4,7 @@ import { asc, eq, like, or } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { contacts, loans } from '../db/schema.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const createInput = z.object({
   name: z.string().trim().min(1).max(200),
@@ -23,15 +24,13 @@ export const contactRoutes = new Hono<AppContext>()
       .select()
       .from(contacts)
       .where(
-        q
-          ? or(like(contacts.name, `%${q}%`), like(contacts.organization, `%${q}%`))
-          : undefined,
+        q ? or(like(contacts.name, `%${q}%`), like(contacts.organization, `%${q}%`)) : undefined,
       )
       .orderBy(asc(contacts.name))
       .all();
     return c.json({ items: rows });
   })
-  .post('/', zValidator('json', createInput), (c) => {
+  .post('/', requireAuth('admin', 'operator'), zValidator('json', createInput), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
     const id = crypto.randomUUID();
@@ -68,7 +67,7 @@ export const contactRoutes = new Hono<AppContext>()
       .all();
     return c.json({ contact: row, loans: recentLoans });
   })
-  .patch('/:id', zValidator('json', updateInput), (c) => {
+  .patch('/:id', requireAuth('admin', 'operator'), zValidator('json', updateInput), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
@@ -80,7 +79,7 @@ export const contactRoutes = new Hono<AppContext>()
     if (result.changes === 0) return c.json({ error: { message: 'Kontakt nenalezen' } }, 404);
     return c.json({ ok: true });
   })
-  .delete('/:id', (c) => {
+  .delete('/:id', requireAuth('admin'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const result = db.delete(contacts).where(eq(contacts.id, id)).run();

@@ -53,12 +53,16 @@ describe('org API — label settings', () => {
 
   it('returns default label settings before the org is initialized', async () => {
     const res = await server.authRequest('/api/org', { cookie });
-    const body = (await res.json()) as { labelSettings: { compact: boolean; showName: boolean; note: string } };
+    const body = (await res.json()) as {
+      labelSettings: { compact: boolean; showName: boolean; note: string };
+    };
     expect(body.labelSettings).toEqual({ compact: false, showName: true, note: '' });
   });
 
   it('persists label settings org-wide once initialized', async () => {
-    expect((await putJson('/api/org', { name: 'Acme', codePrefix: null, allowedDomains: [] })).status).toBe(200);
+    expect(
+      (await putJson('/api/org', { name: 'Acme', codePrefix: null, allowedDomains: [] })).status,
+    ).toBe(200);
 
     const save = await putJson('/api/org/label-settings', {
       compact: true,
@@ -68,7 +72,9 @@ describe('org API — label settings', () => {
     expect(save.status).toBe(200);
 
     const res = await server.authRequest('/api/org', { cookie });
-    const body = (await res.json()) as { labelSettings: { compact: boolean; showName: boolean; note: string } };
+    const body = (await res.json()) as {
+      labelSettings: { compact: boolean; showName: boolean; note: string };
+    };
     expect(body.labelSettings).toEqual({
       compact: true,
       showName: false,
@@ -79,7 +85,11 @@ describe('org API — label settings', () => {
   it('forbids non-admins from changing label settings', async () => {
     await putJson('/api/org', { name: 'Acme', codePrefix: null, allowedDomains: [] });
     const memberCookie = server.loginAs(server.createUser({ role: 'operator' }));
-    const res = await putJson('/api/org/label-settings', { compact: true, showName: true, note: '' }, memberCookie);
+    const res = await putJson(
+      '/api/org/label-settings',
+      { compact: true, showName: true, note: '' },
+      memberCookie,
+    );
     expect(res.status).toBe(403);
   });
 });

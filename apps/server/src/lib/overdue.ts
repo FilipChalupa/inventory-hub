@@ -81,7 +81,11 @@ export async function runOverdueCheck(
   }
 
   // Single digest to admins.
-  const admins = db.select().from(users).where(or(eq(users.role, 'admin'))).all();
+  const admins = db
+    .select()
+    .from(users)
+    .where(or(eq(users.role, 'admin')))
+    .all();
   let notifiedAdmins = 0;
   const adminTargets = admins.filter((a) => !a.disabledAt);
   if (adminTargets.length > 0) {
@@ -115,10 +119,7 @@ export async function runOverdueCheck(
 
   // Mark notified.
   for (const loan of overdue) {
-    db.update(loans)
-      .set({ overdueNotifiedAt: now })
-      .where(eq(loans.id, loan.id))
-      .run();
+    db.update(loans).set({ overdueNotifiedAt: now }).where(eq(loans.id, loan.id)).run();
   }
 
   return { found: overdue.length, notifiedBorrowers, notifiedAdmins };
@@ -190,7 +191,11 @@ export async function runStartReminders(
     }
   }
 
-  const admins = db.select().from(users).where(or(eq(users.role, 'admin'))).all();
+  const admins = db
+    .select()
+    .from(users)
+    .where(or(eq(users.role, 'admin')))
+    .all();
   const adminTargets = admins.filter((a) => !a.disabledAt);
   let notifiedAdmins = 0;
   if (adminTargets.length > 0) {

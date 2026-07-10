@@ -252,7 +252,9 @@ describe('assets API', () => {
       await jsonPost(server, cookie, `/api/assets/${code}/archive`, { status: 'lost' });
 
       const target = server.createUser({ email: 'assignee@example.com', role: 'member' });
-      const res = await jsonPost(server, cookie, `/api/assets/${code}/assign`, { userId: target.id });
+      const res = await jsonPost(server, cookie, `/api/assets/${code}/assign`, {
+        userId: target.id,
+      });
       expect(res.status).toBe(409);
     });
   });
@@ -262,9 +264,7 @@ describe('assets API', () => {
       server.db
         .update(assetTypes)
         .set({
-          customFieldsSchema: [
-            { key: 'serial_number', label: 'SN', type: 'text', required: true },
-          ],
+          customFieldsSchema: [{ key: 'serial_number', label: 'SN', type: 'text', required: true }],
         })
         .where(eq(assetTypes.id, server.laptopTypeId))
         .run();

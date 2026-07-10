@@ -78,7 +78,10 @@ const loanUrl = (appUrl: string, id: string) => `${stripSlash(appUrl)}/loans/${i
 
 /** Adds a deep-link `url` to an asset response (`{ asset }` or `{ items }`). */
 function enrichAssets(body: unknown, appUrl: string): unknown {
-  const b = body as { asset?: { code?: string; url?: string }; items?: { code?: string; url?: string }[] };
+  const b = body as {
+    asset?: { code?: string; url?: string };
+    items?: { code?: string; url?: string }[];
+  };
   if (b && typeof b === 'object') {
     if (b.asset?.code) b.asset.url = assetUrl(appUrl, b.asset.code);
     if (Array.isArray(b.items)) {
@@ -90,7 +93,10 @@ function enrichAssets(body: unknown, appUrl: string): unknown {
 
 /** Adds a deep-link `url` to a loan response (`{ loan }` or `{ items }`). */
 function enrichLoans(body: unknown, appUrl: string): unknown {
-  const b = body as { loan?: { id?: string; url?: string }; items?: { id?: string; url?: string }[] };
+  const b = body as {
+    loan?: { id?: string; url?: string };
+    items?: { id?: string; url?: string }[];
+  };
   if (b && typeof b === 'object') {
     if (b.loan?.id) b.loan.url = loanUrl(appUrl, b.loan.id);
     if (Array.isArray(b.items)) {

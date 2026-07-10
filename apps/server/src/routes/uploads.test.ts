@@ -8,12 +8,7 @@ const TINY_PNG = Buffer.from(
   'hex',
 );
 
-async function postFile(
-  server: TestServer,
-  cookie: string,
-  file: File,
-  fieldName = 'file',
-) {
+async function postFile(server: TestServer, cookie: string, file: File, fieldName = 'file') {
   const form = new FormData();
   form.append(fieldName, file);
   return server.authRequest('/api/uploads', {

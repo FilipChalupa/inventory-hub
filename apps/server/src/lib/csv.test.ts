@@ -21,9 +21,7 @@ describe('toCsv', () => {
       [{ x: 'with, comma' }, { x: 'with "quotes"' }, { x: 'with\nnewline' }],
       [{ key: 'x', header: 'X' }],
     );
-    expect(csv).toBe(
-      'X\r\n"with, comma"\r\n"with ""quotes"""\r\n"with\nnewline"\r\n',
-    );
+    expect(csv).toBe('X\r\n"with, comma"\r\n"with ""quotes"""\r\n"with\nnewline"\r\n');
   });
 
   it('serializes dates, booleans, objects and null', () => {

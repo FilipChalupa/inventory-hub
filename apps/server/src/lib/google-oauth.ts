@@ -36,7 +36,11 @@ export function generateState(): string {
   return base64url(randomBytes(24));
 }
 
-export function buildAuthorizationUrl(config: GoogleConfig, state: string, challenge: string): string {
+export function buildAuthorizationUrl(
+  config: GoogleConfig,
+  state: string,
+  challenge: string,
+): string {
   const url = new URL(AUTH_URL);
   url.searchParams.set('client_id', config.clientId);
   url.searchParams.set('redirect_uri', config.redirectUrl);
@@ -53,7 +57,9 @@ export function buildAuthorizationUrl(config: GoogleConfig, state: string, chall
 function decodeIdTokenPayload(idToken: string): Record<string, unknown> {
   const parts = idToken.split('.');
   if (parts.length !== 3) throw new Error('Invalid ID token');
-  const payload = Buffer.from(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString('utf8');
+  const payload = Buffer.from(parts[1]!.replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString(
+    'utf8',
+  );
   return JSON.parse(payload) as Record<string, unknown>;
 }
 
@@ -85,7 +91,7 @@ export async function exchangeCode(
 
   const sub = claims.sub as string | undefined;
   const email = claims.email as string | undefined;
-  const name = (claims.name as string | undefined) ?? (email ?? '');
+  const name = (claims.name as string | undefined) ?? email ?? '';
   const picture = claims.picture as string | undefined;
   const emailVerified = claims.email_verified === true;
 

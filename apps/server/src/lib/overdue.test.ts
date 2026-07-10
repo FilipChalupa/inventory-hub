@@ -44,11 +44,15 @@ describe('runOverdueCheck', () => {
 
   it('notifies borrower and admin once for each overdue loan', async () => {
     const loanId = await setupOverdueLoan(server, cookie, 3);
-    const result = await runOverdueCheck(server.db, {
-      send: async (e) => {
-        server.sentEmails.push(e);
+    const result = await runOverdueCheck(
+      server.db,
+      {
+        send: async (e) => {
+          server.sentEmails.push(e);
+        },
       },
-    }, { publicAppUrl: 'http://localhost' });
+      { publicAppUrl: 'http://localhost' },
+    );
 
     expect(result.found).toBe(1);
     expect(result.notifiedBorrowers).toBe(1);
@@ -66,18 +70,26 @@ describe('runOverdueCheck', () => {
 
   it('is idempotent — running twice does not re-notify', async () => {
     await setupOverdueLoan(server, cookie, 5);
-    await runOverdueCheck(server.db, {
-      send: async (e) => {
-        server.sentEmails.push(e);
+    await runOverdueCheck(
+      server.db,
+      {
+        send: async (e) => {
+          server.sentEmails.push(e);
+        },
       },
-    }, { publicAppUrl: 'http://localhost' });
+      { publicAppUrl: 'http://localhost' },
+    );
     const countAfterFirst = server.sentEmails.length;
 
-    const second = await runOverdueCheck(server.db, {
-      send: async (e) => {
-        server.sentEmails.push(e);
+    const second = await runOverdueCheck(
+      server.db,
+      {
+        send: async (e) => {
+          server.sentEmails.push(e);
+        },
       },
-    }, { publicAppUrl: 'http://localhost' });
+      { publicAppUrl: 'http://localhost' },
+    );
     expect(second.found).toBe(0);
     expect(server.sentEmails.length).toBe(countAfterFirst);
   });
@@ -96,17 +108,21 @@ describe('runOverdueCheck', () => {
     });
     const { id: loanId } = (await created.json()) as { id: string };
     const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
-    const itemId = ((await detail.json()) as { loan: { items: { id: string }[] } }).loan
-      .items[0]!.id;
+    const itemId = ((await detail.json()) as { loan: { items: { id: string }[] } }).loan.items[0]!
+      .id;
     await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
       returnCondition: 'ok',
     });
 
-    const result = await runOverdueCheck(server.db, {
-      send: async (e) => {
-        server.sentEmails.push(e);
+    const result = await runOverdueCheck(
+      server.db,
+      {
+        send: async (e) => {
+          server.sentEmails.push(e);
+        },
       },
-    }, { publicAppUrl: '' });
+      { publicAppUrl: '' },
+    );
     expect(result.found).toBe(0);
   });
 
@@ -122,9 +138,7 @@ describe('runOverdueCheck', () => {
   });
 
   it('non-admin cannot trigger the overdue notifier', async () => {
-    const memberCookie = server.loginAs(
-      server.createUser({ role: 'member', email: 'm@e.cz' }),
-    );
+    const memberCookie = server.loginAs(server.createUser({ role: 'member', email: 'm@e.cz' }));
     const res = await server.authRequest('/api/loans/notify-overdue', {
       cookie: memberCookie,
       method: 'POST',
@@ -168,7 +182,11 @@ describe('runStartReminders', () => {
       server.sentEmails.push(e);
     };
 
-    const result = await runStartReminders(server.db, { send }, { publicAppUrl: 'http://localhost' });
+    const result = await runStartReminders(
+      server.db,
+      { send },
+      { publicAppUrl: 'http://localhost' },
+    );
     expect(result.found).toBe(1);
     expect(result.notifiedBorrowers).toBe(1);
     expect(result.notifiedAdmins).toBe(1);
@@ -178,7 +196,11 @@ describe('runStartReminders', () => {
     expect(row.startReminderSentAt).not.toBeNull();
 
     // Idempotent — a second run sends nothing.
-    const second = await runStartReminders(server.db, { send }, { publicAppUrl: 'http://localhost' });
+    const second = await runStartReminders(
+      server.db,
+      { send },
+      { publicAppUrl: 'http://localhost' },
+    );
     expect(second.found).toBe(0);
   });
 

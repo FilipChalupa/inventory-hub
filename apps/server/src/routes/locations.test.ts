@@ -84,12 +84,19 @@ describe('locations API', () => {
       const form = new FormData();
       form.append('file', new File([text], 'locs.csv', { type: 'text/csv' }));
       form.append('dryRun', dryRun ? 'true' : 'false');
-      return server.authRequest('/api/locations/import', { cookie: who, method: 'POST', body: form });
+      return server.authRequest('/api/locations/import', {
+        cookie: who,
+        method: 'POST',
+        body: form,
+      });
     }
 
     it('commits new locations and resolves parent_name to existing rows', async () => {
       await createLocation('Budova A');
-      const res = await importCsv('name,parent_name\r\n1.NP,Budova A\r\nKancelář,Budova A\r\n', false);
+      const res = await importCsv(
+        'name,parent_name\r\n1.NP,Budova A\r\nKancelář,Budova A\r\n',
+        false,
+      );
       expect(res.status).toBe(200);
       const body = (await res.json()) as { created: number };
       expect(body.created).toBe(2);

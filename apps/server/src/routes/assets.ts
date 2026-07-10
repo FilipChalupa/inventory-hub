@@ -13,15 +13,10 @@ import {
   type CustomFieldsSchema,
 } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
-import {
-  assetEvents,
-  assetExternalIds,
-  assetTypes,
-  assets,
-  orgSettings,
-} from '../db/schema.js';
+import { assetEvents, assetExternalIds, assetTypes, assets, orgSettings } from '../db/schema.js';
 import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
+import { requireAuth } from '../middleware/auth.js';
 import type { Db } from '../db/client.js';
 
 /**
@@ -140,7 +135,7 @@ export const assetRoutes = new Hono<AppContext>()
 
     return c.json({ items: rows, total: total?.n ?? rows.length });
   })
-  .post('/', zValidator('json', createAssetInput), (c) => {
+  .post('/', requireAuth('admin', 'operator'), zValidator('json', createAssetInput), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
 
@@ -163,11 +158,7 @@ export const assetRoutes = new Hono<AppContext>()
 
     // On create, treat missing customFields as empty (so required-field
     // validation still triggers).
-    const cfResult = validateAssetCustomFields(
-      db,
-      input.typeId ?? null,
-      input.customFields ?? {},
-    );
+    const cfResult = validateAssetCustomFields(db, input.typeId ?? null, input.customFields ?? {});
     if ('error' in cfResult) {
       return c.json({ error: { message: 'Neplatná vlastní pole', fields: cfResult.error } }, 400);
     }
@@ -203,7 +194,7 @@ export const assetRoutes = new Hono<AppContext>()
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
     return c.json({ asset });
   })
-  .patch('/:code', zValidator('json', updateInput), (c) => {
+  .patch('/:code', requireAuth('admin', 'operator'), zValidator('json', updateInput), (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const input = c.req.valid('json');
@@ -213,8 +204,7 @@ export const assetRoutes = new Hono<AppContext>()
     // If customFields are being updated, validate against the (possibly new) type's schema.
     let patch: typeof input = { ...input };
     if (input.customFields !== undefined) {
-      const targetTypeId =
-        input.typeId !== undefined ? input.typeId : asset.typeId;
+      const targetTypeId = input.typeId !== undefined ? input.typeId : asset.typeId;
       const cfResult = validateAssetCustomFields(db, targetTypeId, input.customFields);
       if ('error' in cfResult) {
         return c.json({ error: { message: 'Neplatná vlastní pole', fields: cfResult.error } }, 400);
@@ -238,34 +228,39 @@ export const assetRoutes = new Hono<AppContext>()
 
     return c.json({ ok: true });
   })
-  .post('/:code/archive', zValidator('json', archiveInput), (c) => {
-    const db = c.get('db');
-    const code = c.req.param('code').toUpperCase();
-    const input = c.req.valid('json');
-    const asset = db.select().from(assets).where(eq(assets.code, code)).get();
-    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+  .post(
+    '/:code/archive',
+    requireAuth('admin', 'operator'),
+    zValidator('json', archiveInput),
+    (c) => {
+      const db = c.get('db');
+      const code = c.req.param('code').toUpperCase();
+      const input = c.req.valid('json');
+      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
 
-    db.update(assets)
-      .set({
-        status: input.status,
-        archivedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(assets.id, asset.id))
-      .run();
+      db.update(assets)
+        .set({
+          status: input.status,
+          archivedAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(eq(assets.id, asset.id))
+        .run();
 
-    db.insert(assetEvents)
-      .values({
-        assetId: asset.id,
-        actorUserId: c.get('user')?.id ?? null,
-        type: 'archived',
-        payload: { status: input.status, note: input.note },
-      })
-      .run();
+      db.insert(assetEvents)
+        .values({
+          assetId: asset.id,
+          actorUserId: c.get('user')?.id ?? null,
+          type: 'archived',
+          payload: { status: input.status, note: input.note },
+        })
+        .run();
 
-    return c.json({ ok: true });
-  })
-  .post('/:code/unarchive', (c) => {
+      return c.json({ ok: true });
+    },
+  )
+  .post('/:code/unarchive', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
@@ -296,6 +291,7 @@ export const assetRoutes = new Hono<AppContext>()
   })
   .post(
     '/:code/photos',
+    requireAuth('admin', 'operator'),
     zValidator('json', z.object({ path: z.string().min(1).max(500) })),
     (c) => {
       const db = c.get('db');
@@ -325,6 +321,7 @@ export const assetRoutes = new Hono<AppContext>()
   )
   .delete(
     '/:code/photos',
+    requireAuth('admin', 'operator'),
     zValidator('json', z.object({ path: z.string() })),
     (c) => {
       const db = c.get('db');
@@ -353,6 +350,7 @@ export const assetRoutes = new Hono<AppContext>()
   )
   .post(
     '/:code/documents',
+    requireAuth('admin', 'operator'),
     zValidator('json', z.object({ path: z.string().min(1).max(500) })),
     (c) => {
       const db = c.get('db');
@@ -382,6 +380,7 @@ export const assetRoutes = new Hono<AppContext>()
   )
   .delete(
     '/:code/documents',
+    requireAuth('admin', 'operator'),
     zValidator('json', z.object({ path: z.string() })),
     (c) => {
       const db = c.get('db');
@@ -410,6 +409,7 @@ export const assetRoutes = new Hono<AppContext>()
   )
   .post(
     '/:code/assign',
+    requireAuth('admin', 'operator'),
     zValidator('json', z.object({ userId: z.string().uuid() })),
     (c) => {
       const db = c.get('db');
@@ -442,7 +442,7 @@ export const assetRoutes = new Hono<AppContext>()
       return c.json({ ok: true });
     },
   )
-  .post('/:code/repair-start', (c) => {
+  .post('/:code/repair-start', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
@@ -470,7 +470,7 @@ export const assetRoutes = new Hono<AppContext>()
       .run();
     return c.json({ ok: true });
   })
-  .post('/:code/repair-finish', (c) => {
+  .post('/:code/repair-finish', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
@@ -492,7 +492,7 @@ export const assetRoutes = new Hono<AppContext>()
       .run();
     return c.json({ ok: true });
   })
-  .post('/:code/unassign', (c) => {
+  .post('/:code/unassign', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
@@ -533,6 +533,7 @@ export const assetRoutes = new Hono<AppContext>()
   })
   .post(
     '/:code/external-ids',
+    requireAuth('admin', 'operator'),
     zValidator(
       'json',
       z.object({
@@ -581,7 +582,7 @@ export const assetRoutes = new Hono<AppContext>()
       return c.json({ id, kind: input.kind, value: input.value }, 201);
     },
   )
-  .delete('/:code/external-ids/:id', (c) => {
+  .delete('/:code/external-ids/:id', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const id = c.req.param('id');
@@ -607,7 +608,10 @@ export const assetRoutes = new Hono<AppContext>()
   .get('/events/all', (c) => {
     const db = c.get('db');
     const limit = Math.min(Number(c.req.query('limit') ?? '200') || 200, 1000);
-    const total = db.select({ n: sql<number>`count(*)` }).from(assetEvents).get();
+    const total = db
+      .select({ n: sql<number>`count(*)` })
+      .from(assetEvents)
+      .get();
     const rows = db
       .select({
         id: assetEvents.id,
@@ -661,12 +665,9 @@ export const assetRoutes = new Hono<AppContext>()
       },
     });
   })
-  .post('/import', async (c) => {
+  .post('/import', requireAuth('admin', 'operator'), async (c) => {
     const db = c.get('db');
     const user = c.get('user')!;
-    if (user.role !== 'admin' && user.role !== 'operator') {
-      return c.json({ error: { message: 'Pouze admin nebo operator může importovat' } }, 403);
-    }
 
     let form: FormData;
     try {
@@ -701,7 +702,7 @@ export const assetRoutes = new Hono<AppContext>()
     }
 
     // Cache asset types by prefix.
-    const typesByPrefix = new Map<string, (typeof assetTypes.$inferSelect)>();
+    const typesByPrefix = new Map<string, typeof assetTypes.$inferSelect>();
     for (const t of db.select().from(assetTypes).all()) {
       typesByPrefix.set(t.codePrefix.toUpperCase(), t);
     }
@@ -792,7 +793,7 @@ export const assetRoutes = new Hono<AppContext>()
       const typePrefix = (p.input['type'] ?? '').trim().toUpperCase();
       const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
       if (!type) continue;
-      let lastCode = counters.get(type.codePrefix);
+      const lastCode = counters.get(type.codePrefix);
       const nextCode = lastCode
         ? incrementCode(lastCode)
         : generateAssetCode(db, type.codePrefix, orgPrefix);
@@ -841,24 +842,28 @@ export const assetRoutes = new Hono<AppContext>()
 
     return c.json({ preview, hasErrors: false, created });
   })
-  .post('/labels', zValidator('json', z.object({ codes: z.array(z.string()).min(1).max(100) })), (c) => {
-    const db = c.get('db');
-    const env = c.get('env');
-    const codes = c.req.valid('json').codes.map((x) => x.toUpperCase());
-    const rows = db
-      .select({ code: assets.code, name: assets.name })
-      .from(assets)
-      .where(inArray(assets.code, codes))
-      .orderBy(asc(assets.code))
-      .all();
-    return c.json({
-      items: rows.map((r) => ({
-        code: r.code,
-        name: r.name,
-        qrUrl: `${env.PUBLIC_APP_URL}/a/${r.code}`,
-      })),
-    });
-  });
+  .post(
+    '/labels',
+    zValidator('json', z.object({ codes: z.array(z.string()).min(1).max(100) })),
+    (c) => {
+      const db = c.get('db');
+      const env = c.get('env');
+      const codes = c.req.valid('json').codes.map((x) => x.toUpperCase());
+      const rows = db
+        .select({ code: assets.code, name: assets.name })
+        .from(assets)
+        .where(inArray(assets.code, codes))
+        .orderBy(asc(assets.code))
+        .all();
+      return c.json({
+        items: rows.map((r) => ({
+          code: r.code,
+          name: r.name,
+          qrUrl: `${env.PUBLIC_APP_URL}/a/${r.code}`,
+        })),
+      });
+    },
+  );
 
 export { listQuery as assetListQuery };
 // silence unused warning for typed re-exports used elsewhere

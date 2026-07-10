@@ -38,7 +38,7 @@ function csvField(s: string): string {
  */
 export function parseCsv(input: string): { headers: string[]; rows: Record<string, string>[] } {
   // Strip UTF-8 BOM if present.
-  const src = input.replace(/^﻿/, '');
+  const src = input.replace(/^\uFEFF/, '');
   const rows: string[][] = [];
   let row: string[] = [];
   let field = '';

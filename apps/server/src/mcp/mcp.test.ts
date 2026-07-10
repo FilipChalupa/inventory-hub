@@ -229,7 +229,12 @@ describe('MCP full flow', () => {
     const sid = await initSession(token);
     const res = await mcp(
       token,
-      { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'get_org_settings', arguments: {} } },
+      {
+        jsonrpc: '2.0',
+        id: 10,
+        method: 'tools/call',
+        params: { name: 'get_org_settings', arguments: {} },
+      },
       sid,
     );
     const call = await readJsonRpc(res);
@@ -247,7 +252,10 @@ describe('MCP full flow', () => {
         jsonrpc: '2.0',
         id: 11,
         method: 'tools/call',
-        params: { name: 'create_asset', arguments: { name: 'Linkable', typeId: server.laptopTypeId } },
+        params: {
+          name: 'create_asset',
+          arguments: { name: 'Linkable', typeId: server.laptopTypeId },
+        },
       },
       sid,
     );
@@ -255,7 +263,12 @@ describe('MCP full flow', () => {
 
     const getAsset = await mcp(
       token,
-      { jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'get_asset', arguments: { code } } },
+      {
+        jsonrpc: '2.0',
+        id: 12,
+        method: 'tools/call',
+        params: { name: 'get_asset', arguments: { code } },
+      },
       sid,
     );
     const asset = JSON.parse((await readJsonRpc(getAsset)).result.content[0].text).asset;
@@ -275,7 +288,12 @@ describe('MCP full flow', () => {
 
     const getLoan = await mcp(
       token,
-      { jsonrpc: '2.0', id: 14, method: 'tools/call', params: { name: 'get_loan', arguments: { id: loanId } } },
+      {
+        jsonrpc: '2.0',
+        id: 14,
+        method: 'tools/call',
+        params: { name: 'get_loan', arguments: { id: loanId } },
+      },
       sid,
     );
     const loan = JSON.parse((await readJsonRpc(getLoan)).result.content[0].text).loan;

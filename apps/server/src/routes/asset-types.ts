@@ -6,6 +6,7 @@ import { customFieldsSchemaSchema } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assetTypes } from '../db/schema.js';
 import { parseCsv } from '../lib/csv.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const codePrefix = z
   .string()
@@ -32,7 +33,7 @@ export const assetTypeRoutes = new Hono<AppContext>()
     const items = db.select().from(assetTypes).orderBy(asc(assetTypes.name)).all();
     return c.json({ items });
   })
-  .post('/', zValidator('json', createInput), (c) => {
+  .post('/', requireAuth('admin', 'operator'), zValidator('json', createInput), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
     const prefix = input.codePrefix.toUpperCase();
@@ -57,7 +58,7 @@ export const assetTypeRoutes = new Hono<AppContext>()
       .run();
     return c.json({ id, name: input.name, codePrefix: prefix }, 201);
   })
-  .patch('/:id', zValidator('json', updateInput), (c) => {
+  .patch('/:id', requireAuth('admin', 'operator'), zValidator('json', updateInput), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
@@ -73,12 +74,10 @@ export const assetTypeRoutes = new Hono<AppContext>()
     if (result.changes === 0) return c.json({ error: { message: 'Typ nenalezen' } }, 404);
     return c.json({ ok: true });
   })
-  .post('/import', async (c) => {
+  // Bulk type creation via CSV stays admin-only — it is a schema-shaping
+  // operation, more privileged than editing a single type.
+  .post('/import', requireAuth('admin'), async (c) => {
     const db = c.get('db');
-    const user = c.get('user')!;
-    if (user.role !== 'admin') {
-      return c.json({ error: { message: 'Pouze admin může importovat typy' } }, 403);
-    }
     let form: FormData;
     try {
       form = await c.req.formData();
@@ -106,7 +105,11 @@ export const assetTypeRoutes = new Hono<AppContext>()
     }
 
     const existingPrefixes = new Set(
-      db.select({ p: assetTypes.codePrefix }).from(assetTypes).all().map((r) => r.p),
+      db
+        .select({ p: assetTypes.codePrefix })
+        .from(assetTypes)
+        .all()
+        .map((r) => r.p),
     );
     const seen = new Set<string>();
     const preview = rows.map((row, idx) => {
@@ -145,7 +148,7 @@ export const assetTypeRoutes = new Hono<AppContext>()
     });
     return c.json({ preview, hasErrors: false, created });
   })
-  .delete('/:id', (c) => {
+  .delete('/:id', requireAuth('admin'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const result = db.delete(assetTypes).where(eq(assetTypes.id, id)).run();

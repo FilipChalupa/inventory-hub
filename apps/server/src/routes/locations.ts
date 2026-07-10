@@ -6,6 +6,7 @@ import type { AppContext } from '../app.js';
 import type { Db } from '../db/client.js';
 import { locations } from '../db/schema.js';
 import { parseCsv } from '../lib/csv.js';
+import { requireAuth } from '../middleware/auth.js';
 
 const createInput = z.object({
   name: z.string().trim().min(1).max(200),
@@ -20,10 +21,7 @@ const updateInput = createInput.partial();
  */
 function wouldCreateCycle(db: Db, nodeId: string, newParentId: string): boolean {
   if (nodeId === newParentId) return true;
-  const all = db
-    .select({ id: locations.id, parentId: locations.parentId })
-    .from(locations)
-    .all();
+  const all = db.select({ id: locations.id, parentId: locations.parentId }).from(locations).all();
   const parentOf = new Map(all.map((r) => [r.id, r.parentId] as const));
   let cursor: string | null = newParentId;
   const guard = new Set<string>();
@@ -42,7 +40,7 @@ export const locationRoutes = new Hono<AppContext>()
     const items = db.select().from(locations).orderBy(asc(locations.name)).all();
     return c.json({ items });
   })
-  .post('/', zValidator('json', createInput), (c) => {
+  .post('/', requireAuth('admin', 'operator'), zValidator('json', createInput), (c) => {
     const db = c.get('db');
     const input = c.req.valid('json');
     const id = crypto.randomUUID();
@@ -51,7 +49,7 @@ export const locationRoutes = new Hono<AppContext>()
       .run();
     return c.json({ id, name: input.name, parentId: input.parentId ?? null }, 201);
   })
-  .patch('/:id', zValidator('json', updateInput), (c) => {
+  .patch('/:id', requireAuth('admin', 'operator'), zValidator('json', updateInput), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const input = c.req.valid('json');
@@ -70,15 +68,8 @@ export const locationRoutes = new Hono<AppContext>()
     if (result.changes === 0) return c.json({ error: { message: 'Lokace nenalezena' } }, 404);
     return c.json({ ok: true });
   })
-  .post('/import', async (c) => {
+  .post('/import', requireAuth('admin', 'operator'), async (c) => {
     const db = c.get('db');
-    const user = c.get('user')!;
-    if (user.role !== 'admin' && user.role !== 'operator') {
-      return c.json(
-        { error: { message: 'Pouze admin nebo operator může importovat lokace' } },
-        403,
-      );
-    }
     let form: FormData;
     try {
       form = await c.req.formData();
@@ -156,7 +147,7 @@ export const locationRoutes = new Hono<AppContext>()
     });
     return c.json({ preview, hasErrors: false, created });
   })
-  .delete('/:id', (c) => {
+  .delete('/:id', requireAuth('admin'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const result = db.delete(locations).where(eq(locations.id, id)).run();

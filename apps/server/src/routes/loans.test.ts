@@ -13,11 +13,7 @@ async function jsonPost(server: TestServer, cookie: string, path: string, body: 
   });
 }
 
-async function makeAsset(
-  server: TestServer,
-  cookie: string,
-  name: string,
-): Promise<string> {
+async function makeAsset(server: TestServer, cookie: string, name: string): Promise<string> {
   const res = await jsonPost(server, cookie, '/api/assets', {
     name,
     typeId: server.laptopTypeId,
@@ -416,12 +412,9 @@ describe('loans API', () => {
 
       // return the other
       const secondItemId = detailBody.loan.items[1]!.id;
-      await jsonPost(
-        server,
-        cookie,
-        `/api/loans/${loanId}/items/${secondItemId}/return`,
-        { returnCondition: 'ok' },
-      );
+      await jsonPost(server, cookie, `/api/loans/${loanId}/items/${secondItemId}/return`, {
+        returnCondition: 'ok',
+      });
 
       const list3 = await server.authRequest('/api/loans', { cookie });
       const body3 = (await list3.json()) as {
@@ -550,9 +543,9 @@ describe('loans API', () => {
         .all();
       const updated = events.find((e) => e.type === 'loan_updated');
       expect(updated).toBeTruthy();
-      expect((updated!.payload as { changes: { borrowerName?: unknown } }).changes.borrowerName).toEqual(
-        { from: 'Před', to: 'Po' },
-      );
+      expect(
+        (updated!.payload as { changes: { borrowerName?: unknown } }).changes.borrowerName,
+      ).toEqual({ from: 'Před', to: 'Po' });
     });
 
     it('adds an item to an active loan (asset → on_loan, logged)', async () => {
@@ -567,7 +560,9 @@ describe('loans API', () => {
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items`, { assetCodes: [b] });
       expect(res.status).toBe(200);
 
-      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe('on_loan');
+      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe(
+        'on_loan',
+      );
       const bId = server.db.select().from(assets).where(eq(assets.code, b)).get()!.id;
       const added = server.db
         .select()
@@ -607,7 +602,9 @@ describe('loans API', () => {
       const res = await jsonReq('DELETE', `/api/loans/${loanId}/items/${itemB.id}`);
       expect(res.status).toBe(200);
 
-      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe('in_stock');
+      expect(server.db.select().from(assets).where(eq(assets.code, b)).get()!.status).toBe(
+        'in_stock',
+      );
       const removed = server.db
         .select()
         .from(assetEvents)
@@ -636,7 +633,11 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      server.db.update(loans).set({ overdueNotifiedAt: new Date() }).where(eq(loans.id, loanId)).run();
+      server.db
+        .update(loans)
+        .set({ overdueNotifiedAt: new Date() })
+        .where(eq(loans.id, loanId))
+        .run();
 
       await jsonReq('PATCH', `/api/loans/${loanId}`, { expectedReturnAt: inDays(5) });
 
@@ -801,10 +802,9 @@ describe('loans API', () => {
 
       const from = new Date().toISOString();
       const to = inDays(10);
-      const res = await server.authRequest(
-        `/api/loans/calendar?freeFrom=${from}&freeTo=${to}`,
-        { cookie },
-      );
+      const res = await server.authRequest(`/api/loans/calendar?freeFrom=${from}&freeTo=${to}`, {
+        cookie,
+      });
       const body = (await res.json()) as { items: { code: string }[]; total: number };
       expect(body.items.map((i) => i.code)).toEqual([free]);
       expect(body.total).toBe(1);
@@ -884,7 +884,8 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
 
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
         returnCondition: 'ok',
@@ -902,7 +903,8 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
 
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
         returnCondition: 'damaged',
@@ -956,7 +958,11 @@ describe('loans API', () => {
       });
       const { id: loanId } = (await created.json()) as { id: string };
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      server.db.update(loans).set({ loanedAt: weekAgo, startedAt: weekAgo }).where(eq(loans.id, loanId)).run();
+      server.db
+        .update(loans)
+        .set({ loanedAt: weekAgo, startedAt: weekAgo })
+        .where(eq(loans.id, loanId))
+        .run();
 
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/return-all`, {
@@ -964,7 +970,8 @@ describe('loans API', () => {
       });
       expect(res.status).toBe(200);
 
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
       const row = server.db.select().from(loanItems).where(eq(loanItems.id, itemId)).get()!;
       expect(row.returnedAt!.getTime()).toBe(yesterday.getTime());
     });
@@ -1045,11 +1052,16 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
 
       // Pretend the loan started a week ago so a backdated return is valid.
       const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-      server.db.update(loans).set({ loanedAt: weekAgo, startedAt: weekAgo }).where(eq(loans.id, loanId)).run();
+      server.db
+        .update(loans)
+        .set({ loanedAt: weekAgo, startedAt: weekAgo })
+        .where(eq(loans.id, loanId))
+        .run();
 
       const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
@@ -1069,7 +1081,8 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
 
       const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000);
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
@@ -1086,7 +1099,8 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
 
       const longAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000);
       const res = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
@@ -1103,7 +1117,8 @@ describe('loans API', () => {
         assetCodes: [a],
       });
       const { id: loanId } = (await created.json()) as { id: string };
-      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!.id;
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
 
       const first = await jsonPost(server, cookie, `/api/loans/${loanId}/items/${itemId}/return`, {
         returnCondition: 'ok',

@@ -3,7 +3,7 @@ import { mkdir, stat, writeFile, readFile } from 'node:fs/promises';
 import { resolve, join, normalize } from 'node:path';
 import type { AppContext } from '../app.js';
 import { rateLimit } from '../lib/rate-limit.js';
-import { ALLOWED_MIME, generateRelativePath, isInside } from '../lib/uploads.js';
+import { ALLOWED_MIME, generateRelativePath, isInside, sniffMime } from '../lib/uploads.js';
 
 export const uploadRoutes = new Hono<AppContext>()
   .post('/', rateLimit({ bucket: 'uploads', windowMs: 60_000, max: 60 }), async (c) => {
@@ -50,6 +50,13 @@ export const uploadRoutes = new Hono<AppContext>()
       );
     }
 
+    const buf = Buffer.from(await file.arrayBuffer());
+    // The declared Content-Type must match the file's real magic bytes, so a
+    // client can't store an executable/HTML payload under an allowed type.
+    if (sniffMime(buf) !== file.type) {
+      return c.json({ error: { message: 'Obsah souboru neodpovídá deklarovanému typu.' } }, 415);
+    }
+
     const relative = generateRelativePath(ext);
     const absolute = resolve(env.UPLOAD_DIR, relative);
     if (!isInside(env.UPLOAD_DIR, absolute)) {
@@ -57,7 +64,6 @@ export const uploadRoutes = new Hono<AppContext>()
     }
 
     await mkdir(resolve(absolute, '..'), { recursive: true });
-    const buf = Buffer.from(await file.arrayBuffer());
     await writeFile(absolute, buf);
 
     return c.json({
@@ -91,21 +97,27 @@ export const uploadRoutes = new Hono<AppContext>()
       ext === 'jpg' || ext === 'jpeg'
         ? 'image/jpeg'
         : ext === 'png'
-        ? 'image/png'
-        : ext === 'webp'
-        ? 'image/webp'
-        : ext === 'gif'
-        ? 'image/gif'
-        : ext === 'pdf'
-        ? 'application/pdf'
-        : 'application/octet-stream';
+          ? 'image/png'
+          : ext === 'webp'
+            ? 'image/webp'
+            : ext === 'gif'
+              ? 'image/gif'
+              : ext === 'pdf'
+                ? 'application/pdf'
+                : 'application/octet-stream';
 
     const data = await readFile(absolute);
+    // Never let the browser sniff a served upload into a different type, and
+    // force PDFs to download (they can carry active content / JS) while images
+    // may render inline.
+    const disposition = ext === 'pdf' ? `attachment; filename="${name}"` : 'inline';
     return new Response(data, {
       headers: {
         'Content-Type': contentType,
         'Content-Length': String(info.size),
         'Cache-Control': 'private, max-age=3600',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Disposition': disposition,
       },
     });
   });

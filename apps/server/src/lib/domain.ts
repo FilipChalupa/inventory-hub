@@ -10,10 +10,7 @@ export function emailDomain(email: string): string | null {
  * Returns the matching AllowedDomain for the email, or null.
  * Match is strict exact — `acme.com` does NOT match `eng.acme.com`.
  */
-export function matchAllowedDomain(
-  email: string,
-  allowed: AllowedDomain[],
-): AllowedDomain | null {
+export function matchAllowedDomain(email: string, allowed: AllowedDomain[]): AllowedDomain | null {
   const domain = emailDomain(email);
   if (!domain) return null;
   return allowed.find((d) => d.domain.toLowerCase() === domain) ?? null;

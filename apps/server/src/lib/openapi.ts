@@ -663,16 +663,21 @@ export const DOCS_HTML = `<!doctype html>
     <div id="swagger-ui"></div>
     <script src="/docs/swagger-ui-bundle.js"></script>
     <script src="/docs/swagger-ui-standalone-preset.js"></script>
-    <script>
-      window.ui = SwaggerUIBundle({
-        url: '/openapi.json',
-        dom_id: '#swagger-ui',
-        presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-        layout: 'StandaloneLayout',
-      });
-    </script>
+    <!-- The init lives in an external file so the global CSP can keep
+         script-src 'self' (no 'unsafe-inline'). -->
+    <script src="/docs/swagger-initializer.js"></script>
   </body>
 </html>`;
+
+/** External Swagger UI bootstrap — kept out of the HTML to satisfy a
+ * script-src 'self' CSP. Served at /docs/swagger-initializer.js. */
+export const SWAGGER_INIT_JS = `window.ui = SwaggerUIBundle({
+  url: '/openapi.json',
+  dom_id: '#swagger-ui',
+  presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+  layout: 'StandaloneLayout',
+});
+`;
 
 /** Content types for the Swagger UI static files we serve under /docs/. */
 export const SWAGGER_UI_FILES: Record<string, string> = {

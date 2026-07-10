@@ -11,6 +11,7 @@ import {
 } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import type { Db } from '../db/client.js';
+import { requireAuth } from '../middleware/auth.js';
 import {
   assetEvents,
   assets,
@@ -22,14 +23,11 @@ import {
   type InventorySessionRow,
 } from '../db/schema.js';
 
-/**
- * Inventory writes (create / scan / close / resolve) are stocktaking
- * operations done by warehouse staff; restrict them to admin + operator.
- * Reading the report stays open to any authenticated role (auditors included).
- */
-function canWrite(role: string): boolean {
-  return role === 'admin' || role === 'operator';
-}
+// Inventory writes (create / scan / close / reopen / notes / mark-lost) are
+// stocktaking operations done by warehouse staff; restrict them to
+// admin + operator via `requireAuth('admin', 'operator')` on each mutating
+// route. Reading the report stays open to any authenticated role (auditors
+// included).
 
 /**
  * Resolves a location id to the set of itself plus all descendant location
@@ -206,191 +204,174 @@ export const inventoryRoutes = new Hono<AppContext>()
     });
     return c.json({ items });
   })
-  .post('/', zValidator('json', createInventorySessionInput), (c) => {
-    const db = c.get('db');
-    const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může spustit inventuru' } }, 403);
-    }
-    const input = c.req.valid('json');
+  .post(
+    '/',
+    requireAuth('admin', 'operator'),
+    zValidator('json', createInventorySessionInput),
+    (c) => {
+      const db = c.get('db');
+      const user = c.get('user')!;
+      const input = c.req.valid('json');
 
-    if (input.locationId) {
-      const loc = db
-        .select({ id: locations.id })
-        .from(locations)
-        .where(eq(locations.id, input.locationId))
-        .get();
-      if (!loc) return c.json({ error: { message: 'Lokace nenalezena' } }, 400);
-    }
-
-    const typeIds = input.typeIds && input.typeIds.length > 0 ? input.typeIds : null;
-    let assetIds: string[] | null = null;
-    if (input.assetCodes && input.assetCodes.length > 0) {
-      const codes = [...new Set(input.assetCodes.map((x) => x.toUpperCase()))];
-      const found = db
-        .select({ id: assets.id })
-        .from(assets)
-        .where(inArray(assets.code, codes))
-        .all();
-      if (found.length !== codes.length) {
-        return c.json({ error: { message: 'Některé vybrané assety neexistují' } }, 400);
+      if (input.locationId) {
+        const loc = db
+          .select({ id: locations.id })
+          .from(locations)
+          .where(eq(locations.id, input.locationId))
+          .get();
+        if (!loc) return c.json({ error: { message: 'Lokace nenalezena' } }, 400);
       }
-      assetIds = found.map((a) => a.id);
-    }
 
-    const name =
-      input.name?.trim() ||
-      `Inventura ${new Date().toLocaleDateString('cs-CZ', { dateStyle: 'medium' })}`;
-    const id = crypto.randomUUID();
-    db.insert(inventorySessions)
-      .values({
-        id,
-        name,
-        locationId: input.locationId ?? null,
-        typeIds,
-        assetIds,
-        note: input.note ?? null,
-        startedByUserId: user.id,
-      })
-      .run();
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get()!;
-    return c.json({ session }, 201);
-  })
+      const typeIds = input.typeIds && input.typeIds.length > 0 ? input.typeIds : null;
+      let assetIds: string[] | null = null;
+      if (input.assetCodes && input.assetCodes.length > 0) {
+        const codes = [...new Set(input.assetCodes.map((x) => x.toUpperCase()))];
+        const found = db
+          .select({ id: assets.id })
+          .from(assets)
+          .where(inArray(assets.code, codes))
+          .all();
+        if (found.length !== codes.length) {
+          return c.json({ error: { message: 'Některé vybrané assety neexistují' } }, 400);
+        }
+        assetIds = found.map((a) => a.id);
+      }
+
+      const name =
+        input.name?.trim() ||
+        `Inventura ${new Date().toLocaleDateString('cs-CZ', { dateStyle: 'medium' })}`;
+      const id = crypto.randomUUID();
+      db.insert(inventorySessions)
+        .values({
+          id,
+          name,
+          locationId: input.locationId ?? null,
+          typeIds,
+          assetIds,
+          note: input.note ?? null,
+          startedByUserId: user.id,
+        })
+        .run();
+      const session = db
+        .select()
+        .from(inventorySessions)
+        .where(eq(inventorySessions.id, id))
+        .get()!;
+      return c.json({ session }, 201);
+    },
+  )
   .get('/:id', (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
+    const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
     if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
     const report = buildReport(db, session);
     return c.json({ session, report });
   })
-  .patch('/:id', zValidator('json', updateInventorySessionInput), (c) => {
+  .patch(
+    '/:id',
+    requireAuth('admin', 'operator'),
+    zValidator('json', updateInventorySessionInput),
+    (c) => {
+      const db = c.get('db');
+      const id = c.req.param('id');
+      const input = c.req.valid('json');
+      const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
+      if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+
+      const patch: Record<string, unknown> = { updatedAt: new Date() };
+      if (input.name !== undefined) patch.name = input.name;
+      if (input.note !== undefined) patch.note = input.note;
+      db.update(inventorySessions).set(patch).where(eq(inventorySessions.id, id)).run();
+      return c.json({ ok: true });
+    },
+  )
+  .post(
+    '/:id/scan',
+    requireAuth('admin', 'operator'),
+    zValidator('json', scanInventoryInput),
+    (c) => {
+      const db = c.get('db');
+      const user = c.get('user')!;
+      const id = c.req.param('id');
+      const code = c.req.valid('json').code.toUpperCase();
+
+      const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
+      if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+      if (session.status !== 'open') {
+        return c.json({ error: { message: 'Inventura je už uzavřená' } }, 409);
+      }
+
+      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+      if (!asset) return c.json({ error: { message: `Asset ${code} nenalezen` } }, 404);
+
+      const already = db
+        .select({ id: inventoryScans.id })
+        .from(inventoryScans)
+        .where(and(eq(inventoryScans.sessionId, id), eq(inventoryScans.assetId, asset.id)))
+        .get();
+
+      // Whether the asset belongs to this session's expected set.
+      const inScope = isInScope(db, session, asset);
+
+      const result: ScanResultKind = already ? 'already' : inScope ? 'found' : 'unexpected';
+
+      if (!already) {
+        const now = new Date();
+        db.insert(inventoryScans)
+          .values({ sessionId: id, assetId: asset.id, scannedByUserId: user.id, scannedAt: now })
+          .run();
+        db.update(assets).set({ lastSeenAt: now }).where(eq(assets.id, asset.id)).run();
+        db.insert(assetEvents)
+          .values({
+            assetId: asset.id,
+            actorUserId: user.id,
+            type: 'inventory_seen',
+            payload: { sessionId: id, inScope },
+          })
+          .run();
+      }
+
+      // Return the freshly reconciled report so the client can update its cache
+      // directly — the service worker serves GET /api/* stale-while-revalidate,
+      // so a refetch after the scan would otherwise show stale counts.
+      return c.json({
+        result,
+        asset: {
+          id: asset.id,
+          code: asset.code,
+          name: asset.name,
+          status: asset.status,
+          locationId: asset.locationId,
+        },
+        report: buildReport(db, session),
+      });
+    },
+  )
+  .post('/:id/close', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může upravit inventuru' } }, 403);
-    }
     const id = c.req.param('id');
-    const input = c.req.valid('json');
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
-    if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
-
-    const patch: Record<string, unknown> = { updatedAt: new Date() };
-    if (input.name !== undefined) patch.name = input.name;
-    if (input.note !== undefined) patch.note = input.note;
-    db.update(inventorySessions).set(patch).where(eq(inventorySessions.id, id)).run();
-    return c.json({ ok: true });
-  })
-  .post('/:id/scan', zValidator('json', scanInventoryInput), (c) => {
-    const db = c.get('db');
-    const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může skenovat' } }, 403);
-    }
-    const id = c.req.param('id');
-    const code = c.req.valid('json').code.toUpperCase();
-
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
-    if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
-    if (session.status !== 'open') {
-      return c.json({ error: { message: 'Inventura je už uzavřená' } }, 409);
-    }
-
-    const asset = db.select().from(assets).where(eq(assets.code, code)).get();
-    if (!asset) return c.json({ error: { message: `Asset ${code} nenalezen` } }, 404);
-
-    const already = db
-      .select({ id: inventoryScans.id })
-      .from(inventoryScans)
-      .where(and(eq(inventoryScans.sessionId, id), eq(inventoryScans.assetId, asset.id)))
-      .get();
-
-    // Whether the asset belongs to this session's expected set.
-    const inScope = isInScope(db, session, asset);
-
-    const result: ScanResultKind = already ? 'already' : inScope ? 'found' : 'unexpected';
-
-    if (!already) {
-      const now = new Date();
-      db.insert(inventoryScans)
-        .values({ sessionId: id, assetId: asset.id, scannedByUserId: user.id, scannedAt: now })
-        .run();
-      db.update(assets).set({ lastSeenAt: now }).where(eq(assets.id, asset.id)).run();
-      db.insert(assetEvents)
-        .values({
-          assetId: asset.id,
-          actorUserId: user.id,
-          type: 'inventory_seen',
-          payload: { sessionId: id, inScope },
-        })
-        .run();
-    }
-
-    // Return the freshly reconciled report so the client can update its cache
-    // directly — the service worker serves GET /api/* stale-while-revalidate,
-    // so a refetch after the scan would otherwise show stale counts.
-    return c.json({
-      result,
-      asset: {
-        id: asset.id,
-        code: asset.code,
-        name: asset.name,
-        status: asset.status,
-        locationId: asset.locationId,
-      },
-      report: buildReport(db, session),
-    });
-  })
-  .post('/:id/close', (c) => {
-    const db = c.get('db');
-    const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může uzavřít inventuru' } }, 403);
-    }
-    const id = c.req.param('id');
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
+    const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
     if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
     if (session.status === 'closed') {
       return c.json({ error: { message: 'Inventura je už uzavřená' } }, 409);
     }
     db.update(inventorySessions)
-      .set({ status: 'closed', closedAt: new Date(), closedByUserId: user.id, updatedAt: new Date() })
+      .set({
+        status: 'closed',
+        closedAt: new Date(),
+        closedByUserId: user.id,
+        updatedAt: new Date(),
+      })
       .where(eq(inventorySessions.id, id))
       .run();
     return c.json({ ok: true });
   })
-  .post('/:id/reopen', (c) => {
+  .post('/:id/reopen', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
-    const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může znovu otevřít inventuru' } }, 403);
-    }
     const id = c.req.param('id');
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
+    const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
     if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
     if (session.status === 'open') {
       return c.json({ error: { message: 'Inventura je už otevřená' } }, 409);
@@ -401,75 +382,70 @@ export const inventoryRoutes = new Hono<AppContext>()
       .run();
     return c.json({ ok: true });
   })
-  .put('/:id/items/:assetId/note', zValidator('json', inventoryItemNoteInput), (c) => {
-    const db = c.get('db');
-    const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může psát poznámky' } }, 403);
-    }
-    const id = c.req.param('id');
-    const assetId = c.req.param('assetId');
-    const note = c.req.valid('json').note.trim();
+  .put(
+    '/:id/items/:assetId/note',
+    requireAuth('admin', 'operator'),
+    zValidator('json', inventoryItemNoteInput),
+    (c) => {
+      const db = c.get('db');
+      const id = c.req.param('id');
+      const assetId = c.req.param('assetId');
+      const note = c.req.valid('json').note.trim();
 
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
-    if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
-    const asset = db.select({ id: assets.id }).from(assets).where(eq(assets.id, assetId)).get();
-    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
+      if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+      const asset = db.select({ id: assets.id }).from(assets).where(eq(assets.id, assetId)).get();
+      if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
 
-    if (note === '') {
-      db.delete(inventoryItemNotes)
-        .where(and(eq(inventoryItemNotes.sessionId, id), eq(inventoryItemNotes.assetId, assetId)))
-        .run();
-    } else {
-      db.insert(inventoryItemNotes)
-        .values({ sessionId: id, assetId, note })
-        .onConflictDoUpdate({
-          target: [inventoryItemNotes.sessionId, inventoryItemNotes.assetId],
-          set: { note, updatedAt: new Date() },
-        })
-        .run();
-    }
-    return c.json({ ok: true, report: buildReport(db, session) });
-  })
-  .post('/:id/mark-lost', zValidator('json', markMissingLostInput), (c) => {
-    const db = c.get('db');
-    const user = c.get('user')!;
-    if (!canWrite(user.role)) {
-      return c.json({ error: { message: 'Pouze admin nebo operator může vyřadit assety' } }, 403);
-    }
-    const id = c.req.param('id');
-    const session = db
-      .select()
-      .from(inventorySessions)
-      .where(eq(inventorySessions.id, id))
-      .get();
-    if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
-
-    const codes = c.req.valid('json').codes.map((x) => x.toUpperCase());
-    const now = new Date();
-    let archived = 0;
-    db.transaction((tx) => {
-      for (const code of codes) {
-        const asset = tx.select().from(assets).where(eq(assets.code, code)).get();
-        if (!asset || asset.archivedAt) continue;
-        tx.update(assets)
-          .set({ status: 'lost', archivedAt: now, updatedAt: now })
-          .where(eq(assets.id, asset.id))
+      if (note === '') {
+        db.delete(inventoryItemNotes)
+          .where(and(eq(inventoryItemNotes.sessionId, id), eq(inventoryItemNotes.assetId, assetId)))
           .run();
-        tx.insert(assetEvents)
-          .values({
-            assetId: asset.id,
-            actorUserId: user.id,
-            type: 'archived',
-            payload: { status: 'lost', reason: 'inventory', sessionId: id },
+      } else {
+        db.insert(inventoryItemNotes)
+          .values({ sessionId: id, assetId, note })
+          .onConflictDoUpdate({
+            target: [inventoryItemNotes.sessionId, inventoryItemNotes.assetId],
+            set: { note, updatedAt: new Date() },
           })
           .run();
-        archived += 1;
       }
-    });
-    return c.json({ ok: true, archived, report: buildReport(db, session) });
-  });
+      return c.json({ ok: true, report: buildReport(db, session) });
+    },
+  )
+  .post(
+    '/:id/mark-lost',
+    requireAuth('admin', 'operator'),
+    zValidator('json', markMissingLostInput),
+    (c) => {
+      const db = c.get('db');
+      const user = c.get('user')!;
+      const id = c.req.param('id');
+      const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
+      if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+
+      const codes = c.req.valid('json').codes.map((x) => x.toUpperCase());
+      const now = new Date();
+      let archived = 0;
+      db.transaction((tx) => {
+        for (const code of codes) {
+          const asset = tx.select().from(assets).where(eq(assets.code, code)).get();
+          if (!asset || asset.archivedAt) continue;
+          tx.update(assets)
+            .set({ status: 'lost', archivedAt: now, updatedAt: now })
+            .where(eq(assets.id, asset.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: asset.id,
+              actorUserId: user.id,
+              type: 'archived',
+              payload: { status: 'lost', reason: 'inventory', sessionId: id },
+            })
+            .run();
+          archived += 1;
+        }
+      });
+      return c.json({ ok: true, archived, report: buildReport(db, session) });
+    },
+  );

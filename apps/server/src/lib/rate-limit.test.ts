@@ -11,10 +11,8 @@ describe('rateLimit', () => {
   });
 
   it('allows up to `max` requests then returns 429', async () => {
-    const app = new Hono().get(
-      '/',
-      rateLimit({ bucket: 't1', windowMs: 60_000, max: 3 }),
-      (c) => c.text('ok'),
+    const app = new Hono().get('/', rateLimit({ bucket: 't1', windowMs: 60_000, max: 3 }), (c) =>
+      c.text('ok'),
     );
     for (let i = 0; i < 3; i++) {
       const res = await app.request('/');
@@ -26,10 +24,8 @@ describe('rateLimit', () => {
   });
 
   it('treats different IPs as separate buckets', async () => {
-    const app = new Hono().get(
-      '/',
-      rateLimit({ bucket: 't2', windowMs: 60_000, max: 1 }),
-      (c) => c.text('ok'),
+    const app = new Hono().get('/', rateLimit({ bucket: 't2', windowMs: 60_000, max: 1 }), (c) =>
+      c.text('ok'),
     );
     const a1 = await app.request('/', { headers: { 'x-forwarded-for': '1.1.1.1' } });
     const a2 = await app.request('/', { headers: { 'x-forwarded-for': '1.1.1.1' } });
@@ -55,10 +51,8 @@ describe('rateLimit', () => {
   });
 
   it('honours x-forwarded-for chain (first IP wins)', async () => {
-    const app = new Hono().get(
-      '/',
-      rateLimit({ bucket: 't3', windowMs: 60_000, max: 1 }),
-      (c) => c.text('ok'),
+    const app = new Hono().get('/', rateLimit({ bucket: 't3', windowMs: 60_000, max: 1 }), (c) =>
+      c.text('ok'),
     );
     const r1 = await app.request('/', {
       headers: { 'x-forwarded-for': '3.3.3.3, 10.0.0.1' },

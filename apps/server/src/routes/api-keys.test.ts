@@ -88,8 +88,9 @@ describe('API keys', () => {
 
     // Reading the feed stamps last-used, so the UI doesn't show it as unused.
     const list = await server.authRequest('/api/api-keys', { cookie: adminCookie });
-    const calRow = ((await list.json()) as { items: { name: string; lastUsedAt: string | null }[] })
-      .items.find((k) => k.name === 'Kalendář')!;
+    const calRow = (
+      (await list.json()) as { items: { name: string; lastUsedAt: string | null }[] }
+    ).items.find((k) => k.name === 'Kalendář')!;
     expect(calRow.lastUsedAt).not.toBeNull();
 
     // An api-only key is the mirror image: REST works, the feed is forbidden.

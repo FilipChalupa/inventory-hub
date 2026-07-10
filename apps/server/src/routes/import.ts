@@ -19,6 +19,7 @@ import {
   locations,
 } from '../db/schema.js';
 import { mapWithConcurrency, storeRemoteFile } from '../lib/uploads.js';
+import { requireAuth } from '../middleware/auth.js';
 
 /** Thrown at the end of a dry-run transaction to roll everything back while
  * keeping the counts computed along the way. */
@@ -39,6 +40,8 @@ const PHOTO_CONCURRENCY = 5;
  *
  * A source-specific adapter (e.g. the Kilomayo export in the monorepo) is
  * responsible for mapping its data into this format.
+ *
+ * Access: admin + operator (see the `requireAuth` guard on the route).
  */
 
 type StructuredResult = {
@@ -157,11 +160,11 @@ function importStructured(
           continue;
         }
         existingCodes.add(code);
-        const typeId = a.typeKey ? typeIdByKey.get(a.typeKey) ?? null : null;
+        const typeId = a.typeKey ? (typeIdByKey.get(a.typeKey) ?? null) : null;
         if (a.typeKey && !typeId) {
           unresolvedReferences.push({ kind: 'type', value: a.typeKey, context: `asset ${code}` });
         }
-        const locationId = a.locationKey ? locationIdByKey.get(a.locationKey) ?? null : null;
+        const locationId = a.locationKey ? (locationIdByKey.get(a.locationKey) ?? null) : null;
         if (a.locationKey && !locationId) {
           unresolvedReferences.push({
             kind: 'location',
@@ -300,12 +303,10 @@ function importStructured(
 
 export const importRoutes = new Hono<AppContext>().post(
   '/',
+  requireAuth('admin', 'operator'),
   zValidator('json', importPayloadSchema),
   async (c) => {
     const user = c.get('user')!;
-    if (user.role !== 'admin') {
-      return c.json({ error: { message: 'Pouze admin může importovat' } }, 403);
-    }
     const db = c.get('db');
     const env = c.get('env');
     const body = c.req.valid('json');

@@ -30,8 +30,6 @@ function freshTestEnv(): Env {
   };
 }
 
-const TEST_ENV = TEST_ENV_BASE;
-
 type Role = UserRow['role'];
 
 class MemoryEmailSender implements EmailSender {
@@ -49,10 +47,7 @@ export type TestServer = {
   close: () => void;
   createUser: (input?: { email?: string; name?: string; role?: Role }) => UserRow;
   loginAs: (user: UserRow) => string;
-  authRequest: (
-    path: string,
-    init?: RequestInit & { cookie?: string },
-  ) => Promise<Response>;
+  authRequest: (path: string, init?: RequestInit & { cookie?: string }) => Promise<Response>;
   laptopTypeId: string;
   sentEmails: Email[];
 };
@@ -72,9 +67,7 @@ export function setupTestServer(): TestServer {
     .values({ id: 'singleton', name: 'Test Org', codePrefix: null, allowedDomains: [] })
     .run();
   const laptopTypeId = crypto.randomUUID();
-  db.insert(assetTypes)
-    .values({ id: laptopTypeId, name: 'Laptop', codePrefix: 'LAP' })
-    .run();
+  db.insert(assetTypes).values({ id: laptopTypeId, name: 'Laptop', codePrefix: 'LAP' }).run();
 
   let userCounter = 0;
 

@@ -90,4 +90,24 @@ describe('damages API', () => {
     const row = server.db.select().from(damageReports).where(eq(damageReports.id, id)).get()!;
     expect(row.resolvedAt).not.toBeNull();
   });
+
+  it('lets a member report a damage but not resolve it', async () => {
+    const code = await makeAsset(server, cookie);
+    const memberCookie = server.loginAs(
+      server.createUser({ role: 'member', email: 'member@example.com' }),
+    );
+
+    // Reporting a fault is open to any authenticated user (a plain member).
+    const created = await jsonPost(server, memberCookie, `/api/damages/by-asset/${code}`, {
+      occurredAt: new Date().toISOString(),
+      description: 'Reported by a member',
+      severity: 'minor',
+    });
+    expect(created.status).toBe(201);
+    const { id } = (await created.json()) as { id: string };
+
+    // Resolving it is an operator/admin action — a member is rejected.
+    const resolve = await jsonPost(server, memberCookie, `/api/damages/${id}/resolve`, {});
+    expect(resolve.status).toBe(403);
+  });
 });
