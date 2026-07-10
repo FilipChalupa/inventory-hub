@@ -2,9 +2,7 @@ import { expect, test } from '@playwright/test';
 import { devLogin } from './helpers.js';
 
 test.describe('invitations', () => {
-  test('admin invites a user, invitee accepts and lands logged in', async ({
-    browser,
-  }) => {
+  test('admin invites a user, invitee accepts and lands logged in', async ({ browser }) => {
     // 1. Admin creates an invitation.
     const adminContext = await browser.newContext();
     const adminPage = await adminContext.newPage();

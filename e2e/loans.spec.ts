@@ -14,9 +14,7 @@ test.describe('loans', () => {
     await devLogin(page);
   });
 
-  test('create a loan via API, return one item OK and one damaged via UI', async ({
-    page,
-  }) => {
+  test('create a loan via API, return one item OK and one damaged via UI', async ({ page }) => {
     // Self-contained: create our own assets so the test doesn't depend on
     // the order other E2E specs ran in.
     await createAsset(page, 'Loan Item A', 'LAP-91001');
@@ -104,11 +102,7 @@ test.describe('loans', () => {
     await page.goto(`/loans/${loanId}`);
     await page.getByRole('button', { name: '+ Přidat položku' }).click();
     await page.getByPlaceholder('Hledat kód / název…').fill('LAP-94002');
-    await page
-      .locator('li')
-      .filter({ hasText: 'LAP-94002' })
-      .getByRole('checkbox')
-      .check();
+    await page.locator('li').filter({ hasText: 'LAP-94002' }).getByRole('checkbox').check();
     await page.getByRole('button', { name: /Přidat \(1\)/ }).click();
     await expect(page.getByRole('link', { name: 'LAP-94002' })).toBeVisible();
 

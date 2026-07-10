@@ -34,21 +34,21 @@ typically you only need to add `PUBLIC_APP_URL`.
 defaults. In production behind your own domain you must set `PUBLIC_APP_URL`,
 otherwise the app rejects requests (see `*`).
 
-| Variable | Required | Default | Purpose |
-|---|---|---|---|
-| `PUBLIC_APP_URL` | in production yes\* | `http://localhost:5173` | Public URL of the app. Used for CORS, the CSRF Origin check, OAuth redirect and QR codes. Set it to `https://your-domain`. |
-| `NODE_ENV` | no | `production` (in image) | `production` disables the dev login at `/login`. Already set in the Docker image. |
-| `PORT` | no | `3001` | HTTP server port (frontend + API). |
-| `DATABASE_URL` | no | `file:/data/app.db` | Path to the SQLite file. Keep it on the `/data` volume. |
-| `UPLOAD_DIR` | no | `/data/uploads` | Directory for uploaded photos/attachments. Keep it on `/data`. |
-| `UPLOAD_MAX_BYTES` | no | `5242880` (5 MB) | Max size of a single upload. |
-| `GOOGLE_CLIENT_ID` | no | – | Google OAuth login. Without it only the dev login works (disabled in production). |
-| `GOOGLE_CLIENT_SECRET` | no | – | Google OAuth secret. |
-| `GOOGLE_REDIRECT_URL` | no | – | `https://your-domain/auth/google/callback`. |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | no | – | Sending email (invitations, notifications). Without them, emails are just logged to the console. |
-| `MCP_BASE_URL` | no | `PUBLIC_APP_URL` + `/mcp` | Canonical URL of the remote MCP server (the `/mcp` endpoint). Access tokens are audience-bound to it. Must be HTTPS in production. Requires Google OAuth. |
-| `MCP_ACCESS_TOKEN_TTL` | no | `3600` | MCP access-token lifetime in seconds. |
-| `MCP_REFRESH_TOKEN_TTL` | no | `2592000` | MCP refresh-token lifetime in seconds (rotated on use). |
+| Variable                                                        | Required            | Default                   | Purpose                                                                                                                                                   |
+| --------------------------------------------------------------- | ------------------- | ------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PUBLIC_APP_URL`                                                | in production yes\* | `http://localhost:5173`   | Public URL of the app. Used for CORS, the CSRF Origin check, OAuth redirect and QR codes. Set it to `https://your-domain`.                                |
+| `NODE_ENV`                                                      | no                  | `production` (in image)   | `production` disables the dev login at `/login`. Already set in the Docker image.                                                                         |
+| `PORT`                                                          | no                  | `3001`                    | HTTP server port (frontend + API).                                                                                                                        |
+| `DATABASE_URL`                                                  | no                  | `file:/data/app.db`       | Path to the SQLite file. Keep it on the `/data` volume.                                                                                                   |
+| `UPLOAD_DIR`                                                    | no                  | `/data/uploads`           | Directory for uploaded photos/attachments. Keep it on `/data`.                                                                                            |
+| `UPLOAD_MAX_BYTES`                                              | no                  | `5242880` (5 MB)          | Max size of a single upload.                                                                                                                              |
+| `GOOGLE_CLIENT_ID`                                              | no                  | –                         | Google OAuth login. Without it only the dev login works (disabled in production).                                                                         |
+| `GOOGLE_CLIENT_SECRET`                                          | no                  | –                         | Google OAuth secret.                                                                                                                                      |
+| `GOOGLE_REDIRECT_URL`                                           | no                  | –                         | `https://your-domain/auth/google/callback`.                                                                                                               |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` | no                  | –                         | Sending email (invitations, notifications). Without them, emails are just logged to the console.                                                          |
+| `MCP_BASE_URL`                                                  | no                  | `PUBLIC_APP_URL` + `/mcp` | Canonical URL of the remote MCP server (the `/mcp` endpoint). Access tokens are audience-bound to it. Must be HTTPS in production. Requires Google OAuth. |
+| `MCP_ACCESS_TOKEN_TTL`                                          | no                  | `3600`                    | MCP access-token lifetime in seconds.                                                                                                                     |
+| `MCP_REFRESH_TOKEN_TTL`                                         | no                  | `2592000`                 | MCP refresh-token lifetime in seconds (rotated on use).                                                                                                   |
 
 \* `PUBLIC_APP_URL` is technically not needed to start the process, but without
 the correct value the app won't work behind your own domain — login and all

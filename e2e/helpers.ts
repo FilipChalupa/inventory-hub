@@ -19,11 +19,7 @@ export async function devLogin(page: Page, email = 'admin@example.com'): Promise
  * Hits a backend endpoint directly via the page's browser context so cookies
  * + CSRF Origin are taken care of automatically.
  */
-export async function apiPost(
-  page: Page,
-  path: string,
-  body: unknown,
-): Promise<Response> {
+export async function apiPost(page: Page, path: string, body: unknown): Promise<Response> {
   return page.request.post(`${SERVER_URL}${path}`, {
     headers: { 'content-type': 'application/json' },
     data: JSON.stringify(body),
