@@ -1,20 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import {
-  and,
-  asc,
-  desc,
-  eq,
-  gte,
-  inArray,
-  isNull,
-  isNotNull,
-  lt,
-  lte,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm';
+import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, or, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   createLoanInput,
@@ -35,6 +21,7 @@ import {
   type LoanRow,
   type UserRow,
 } from '../db/schema.js';
+import { findLoanWindowConflicts } from '../lib/loan.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -542,30 +529,7 @@ export const loanRoutes = new Hono<AppContext>()
         .all()
         .map((r) => r.assetId);
       if (myAssetIds.length) {
-        const others = db
-          .select({
-            code: assets.code,
-            loanedAt: loans.loanedAt,
-            expectedReturnAt: loans.expectedReturnAt,
-          })
-          .from(loanItems)
-          .innerJoin(assets, eq(loanItems.assetId, assets.id))
-          .innerJoin(loans, eq(loanItems.loanId, loans.id))
-          .where(
-            and(
-              inArray(loanItems.assetId, myAssetIds),
-              isNull(loanItems.returnedAt),
-              ne(loanItems.loanId, id),
-            ),
-          )
-          .all();
-        const conflicts = [
-          ...new Set(
-            others
-              .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
-              .map((e) => e.code),
-          ),
-        ];
+        const conflicts = findLoanWindowConflicts(db, myAssetIds, newStart, newEnd, id);
         if (conflicts.length) {
           return c.json(
             {
@@ -749,30 +713,7 @@ export const loanRoutes = new Hono<AppContext>()
       const newStart = loan.loanedAt;
       const newEnd = loan.expectedReturnAt;
       const targetIds = targets.map((t) => t.id);
-      const others = db
-        .select({
-          code: assets.code,
-          loanedAt: loans.loanedAt,
-          expectedReturnAt: loans.expectedReturnAt,
-        })
-        .from(loanItems)
-        .innerJoin(assets, eq(loanItems.assetId, assets.id))
-        .innerJoin(loans, eq(loanItems.loanId, loans.id))
-        .where(
-          and(
-            inArray(loanItems.assetId, targetIds),
-            isNull(loanItems.returnedAt),
-            ne(loanItems.loanId, id),
-          ),
-        )
-        .all();
-      const conflicts = [
-        ...new Set(
-          others
-            .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
-            .map((e) => e.code),
-        ),
-      ];
+      const conflicts = findLoanWindowConflicts(db, targetIds, newStart, newEnd, id);
       if (conflicts.length) {
         return c.json(
           { error: { message: `Asset(y) v daném termínu kolidují: ${conflicts.join(', ')}` } },
@@ -917,24 +858,7 @@ export const loanRoutes = new Hono<AppContext>()
       // overlap. Each not-yet-returned loan item reserves its asset for
       // [loanedAt, expectedReturnAt) — open-ended when no return date is
       // set. Non-overlapping (e.g. back-to-back) reservations are allowed.
-      const existing = tx
-        .select({
-          code: assets.code,
-          loanedAt: loans.loanedAt,
-          expectedReturnAt: loans.expectedReturnAt,
-        })
-        .from(loanItems)
-        .innerJoin(assets, eq(loanItems.assetId, assets.id))
-        .innerJoin(loans, eq(loanItems.loanId, loans.id))
-        .where(and(inArray(loanItems.assetId, targetIds), isNull(loanItems.returnedAt)))
-        .all();
-      conflictCodes = [
-        ...new Set(
-          existing
-            .filter((e) => loanWindowsOverlap(newStart, newEnd, e.loanedAt, e.expectedReturnAt))
-            .map((e) => e.code),
-        ),
-      ];
+      conflictCodes = findLoanWindowConflicts(tx, targetIds, newStart, newEnd);
       if (conflictCodes.length) return; // abort: nothing inserted, handled below
 
       tx.insert(loans)
