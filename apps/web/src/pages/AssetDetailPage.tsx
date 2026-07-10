@@ -321,16 +321,28 @@ export function AssetDetailPage() {
             typeId: a.typeId ?? '',
             locationId: a.locationId ?? '',
             customFields: (a.customFields ?? {}) as Record<string, unknown>,
+            purchasedAt: toDateInput(a.purchasedAt),
+            warrantyUntil: toDateInput(a.warrantyUntil),
+            purchasePrice: a.purchasePrice != null ? (a.purchasePrice / 100).toFixed(2) : '',
+            supplier: a.supplier ?? '',
           }}
           types={types.data?.items ?? []}
           locationsList={locations.data?.items ?? []}
           customSchema={customSchema}
           onSubmit={async (values) => {
+            const price = values.purchasePrice.trim().replace(',', '.');
+            const priceNum = price ? Number(price) : NaN;
             await apiClient.assets.update(code, {
               name: values.name,
               typeId: values.typeId || null,
               locationId: values.locationId || null,
               customFields: values.customFields,
+              purchasedAt: values.purchasedAt ? new Date(values.purchasedAt).toISOString() : null,
+              warrantyUntil: values.warrantyUntil
+                ? new Date(values.warrantyUntil).toISOString()
+                : null,
+              purchasePrice: Number.isFinite(priceNum) ? Math.round(priceNum * 100) : null,
+              supplier: values.supplier.trim() || null,
             });
             setShowEditForm(false);
             invalidateAll();
@@ -373,6 +385,35 @@ export function AssetDetailPage() {
           <dd>{formatDate(a.updatedAt)}</dd>
           <dt className="text-slate-500">{t.assetDetail.archivedAt}</dt>
           <dd>{a.archivedAt ? formatDate(a.archivedAt) : t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.purchasedAt}</dt>
+          <dd>{a.purchasedAt ? formatDate(a.purchasedAt) : t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.warrantyUntil}</dt>
+          <dd>
+            {a.warrantyUntil
+              ? (() => {
+                  const w = warrantyStatus(a.warrantyUntil);
+                  return (
+                    <span
+                      className={
+                        w === 'expired'
+                          ? 'text-red-600 dark:text-red-400 font-medium'
+                          : w === 'soon'
+                            ? 'text-amber-600 dark:text-amber-400 font-medium'
+                            : undefined
+                      }
+                    >
+                      {formatDate(a.warrantyUntil)}
+                      {w === 'expired' && ` · ${t.assetDetail.warrantyExpired}`}
+                      {w === 'soon' && ` · ${t.assetDetail.warrantyExpiringSoon}`}
+                    </span>
+                  );
+                })()
+              : t.common.none}
+          </dd>
+          <dt className="text-slate-500">{t.assetDetail.purchasePrice}</dt>
+          <dd>{a.purchasePrice != null ? formatPrice(a.purchasePrice) : t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.supplier}</dt>
+          <dd>{a.supplier || t.common.none}</dd>
           {customSchema.map((f) => {
             const value = (a.customFields ?? {})[f.key];
             return (
@@ -871,6 +912,10 @@ function EditAssetForm({
     typeId: string;
     locationId: string;
     customFields: Record<string, unknown>;
+    purchasedAt: string;
+    warrantyUntil: string;
+    purchasePrice: string;
+    supplier: string;
   };
   types: { id: string; name: string; codePrefix: string }[];
   locationsList: LocationRow[];
@@ -880,6 +925,10 @@ function EditAssetForm({
     typeId: string;
     locationId: string;
     customFields: Record<string, unknown>;
+    purchasedAt: string;
+    warrantyUntil: string;
+    purchasePrice: string;
+    supplier: string;
   }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -931,6 +980,32 @@ function EditAssetForm({
         <Field label={t.assetDetail.location}>
           <LocationSelect locations={locationsList} {...register('locationId')} />
         </Field>
+        <div className="border-t pt-3">
+          <h3 className="font-medium text-sm text-slate-700 dark:text-slate-200 mb-2">
+            {t.assetDetail.lifecycleHeading}
+          </h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label={t.assetDetail.purchasedAt}>
+              <Input type="date" {...register('purchasedAt')} />
+            </Field>
+            <Field label={t.assetDetail.warrantyUntil}>
+              <Input type="date" {...register('warrantyUntil')} />
+            </Field>
+            <Field label={t.assetDetail.purchasePrice}>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                placeholder={t.assetDetail.purchasePricePlaceholder}
+                {...register('purchasePrice')}
+              />
+            </Field>
+            <Field label={t.assetDetail.supplier}>
+              <Input placeholder={t.assetDetail.supplierPlaceholder} {...register('supplier')} />
+            </Field>
+          </div>
+        </div>
         {customSchema.length > 0 && (
           <div className="border-t pt-3">
             <h3 className="font-medium text-sm text-slate-700 mb-2">
@@ -965,6 +1040,38 @@ function FragmentRow({ label, value }: { label: string; value: string }) {
       <dd>{value || '—'}</dd>
     </>
   );
+}
+
+/** Formats a minor-unit (cents) amount as a localized decimal, or '—'. */
+function formatPrice(cents: number | null | undefined): string {
+  if (cents == null) return '—';
+  return new Intl.NumberFormat(localeTag(getLocale()), {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(cents / 100);
+}
+
+const WARRANTY_SOON_DAYS = 30;
+
+/**
+ * Classifies a warranty end date relative to now: 'expired' once it has
+ * passed, 'soon' within the next 30 days, otherwise null (no emphasis).
+ */
+function warrantyStatus(warrantyUntil: Date | null): 'expired' | 'soon' | null {
+  if (!warrantyUntil) return null;
+  const now = Date.now();
+  const end = new Date(warrantyUntil).getTime();
+  if (end < now) return 'expired';
+  if (end - now <= WARRANTY_SOON_DAYS * 24 * 60 * 60 * 1000) return 'soon';
+  return null;
+}
+
+/** Converts a Date to the 'YYYY-MM-DD' value a <input type="date"> expects. */
+function toDateInput(value: Date | null): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return d.toISOString().slice(0, 10);
 }
 
 function formatCustomFieldValue(

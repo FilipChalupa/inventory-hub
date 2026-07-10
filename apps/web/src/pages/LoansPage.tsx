@@ -18,6 +18,19 @@ const statusClasses = {
 
 type StatusFilter = '' | keyof typeof statusClasses | 'overdue';
 
+const STATUS_FILTERS: readonly StatusFilter[] = [
+  '',
+  'planned',
+  'open',
+  'partially_returned',
+  'fully_returned',
+  'overdue',
+];
+
+function parseStatusFilter(value: string | null): StatusFilter {
+  return STATUS_FILTERS.includes(value as StatusFilter) ? (value as StatusFilter) : '';
+}
+
 export function LoansPage() {
   const t = useT();
   // Snapshot "now" once so it doesn't change identity every render and
@@ -25,7 +38,26 @@ export function LoansPage() {
   const now = useMemo(() => new Date(), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'list';
-  const [status, setStatus] = useState<StatusFilter>('');
+  // Status is a client-side filter, but we mirror it in the URL so dashboard
+  // deep-links (e.g. ?status=overdue) pre-fill it and the view is shareable.
+  const [status, setStatus] = useState<StatusFilter>(() =>
+    parseStatusFilter(searchParams.get('status')),
+  );
+
+  // Keeps the local status filter and the URL query in sync (preserving the
+  // current `view`), so a refresh or shared link restores the same view.
+  const updateStatus = (next: StatusFilter) => {
+    setStatus(next);
+    setSearchParams(
+      (prev) => {
+        const p = new URLSearchParams(prev);
+        if (next) p.set('status', next);
+        else p.delete('status');
+        return p;
+      },
+      { replace: true },
+    );
+  };
   const [borrower, setBorrower] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
@@ -86,10 +118,34 @@ export function LoansPage() {
       </div>
 
       <div className="inline-flex rounded border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
-        <ViewTab active={view === 'list'} onClick={() => setSearchParams({})}>
+        <ViewTab
+          active={view === 'list'}
+          onClick={() =>
+            setSearchParams(
+              (prev) => {
+                const p = new URLSearchParams(prev);
+                p.delete('view');
+                return p;
+              },
+              { replace: true },
+            )
+          }
+        >
           {t.loans.viewList}
         </ViewTab>
-        <ViewTab active={view === 'calendar'} onClick={() => setSearchParams({ view: 'calendar' })}>
+        <ViewTab
+          active={view === 'calendar'}
+          onClick={() =>
+            setSearchParams(
+              (prev) => {
+                const p = new URLSearchParams(prev);
+                p.set('view', 'calendar');
+                return p;
+              },
+              { replace: true },
+            )
+          }
+        >
           {t.loans.viewCalendar}
         </ViewTab>
       </div>
@@ -109,7 +165,7 @@ export function LoansPage() {
           </div>
           <div>
             <label className="text-xs text-slate-500 block mb-0.5">{t.loans.status}</label>
-            <Select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)}>
+            <Select value={status} onChange={(e) => updateStatus(e.target.value as StatusFilter)}>
               <option value="">{t.loans.statusAll}</option>
               <option value="planned">{t.loanStatuses.planned}</option>
               <option value="open">{t.loanStatuses.open}</option>
@@ -131,7 +187,7 @@ export function LoansPage() {
               variant="ghost"
               className="text-xs"
               onClick={() => {
-                setStatus('');
+                updateStatus('');
                 setBorrower('');
                 setFrom('');
                 setTo('');

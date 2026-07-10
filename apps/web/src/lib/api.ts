@@ -38,6 +38,14 @@ async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export type BulkAssetsInput = {
+  action: 'archive' | 'move' | 'assign' | 'unassign';
+  assetCodes: string[];
+  locationId?: string | null;
+  userId?: string | null;
+  status?: 'sold' | 'lost' | 'retired' | 'damaged';
+};
+
 export type ListAssetsParams = {
   q?: string;
   status?: AssetStatus;
@@ -406,12 +414,18 @@ export const apiClient = {
         locationId?: string | null;
         notes?: string | null;
         customFields?: Record<string, unknown>;
+        purchasedAt?: string | Date | null;
+        warrantyUntil?: string | Date | null;
+        purchasePrice?: number | null;
+        supplier?: string | null;
       },
     ) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}`, {
         method: 'PATCH',
         body: input,
       }),
+    bulk: (input: BulkAssetsInput) =>
+      api<{ updated: number }>('/api/assets/bulk', { method: 'POST', body: input }),
     archive: (code: string, status: 'sold' | 'lost' | 'retired' | 'damaged', note?: string) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}/archive`, {
         method: 'POST',

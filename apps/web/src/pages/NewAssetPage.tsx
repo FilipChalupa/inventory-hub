@@ -16,6 +16,10 @@ type FormValues = {
   typeId: string;
   locationId: string;
   code: string;
+  purchasedAt: string;
+  warrantyUntil: string;
+  purchasePrice: string;
+  supplier: string;
 };
 
 export function NewAssetPage() {
@@ -23,7 +27,16 @@ export function NewAssetPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const { register, handleSubmit, watch, formState } = useForm<FormValues>({
-    defaultValues: { name: '', typeId: '', locationId: '', code: '' },
+    defaultValues: {
+      name: '',
+      typeId: '',
+      locationId: '',
+      code: '',
+      purchasedAt: '',
+      warrantyUntil: '',
+      purchasePrice: '',
+      supplier: '',
+    },
   });
 
   const types = useQuery({
@@ -43,14 +56,23 @@ export function NewAssetPage() {
   const [customFieldErrors, setCustomFieldErrors] = useState<Record<string, string>>({});
 
   const create = useMutation({
-    mutationFn: async (values: FormValues) =>
-      apiClient.assets.create({
+    mutationFn: async (values: FormValues) => {
+      const price = values.purchasePrice.trim().replace(',', '.');
+      const priceNum = price ? Number(price) : NaN;
+      return apiClient.assets.create({
         name: values.name,
         code: values.code.trim() ? values.code.trim().toUpperCase() : undefined,
         typeId: values.typeId || null,
         locationId: values.locationId || null,
         customFields: customFieldValues,
-      }),
+        // Date inputs yield 'YYYY-MM-DD'; serialize to an ISO string (or null).
+        purchasedAt: values.purchasedAt ? new Date(values.purchasedAt) : null,
+        warrantyUntil: values.warrantyUntil ? new Date(values.warrantyUntil) : null,
+        // User enters a decimal amount; store minor units (cents/haléře).
+        purchasePrice: Number.isFinite(priceNum) ? Math.round(priceNum * 100) : null,
+        supplier: values.supplier.trim() || null,
+      });
+    },
     onSuccess: async (res) => {
       await qc.invalidateQueries({ queryKey: ['assets'] });
       toast.success(t.newAsset.created(res.code));
@@ -109,6 +131,33 @@ export function NewAssetPage() {
             }
           />
         </Field>
+
+        <div className="border-t pt-4">
+          <h2 className="font-semibold mb-3 text-sm text-slate-700 dark:text-slate-200">
+            {t.newAsset.lifecycleHeading}
+          </h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Field label={t.newAsset.purchasedAtLabel}>
+              <Input type="date" {...register('purchasedAt')} />
+            </Field>
+            <Field label={t.newAsset.warrantyUntilLabel}>
+              <Input type="date" {...register('warrantyUntil')} />
+            </Field>
+            <Field label={t.newAsset.purchasePriceLabel}>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.01"
+                min="0"
+                placeholder={t.newAsset.purchasePricePlaceholder}
+                {...register('purchasePrice')}
+              />
+            </Field>
+            <Field label={t.newAsset.supplierLabel}>
+              <Input placeholder={t.newAsset.supplierPlaceholder} {...register('supplier')} />
+            </Field>
+          </div>
+        </div>
 
         {schema.length > 0 && (
           <div className="border-t pt-4">
