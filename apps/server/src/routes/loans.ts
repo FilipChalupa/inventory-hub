@@ -25,7 +25,16 @@ import {
   loanWindowsOverlap,
 } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
-import { assetEvents, assets, damageReports, loanItems, loans, users } from '../db/schema.js';
+import {
+  assetEvents,
+  assets,
+  damageReports,
+  loanItems,
+  loans,
+  users,
+  type LoanRow,
+  type UserRow,
+} from '../db/schema.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -52,6 +61,14 @@ const STATUS_UNAVAILABLE_REASON: Record<string, string> = {
 // returned on the same day it started — compare against the start of the
 // loan's day rather than its exact timestamp, otherwise a same-day return is
 // wrongly rejected as "before the loan started".
+// Self-service authorization for returning a loan: admins/operators may return
+// any loan; everyone else (a `member`) only a loan borrowed by them. Auditors
+// never reach this — the global read-only guard rejects their mutations first.
+function canReturnLoan(user: UserRow, loan: LoanRow): boolean {
+  if (user.role === 'admin' || user.role === 'operator') return true;
+  return loan.borrowerUserId === user.id;
+}
+
 function returnDateError(returnedAt: Date, loanStart: Date, now: Date): string | null {
   if (returnedAt.getTime() > now.getTime()) return 'Datum vrácení nemůže být v budoucnu';
   const startOfLoanDay = Date.UTC(
@@ -992,9 +1009,13 @@ export const loanRoutes = new Hono<AppContext>()
     activateLoan(db, id, user.id, new Date());
     return c.json({ ok: true });
   })
+  // Returning items is a self-service action: admins/operators may return any
+  // loan, while a member may return a loan borrowed by them
+  // (`borrowerUserId === user.id`). Auditors stay blocked by the global
+  // read-only guard, so the ownership check lives in the handler instead of a
+  // `requireAuth('admin','operator')` guard.
   .post(
     '/:id/return-all',
-    requireAuth('admin', 'operator'),
     zValidator('json', z.object({ returnedAt: z.coerce.date().optional() })),
     (c) => {
       const db = c.get('db');
@@ -1002,6 +1023,9 @@ export const loanRoutes = new Hono<AppContext>()
       const input = c.req.valid('json');
       const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
       if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+      if (!canReturnLoan(c.get('user')!, loan)) {
+        return c.json({ error: { message: 'Nedostatečná oprávnění' } }, 403);
+      }
       if (loan.startedAt === null) {
         return c.json({ error: { message: 'Výpůjčka ještě nezačala' } }, 409);
       }
@@ -1054,15 +1078,22 @@ export const loanRoutes = new Hono<AppContext>()
     const result = await runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL });
     return c.json(result);
   })
+  // Per-item return — same self-service rule as return-all: managers may
+  // return any loan, a member only their own (see `canReturnLoan`).
   .post(
     '/:id/items/:itemId/return',
-    requireAuth('admin', 'operator'),
     zValidator('json', returnLoanItemInput.omit({ loanItemId: true })),
     (c) => {
       const db = c.get('db');
       const loanId = c.req.param('id');
       const itemId = c.req.param('itemId');
       const input = c.req.valid('json');
+
+      const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
+      if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+      if (!canReturnLoan(c.get('user')!, loan)) {
+        return c.json({ error: { message: 'Nedostatečná oprávnění' } }, 403);
+      }
 
       const item = db
         .select()
@@ -1076,9 +1107,6 @@ export const loanRoutes = new Hono<AppContext>()
 
       const asset = db.select().from(assets).where(eq(assets.id, item.assetId)).get();
       if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
-
-      const loan = db.select().from(loans).where(eq(loans.id, loanId)).get();
-      if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
 
       const user = c.get('user')!;
 

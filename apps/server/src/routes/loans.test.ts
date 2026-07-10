@@ -1131,4 +1131,74 @@ describe('loans API', () => {
       expect(second.status).toBe(409);
     });
   });
+
+  describe('member self-service returns', () => {
+    it('lets a member return an item on a loan borrowed by them', async () => {
+      const member = server.createUser({ email: 'borrower@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Borrower',
+        borrowerUserId: member.id,
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
+
+      const memberCookie = server.loginAs(member);
+      const res = await jsonPost(
+        server,
+        memberCookie,
+        `/api/loans/${loanId}/items/${itemId}/return`,
+        { returnCondition: 'ok' },
+      );
+      expect(res.status).toBe(200);
+      const row = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(row.status).toBe('in_stock');
+    });
+
+    it('lets a member return-all on their own loan', async () => {
+      const member = server.createUser({ email: 'borrower2@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Borrower',
+        borrowerUserId: member.id,
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+
+      const memberCookie = server.loginAs(member);
+      const res = await jsonPost(server, memberCookie, `/api/loans/${loanId}/return-all`, {});
+      expect(res.status).toBe(200);
+    });
+
+    it("forbids a member from returning someone else's loan (403)", async () => {
+      const borrower = server.createUser({ email: 'borrower3@example.com', role: 'member' });
+      const other = server.createUser({ email: 'other-member@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const created = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Borrower',
+        borrowerUserId: borrower.id,
+        assetCodes: [a],
+      });
+      const { id: loanId } = (await created.json()) as { id: string };
+      const itemId = server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).get()!
+        .id;
+
+      const otherCookie = server.loginAs(other);
+      const itemRes = await jsonPost(
+        server,
+        otherCookie,
+        `/api/loans/${loanId}/items/${itemId}/return`,
+        { returnCondition: 'ok' },
+      );
+      expect(itemRes.status).toBe(403);
+
+      const allRes = await jsonPost(server, otherCookie, `/api/loans/${loanId}/return-all`, {});
+      expect(allRes.status).toBe(403);
+
+      const row = server.db.select().from(assets).where(eq(assets.code, a)).get()!;
+      expect(row.status).toBe('on_loan');
+    });
+  });
 });

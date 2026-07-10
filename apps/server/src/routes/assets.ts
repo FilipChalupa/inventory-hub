@@ -49,6 +49,7 @@ const listQuery = z.object({
   status: z.enum(ASSET_STATUSES).optional(),
   typeId: z.string().uuid().optional(),
   locationId: z.string().uuid().optional(),
+  assignedToUserId: z.string().uuid().optional(),
   includeArchived: z
     .union([z.literal('true'), z.literal('false')])
     .optional()
@@ -87,7 +88,8 @@ function incrementCode(code: string): string {
 export const assetRoutes = new Hono<AppContext>()
   .get('/', zValidator('query', listQuery), (c) => {
     const db = c.get('db');
-    const { q, status, typeId, locationId, includeArchived } = c.req.valid('query');
+    const { q, status, typeId, locationId, assignedToUserId, includeArchived } =
+      c.req.valid('query');
 
     const conditions = [];
     if (q) {
@@ -112,6 +114,7 @@ export const assetRoutes = new Hono<AppContext>()
     if (status) conditions.push(eq(assets.status, status));
     if (typeId) conditions.push(eq(assets.typeId, typeId));
     if (locationId) conditions.push(eq(assets.locationId, locationId));
+    if (assignedToUserId) conditions.push(eq(assets.assignedToUserId, assignedToUserId));
     if (!includeArchived) conditions.push(isNull(assets.archivedAt));
 
     const where = conditions.length ? and(...conditions) : undefined;
@@ -492,11 +495,21 @@ export const assetRoutes = new Hono<AppContext>()
       .run();
     return c.json({ ok: true });
   })
-  .post('/:code/unassign', requireAuth('admin', 'operator'), (c) => {
+  // Unassigning is a self-service action: admins/operators may return any
+  // asset, while any other authenticated user (a `member`) may return an asset
+  // that is assigned to them. Auditors stay blocked by the global read-only
+  // guard. Hence no `requireAuth('admin','operator')` here — the check lives in
+  // the handler so ownership can be considered.
+  .post('/:code/unassign', (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+    const user = c.get('user')!;
+    const isManager = user.role === 'admin' || user.role === 'operator';
+    if (!isManager && asset.assignedToUserId !== user.id) {
+      return c.json({ error: { message: 'Nedostatečná oprávnění' } }, 403);
+    }
     if (asset.status !== 'assigned') {
       return c.json({ error: { message: 'Asset není interně přiřazený' } }, 409);
     }

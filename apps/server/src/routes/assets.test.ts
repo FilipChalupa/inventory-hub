@@ -257,6 +257,43 @@ describe('assets API', () => {
       });
       expect(res.status).toBe(409);
     });
+
+    it('lets a member unassign an asset assigned to them (self-service)', async () => {
+      const member = server.createUser({ email: 'owner@example.com', role: 'member' });
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name: 'Mine',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+      await jsonPost(server, cookie, `/api/assets/${code}/assign`, { userId: member.id });
+
+      const memberCookie = server.loginAs(member);
+      const res = await jsonPost(server, memberCookie, `/api/assets/${code}/unassign`, {});
+      expect(res.status).toBe(200);
+
+      const row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+      expect(row.status).toBe('in_stock');
+      expect(row.assignedToUserId).toBeNull();
+    });
+
+    it("forbids a member from unassigning someone else's asset (403)", async () => {
+      const owner = server.createUser({ email: 'owner2@example.com', role: 'member' });
+      const other = server.createUser({ email: 'other@example.com', role: 'member' });
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name: 'Not mine',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+      await jsonPost(server, cookie, `/api/assets/${code}/assign`, { userId: owner.id });
+
+      const otherCookie = server.loginAs(other);
+      const res = await jsonPost(server, otherCookie, `/api/assets/${code}/unassign`, {});
+      expect(res.status).toBe(403);
+
+      const row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+      expect(row.status).toBe('assigned');
+      expect(row.assignedToUserId).toBe(owner.id);
+    });
   });
 
   describe('PATCH /api/assets/:code', () => {

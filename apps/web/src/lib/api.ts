@@ -43,6 +43,7 @@ export type ListAssetsParams = {
   status?: AssetStatus;
   typeId?: string;
   locationId?: string;
+  assignedToUserId?: string;
   includeArchived?: boolean;
   limit?: number;
   offset?: number;
@@ -360,6 +361,7 @@ export const apiClient = {
       api<{
         initialized: boolean;
         appUrl?: string;
+        backupsConfigured?: boolean;
         settings?: { name: string; codePrefix: string | null; allowedDomains: AllowedDomain[] };
         labelSettings: LabelSettings;
       }>('/api/org'),
@@ -377,6 +379,7 @@ export const apiClient = {
       if (params.status) qs.set('status', params.status);
       if (params.typeId) qs.set('typeId', params.typeId);
       if (params.locationId) qs.set('locationId', params.locationId);
+      if (params.assignedToUserId) qs.set('assignedToUserId', params.assignedToUserId);
       if (params.includeArchived) qs.set('includeArchived', 'true');
       if (params.limit != null) qs.set('limit', String(params.limit));
       if (params.offset != null) qs.set('offset', String(params.offset));
