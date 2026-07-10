@@ -191,6 +191,8 @@ export const assetRoutes = new Hono<AppContext>()
         warrantyUntil: input.warrantyUntil ?? null,
         purchasePrice: input.purchasePrice ?? null,
         supplier: input.supplier ?? null,
+        serviceIntervalDays: input.serviceIntervalDays ?? null,
+        lastServicedAt: input.lastServicedAt ?? null,
       })
       .run();
 
@@ -316,9 +318,14 @@ export const assetRoutes = new Hono<AppContext>()
       patch = { ...input, customFields: 'skip' in cfResult ? {} : cfResult.values };
     }
 
-    // Changing the warranty date re-arms the "warranty expiring" notifier;
+    // Changing the warranty / service schedule re-arms the matching notifier;
     // otherwise a stale flag would suppress the reminder for the new date.
-    const reminderReset = input.warrantyUntil !== undefined ? { warrantyReminderSentAt: null } : {};
+    const reminderReset = {
+      ...(input.warrantyUntil !== undefined ? { warrantyReminderSentAt: null } : {}),
+      ...(input.serviceIntervalDays !== undefined || input.lastServicedAt !== undefined
+        ? { serviceReminderSentAt: null }
+        : {}),
+    };
 
     db.update(assets)
       .set({ ...patch, ...reminderReset, updatedAt: new Date() })
@@ -595,6 +602,28 @@ export const assetRoutes = new Hono<AppContext>()
         assetId: asset.id,
         actorUserId: c.get('user')?.id ?? null,
         type: 'repair_finished',
+        payload: {},
+      })
+      .run();
+    return c.json({ ok: true });
+  })
+  // Records a maintenance/service as done now: stamps lastServicedAt (so the
+  // next-service date rolls forward) and re-arms the "service due" notifier.
+  .post('/:code/service', requireAuth('admin', 'operator'), (c) => {
+    const db = c.get('db');
+    const code = c.req.param('code').toUpperCase();
+    const asset = db.select().from(assets).where(eq(assets.code, code)).get();
+    if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+    const now = new Date();
+    db.update(assets)
+      .set({ lastServicedAt: now, serviceReminderSentAt: null, updatedAt: now })
+      .where(eq(assets.id, asset.id))
+      .run();
+    db.insert(assetEvents)
+      .values({
+        assetId: asset.id,
+        actorUserId: c.get('user')?.id ?? null,
+        type: 'serviced',
         payload: {},
       })
       .run();

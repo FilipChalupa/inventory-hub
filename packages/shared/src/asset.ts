@@ -39,6 +39,10 @@ export const assetLifecycleFields = {
   warrantyUntil: z.coerce.date().nullable().optional(),
   purchasePrice: z.number().int().min(0).max(1_000_000_000_00).nullable().optional(),
   supplier: z.string().trim().max(200).nullable().optional(),
+  // Planned maintenance: service every N days, counted from the last service
+  // (or purchase/creation date). Null interval = no schedule.
+  serviceIntervalDays: z.number().int().min(1).max(3650).nullable().optional(),
+  lastServicedAt: z.coerce.date().nullable().optional(),
 };
 
 export const assetSchema = z.object({
@@ -56,6 +60,8 @@ export const assetSchema = z.object({
   warrantyUntil: z.coerce.date().nullable(),
   purchasePrice: z.number().int().nullable(),
   supplier: z.string().nullable(),
+  serviceIntervalDays: z.number().int().nullable(),
+  lastServicedAt: z.coerce.date().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -86,5 +92,22 @@ export const assetEventTypes = [
   'loan_item_returned',
   'repair_started',
   'repair_finished',
+  'serviced',
 ] as const;
 export type AssetEventType = (typeof assetEventTypes)[number];
+
+/**
+ * Computes when an asset's next service is due, or null when it has no
+ * maintenance schedule. Counts `serviceIntervalDays` from the last service,
+ * falling back to the purchase date and then the creation date.
+ */
+export function nextServiceDue(asset: {
+  serviceIntervalDays: number | null;
+  lastServicedAt: Date | null;
+  purchasedAt: Date | null;
+  createdAt: Date;
+}): Date | null {
+  if (!asset.serviceIntervalDays) return null;
+  const base = asset.lastServicedAt ?? asset.purchasedAt ?? asset.createdAt;
+  return new Date(base.getTime() + asset.serviceIntervalDays * 24 * 60 * 60 * 1000);
+}

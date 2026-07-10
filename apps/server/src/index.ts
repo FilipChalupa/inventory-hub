@@ -10,6 +10,7 @@ import { createEmailSender } from './lib/email.js';
 import { activateDueLoans } from './lib/loanActivation.js';
 import { runOverdueCheck, runStartReminders } from './lib/overdue.js';
 import { runWarrantyReminders } from './lib/warranty.js';
+import { runServiceReminders } from './lib/service-reminders.js';
 import { pruneRateLimits } from './lib/rate-limit.js';
 import { pruneExpiredSessions } from './lib/sessions.js';
 import { pruneExpiredOauth } from './mcp/oauth-store.js';
@@ -61,6 +62,9 @@ const runLoanNotifiers = () => {
   );
   void runWarrantyReminders(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
     console.error('warranty reminder failed:', err),
+  );
+  void runServiceReminders(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
+    console.error('service reminder failed:', err),
   );
 };
 const initialTimer = setTimeout(runLoanNotifiers, 30_000);

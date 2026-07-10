@@ -197,6 +197,14 @@ export const assets = sqliteTable(
     // Idempotency flag for the "warranty expiring soon" notifier — set once a
     // reminder has been sent for the current warrantyUntil value.
     warrantyReminderSentAt: integer('warranty_reminder_sent_at', { mode: 'timestamp_ms' }),
+    // Planned maintenance: recurring service every `serviceIntervalDays`, due
+    // `serviceIntervalDays` after `lastServicedAt` (or the purchase/creation
+    // date if never serviced). Null interval = no maintenance schedule.
+    serviceIntervalDays: integer('service_interval_days'),
+    lastServicedAt: integer('last_serviced_at', { mode: 'timestamp_ms' }),
+    // Idempotency flag for the "service due soon" notifier — cleared when the
+    // asset is serviced or the interval changes.
+    serviceReminderSentAt: integer('service_reminder_sent_at', { mode: 'timestamp_ms' }),
     ...timestamps,
   },
   (t) => ({
