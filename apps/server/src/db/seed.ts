@@ -43,6 +43,18 @@ try {
     .onConflictDoNothing()
     .run();
 
+  console.log('  member user');
+  const memberId = fixedOrRandom('00000000-0000-0000-0000-000000000002');
+  db.insert(users)
+    .values({
+      id: memberId,
+      email: 'member@example.com',
+      name: isE2e ? 'E2E Member' : 'Dev Member',
+      role: 'member',
+    })
+    .onConflictDoNothing()
+    .run();
+
   console.log('  asset types');
   const laptopTypeId = fixedOrRandom('00000000-0000-0000-0000-000000001001');
   const monitorTypeId = fixedOrRandom('00000000-0000-0000-0000-000000001002');

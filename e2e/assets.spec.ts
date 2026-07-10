@@ -55,10 +55,16 @@ test.describe('assets', () => {
     const code = 'LAP-90001';
     await page.goto(`/a/${code}`);
 
-    // Archive as "Prodáno" — wait for the inline "archivováno" indicator
-    // next to the status badge (exact match: there's also an "Archivováno"
-    // label further down in the details list).
+    // Archive as "Prodáno". Archiving is destructive, so it goes through a
+    // confirm dialog (the dialog's confirm button carries the same "Prodáno"
+    // label, hence scoping to the alertdialog). Then wait for the inline
+    // "archivováno" indicator next to the status badge (exact match: there's
+    // also an "Archivováno" label further down in the details list).
     await page.getByRole('button', { name: 'Prodáno', exact: true }).click();
+    await page
+      .getByRole('alertdialog')
+      .getByRole('button', { name: 'Prodáno', exact: true })
+      .click();
     await expect(page.getByText('archivováno', { exact: true })).toBeVisible();
 
     // List view shouldn't show it without the archived checkbox.
