@@ -58,7 +58,8 @@ export function LocationsPage() {
     // Errors (e.g. would-create-a-cycle) surface via the global toast handler.
   });
 
-  const rows = list.data?.items ?? [];
+  // Stable identity so the activeRow memo below isn't invalidated every render.
+  const rows = useMemo(() => list.data?.items ?? [], [list.data]);
   const tree = locationsAsTree(rows);
   const [activeId, setActiveId] = useState<string | null>(null);
   const activeRow = useMemo(() => rows.find((r) => r.id === activeId) ?? null, [rows, activeId]);

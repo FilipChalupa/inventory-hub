@@ -16,6 +16,12 @@ export function ScanPage() {
   const [manualCode, setManualCode] = useState('');
   const [scanning, setScanning] = useState(false);
 
+  // Read the (locale-dependent) camera-error label via a ref so the camera
+  // effect doesn't restart the stream every time the translation object
+  // changes (e.g. on a language switch).
+  const cameraErrorRef = useRef(t.scan.cameraError);
+  cameraErrorRef.current = t.scan.cameraError;
+
   useEffect(() => {
     const html5 = new Html5Qrcode(SCANNER_ELEMENT_ID);
     scannerRef.current = html5;
@@ -42,7 +48,7 @@ export function ScanPage() {
         );
         setScanning(true);
       } catch (err) {
-        setError(errorMessage(err) || t.scan.cameraError);
+        setError(errorMessage(err) || cameraErrorRef.current);
       }
     };
     void start();

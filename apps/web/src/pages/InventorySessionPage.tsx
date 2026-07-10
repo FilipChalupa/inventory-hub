@@ -415,6 +415,10 @@ function ScanPanel({
   const scannerRef = useRef<Html5Qrcode | null>(null);
   // Debounce repeat reads of the same code from the live camera.
   const lastScanRef = useRef<{ code: string; at: number }>({ code: '', at: 0 });
+  // Read the locale-dependent camera-error label via a ref so a language
+  // switch doesn't restart the camera effect.
+  const cameraErrorRef = useRef(t.inventorySession.cameraError);
+  cameraErrorRef.current = t.inventorySession.cameraError;
 
   useEffect(() => {
     if (!scanning) return;
@@ -441,7 +445,7 @@ function ScanPanel({
           },
         );
       } catch (err) {
-        setError(errorMessage(err) || t.inventorySession.cameraError);
+        setError(errorMessage(err) || cameraErrorRef.current);
         setScanning(false);
       }
     };

@@ -20,7 +20,9 @@ type StatusFilter = '' | keyof typeof statusClasses | 'overdue';
 
 export function LoansPage() {
   const t = useT();
-  const now = new Date();
+  // Snapshot "now" once so it doesn't change identity every render and
+  // invalidate the filtered-loans memo below.
+  const now = useMemo(() => new Date(), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const view = searchParams.get('view') === 'calendar' ? 'calendar' : 'list';
   const [status, setStatus] = useState<StatusFilter>('');
