@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM node:22-bookworm-slim AS base
+FROM node:26-bookworm-slim AS base
 WORKDIR /repo
 ENV NODE_ENV=production
 
@@ -25,7 +25,7 @@ RUN npm run build --workspace @inventory-hub/shared \
     && npm run build --workspace @inventory-hub/web
 
 # ---- runtime ----
-FROM node:22-bookworm-slim AS runtime
+FROM node:26-bookworm-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     PORT=3001 \
