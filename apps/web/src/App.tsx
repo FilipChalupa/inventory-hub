@@ -10,6 +10,7 @@ import {
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
+import { NotificationBell } from './components/NotificationBell.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { SkeletonList } from './components/ui.js';
 import { useT, useLocale, type Messages } from './i18n/index.js';
@@ -179,7 +180,8 @@ function Shell() {
               ))}
             </Dropdown>
           </nav>
-          <div className="ml-auto sm:ml-0">
+          <div className="ml-auto flex items-center gap-1 sm:ml-0 sm:gap-2">
+            <NotificationBell />
             <UserMenu />
           </div>
         </div>

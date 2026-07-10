@@ -344,6 +344,23 @@ export type DashboardStats = {
   currency: string;
 };
 
+export type NotificationSeverity = 'info' | 'warning' | 'danger';
+
+export type NotificationItem = {
+  id: string;
+  type: 'overdue_loan' | 'warranty' | 'service' | 'damage';
+  severity: NotificationSeverity;
+  title: string;
+  message: string;
+  link: string;
+  at: string;
+};
+
+export type NotificationFeed = {
+  items: NotificationItem[];
+  unreadCount: number;
+};
+
 export const apiClient = {
   health: () => api<{ status: string; time: string }>('/health'),
 
@@ -657,6 +674,11 @@ export const apiClient = {
 
   stats: {
     get: () => api<DashboardStats>('/api/stats'),
+  },
+
+  notifications: {
+    list: () => api<NotificationFeed>('/api/notifications'),
+    markSeen: () => api<{ ok: true }>('/api/notifications/seen', { method: 'POST' }),
   },
 
   apiKeys: {
