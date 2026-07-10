@@ -1,5 +1,12 @@
 import { sql } from 'drizzle-orm';
-import { sqliteTable, text, integer, index, uniqueIndex } from 'drizzle-orm/sqlite-core';
+import {
+  sqliteTable,
+  text,
+  integer,
+  index,
+  uniqueIndex,
+  type AnySQLiteColumn,
+} from 'drizzle-orm/sqlite-core';
 
 const id = () =>
   text('id')
@@ -46,6 +53,9 @@ export const users = sqliteTable(
     googleSubject: text('google_subject'),
     imageUrl: text('image_url'),
     disabledAt: integer('disabled_at', { mode: 'timestamp_ms' }),
+    // Last time the user opened the in-app notification feed; anything newer
+    // counts as unread for the badge.
+    lastNotificationsSeenAt: integer('last_notifications_seen_at', { mode: 'timestamp_ms' }),
     ...timestamps,
   },
   (t) => ({
@@ -205,6 +215,14 @@ export const assets = sqliteTable(
     // Idempotency flag for the "service due soon" notifier — cleared when the
     // asset is serviced or the interval changes.
     serviceReminderSentAt: integer('service_reminder_sent_at', { mode: 'timestamp_ms' }),
+    // Kit membership: the "container" asset this one belongs to (e.g. a laptop's
+    // dock/charger point at the laptop). Null = standalone. Self-reference.
+    parentAssetId: text('parent_asset_id').references((): AnySQLiteColumn => assets.id, {
+      onDelete: 'set null',
+    }),
+    // Straight-line depreciation period in months (from purchasedAt). Null = the
+    // asset isn't depreciated; current value stays at purchasePrice.
+    usefulLifeMonths: integer('useful_life_months'),
     ...timestamps,
   },
   (t) => ({
@@ -213,6 +231,7 @@ export const assets = sqliteTable(
     typeIdx: index('assets_type_idx').on(t.typeId),
     locationIdx: index('assets_location_idx').on(t.locationId),
     warrantyIdx: index('assets_warranty_idx').on(t.warrantyUntil),
+    parentIdx: index('assets_parent_idx').on(t.parentAssetId),
   }),
 );
 
@@ -414,6 +433,13 @@ export const loans = sqliteTable(
     // Set once the "your reservation starts soon" reminder has been sent,
     // so the reminder runner stays idempotent.
     startReminderSentAt: integer('start_reminder_sent_at', { mode: 'timestamp_ms' }),
+    // Self-service reservations: set when a non-operator requested this loan.
+    // `approvedAt` is null while the request is pending an operator's approval;
+    // once approved it behaves like any planned loan.
+    requestedByUserId: text('requested_by_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    approvedAt: integer('approved_at', { mode: 'timestamp_ms' }),
     createdByUserId: text('created_by_user_id')
       .notNull()
       .references(() => users.id),
