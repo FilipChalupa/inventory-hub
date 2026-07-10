@@ -7,6 +7,7 @@ import {
   ASSET_STATUSES,
   TERMINAL_ASSET_STATUSES,
   assetCodeSchema,
+  assetLifecycleFields,
   createAssetInput,
   validateCustomFieldValues,
   type AssetStatus,
@@ -63,6 +64,7 @@ const updateInput = z.object({
   locationId: z.string().uuid().nullable().optional(),
   notes: z.string().trim().max(2000).nullable().optional(),
   customFields: z.record(z.string(), z.unknown()).optional(),
+  ...assetLifecycleFields,
 });
 
 const archiveInput = z.object({
@@ -177,6 +179,10 @@ export const assetRoutes = new Hono<AppContext>()
         typeId: input.typeId ?? null,
         locationId: input.locationId ?? null,
         customFields,
+        purchasedAt: input.purchasedAt ?? null,
+        warrantyUntil: input.warrantyUntil ?? null,
+        purchasePrice: input.purchasePrice ?? null,
+        supplier: input.supplier ?? null,
       })
       .run();
 
@@ -216,8 +222,12 @@ export const assetRoutes = new Hono<AppContext>()
       patch = { ...input, customFields: 'skip' in cfResult ? {} : cfResult.values };
     }
 
+    // Changing the warranty date re-arms the "warranty expiring" notifier;
+    // otherwise a stale flag would suppress the reminder for the new date.
+    const reminderReset = input.warrantyUntil !== undefined ? { warrantyReminderSentAt: null } : {};
+
     db.update(assets)
-      .set({ ...patch, updatedAt: new Date() })
+      .set({ ...patch, ...reminderReset, updatedAt: new Date() })
       .where(eq(assets.id, asset.id))
       .run();
 

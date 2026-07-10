@@ -29,6 +29,18 @@ export const assetCodeSchema = z
     'Kód musí být ve formátu PREFIX-SEKCE-CISLO (jen A–Z, 0–9, -)',
   );
 
+/**
+ * Optional lifecycle / procurement metadata, shared by the create and update
+ * inputs. `purchasePrice` is in the org's currency minor units (e.g. cents) to
+ * avoid floating-point rounding; the UI converts to/from a decimal amount.
+ */
+export const assetLifecycleFields = {
+  purchasedAt: z.coerce.date().nullable().optional(),
+  warrantyUntil: z.coerce.date().nullable().optional(),
+  purchasePrice: z.number().int().min(0).max(1_000_000_000_00).nullable().optional(),
+  supplier: z.string().trim().max(200).nullable().optional(),
+};
+
 export const assetSchema = z.object({
   code: assetCodeSchema,
   name: z.string().min(1).max(200),
@@ -40,6 +52,10 @@ export const assetSchema = z.object({
   customFields: z.record(z.string(), z.unknown()).default({}),
   photoPaths: z.array(z.string()).default([]),
   documentPaths: z.array(z.string()).default([]),
+  purchasedAt: z.coerce.date().nullable(),
+  warrantyUntil: z.coerce.date().nullable(),
+  purchasePrice: z.number().int().nullable(),
+  supplier: z.string().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -51,6 +67,7 @@ export const createAssetInput = z.object({
   typeId: z.string().uuid().nullable().optional(),
   locationId: z.string().uuid().nullable().optional(),
   customFields: z.record(z.string(), z.unknown()).optional(),
+  ...assetLifecycleFields,
 });
 export type CreateAssetInput = z.infer<typeof createAssetInput>;
 

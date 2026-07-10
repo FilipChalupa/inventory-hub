@@ -187,6 +187,16 @@ export const assets = sqliteTable(
     // Last time the asset was physically confirmed present (set when scanned
     // during an inventory). Null = never verified.
     lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }),
+    // Lifecycle / procurement metadata (all optional).
+    purchasedAt: integer('purchased_at', { mode: 'timestamp_ms' }),
+    warrantyUntil: integer('warranty_until', { mode: 'timestamp_ms' }),
+    // Purchase price in the org's currency, stored in minor units (e.g. cents)
+    // to avoid floating-point rounding. Null = unknown.
+    purchasePrice: integer('purchase_price'),
+    supplier: text('supplier'),
+    // Idempotency flag for the "warranty expiring soon" notifier — set once a
+    // reminder has been sent for the current warrantyUntil value.
+    warrantyReminderSentAt: integer('warranty_reminder_sent_at', { mode: 'timestamp_ms' }),
     ...timestamps,
   },
   (t) => ({
@@ -194,6 +204,7 @@ export const assets = sqliteTable(
     statusIdx: index('assets_status_idx').on(t.status),
     typeIdx: index('assets_type_idx').on(t.typeId),
     locationIdx: index('assets_location_idx').on(t.locationId),
+    warrantyIdx: index('assets_warranty_idx').on(t.warrantyUntil),
   }),
 );
 
