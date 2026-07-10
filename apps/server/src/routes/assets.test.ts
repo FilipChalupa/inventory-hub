@@ -470,6 +470,102 @@ describe('assets API', () => {
     });
   });
 
+  describe('depreciation and kits', () => {
+    async function createAsset(body: Record<string, unknown>): Promise<string> {
+      const res = await jsonPost(server, cookie, '/api/assets', {
+        typeId: server.laptopTypeId,
+        ...body,
+      });
+      expect(res.status).toBe(201);
+      return ((await res.json()) as { code: string }).code;
+    }
+
+    it('persists usefulLifeMonths and parentAssetId on create', async () => {
+      const parentCode = await createAsset({ name: 'Kit box' });
+      const parent = server.db.select().from(assets).where(eq(assets.code, parentCode)).get()!;
+
+      const childCode = await createAsset({
+        name: 'Kit part',
+        usefulLifeMonths: 36,
+        parentAssetId: parent.id,
+      });
+      const child = server.db.select().from(assets).where(eq(assets.code, childCode)).get()!;
+      expect(child.usefulLifeMonths).toBe(36);
+      expect(child.parentAssetId).toBe(parent.id);
+    });
+
+    it('persists usefulLifeMonths and parentAssetId on patch', async () => {
+      const parentCode = await createAsset({ name: 'Kit box' });
+      const parent = server.db.select().from(assets).where(eq(assets.code, parentCode)).get()!;
+      const childCode = await createAsset({ name: 'Loose part' });
+
+      const res = await jsonPatch(server, cookie, `/api/assets/${childCode}`, {
+        usefulLifeMonths: 24,
+        parentAssetId: parent.id,
+      });
+      expect(res.status).toBe(200);
+      const child = server.db.select().from(assets).where(eq(assets.code, childCode)).get()!;
+      expect(child.usefulLifeMonths).toBe(24);
+      expect(child.parentAssetId).toBe(parent.id);
+    });
+
+    it('rejects a self-referencing parent with 400', async () => {
+      const code = await createAsset({ name: 'Self kit' });
+      const self = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+      const res = await jsonPatch(server, cookie, `/api/assets/${code}`, {
+        parentAssetId: self.id,
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects an unknown parent with 400', async () => {
+      const code = await createAsset({ name: 'Orphan' });
+      const res = await jsonPatch(server, cookie, `/api/assets/${code}`, {
+        parentAssetId: crypto.randomUUID(),
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('rejects the trivial two-node cycle with 400', async () => {
+      const parentCode = await createAsset({ name: 'A' });
+      const parent = server.db.select().from(assets).where(eq(assets.code, parentCode)).get()!;
+      const childCode = await createAsset({ name: 'B', parentAssetId: parent.id });
+      const child = server.db.select().from(assets).where(eq(assets.code, childCode)).get()!;
+
+      // Now try to make the parent a child of its own child → cycle.
+      const res = await jsonPatch(server, cookie, `/api/assets/${parentCode}`, {
+        parentAssetId: child.id,
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('returns children and parent on GET /:code', async () => {
+      const parentCode = await createAsset({ name: 'Kit box' });
+      const parent = server.db.select().from(assets).where(eq(assets.code, parentCode)).get()!;
+      const childCodeB = await createAsset({ name: 'Part B', parentAssetId: parent.id });
+      const childCodeA = await createAsset({ name: 'Part A', parentAssetId: parent.id });
+
+      const parentRes = await server.authRequest(`/api/assets/${parentCode}`, { cookie });
+      const parentBody = (await parentRes.json()) as {
+        children: { code: string; name: string; status: string }[];
+        parent: { code: string; name: string } | null;
+      };
+      expect(parentBody.parent).toBeNull();
+      // Ordered by code ascending.
+      expect(parentBody.children.map((child) => child.code)).toEqual(
+        [childCodeA, childCodeB].sort(),
+      );
+
+      const childRes = await server.authRequest(`/api/assets/${childCodeA}`, { cookie });
+      const childBody = (await childRes.json()) as {
+        children: unknown[];
+        parent: { code: string; name: string } | null;
+      };
+      expect(childBody.children).toEqual([]);
+      expect(childBody.parent).toEqual({ code: parentCode, name: 'Kit box' });
+    });
+  });
+
   describe('import CSV', () => {
     async function importCsv(text: string, dryRun: boolean) {
       const form = new FormData();

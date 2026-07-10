@@ -85,6 +85,30 @@ function isTerminalStatus(s: AssetStatus): boolean {
 }
 
 /**
+ * Validates a proposed kit parent for the asset identified by `selfId`. Returns
+ * an error message when the link is invalid, or null when it's fine (including
+ * when no parent is set). Guards against a missing parent, a self-reference and
+ * the trivial two-node cycle (making an asset a child of its own child). Deeper
+ * cycles are intentionally not checked.
+ */
+function validateParentAssetId(
+  db: Db,
+  parentAssetId: string | null | undefined,
+  selfId: string,
+): string | null {
+  if (!parentAssetId) return null;
+  if (parentAssetId === selfId) return 'Asset nemůže být svým vlastním nadřazeným assetem';
+  const parent = db
+    .select({ id: assets.id, parentAssetId: assets.parentAssetId })
+    .from(assets)
+    .where(eq(assets.id, parentAssetId))
+    .get();
+  if (!parent) return 'Nadřazený asset nenalezen';
+  if (parent.parentAssetId === selfId) return 'Cyklická vazba kitu není povolena';
+  return null;
+}
+
+/**
  * Increments the trailing sequence on an asset code like LAP-00007 → LAP-00008,
  * preserving the prefix and zero-padding.
  */
@@ -179,6 +203,10 @@ export const assetRoutes = new Hono<AppContext>()
     const customFields = 'skip' in cfResult ? {} : cfResult.values;
 
     const assetId = crypto.randomUUID();
+
+    const parentError = validateParentAssetId(db, input.parentAssetId, assetId);
+    if (parentError) return c.json({ error: { message: parentError } }, 400);
+
     db.insert(assets)
       .values({
         id: assetId,
@@ -193,6 +221,8 @@ export const assetRoutes = new Hono<AppContext>()
         supplier: input.supplier ?? null,
         serviceIntervalDays: input.serviceIntervalDays ?? null,
         lastServicedAt: input.lastServicedAt ?? null,
+        usefulLifeMonths: input.usefulLifeMonths ?? null,
+        parentAssetId: input.parentAssetId ?? null,
       })
       .run();
 
@@ -298,7 +328,24 @@ export const assetRoutes = new Hono<AppContext>()
     const code = c.req.param('code').toUpperCase();
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
-    return c.json({ asset });
+
+    // Kit membership: the assets contained in this one (its children) and, when
+    // this asset itself belongs to a kit, a light reference to its parent.
+    const children = db
+      .select({ code: assets.code, name: assets.name, status: assets.status })
+      .from(assets)
+      .where(eq(assets.parentAssetId, asset.id))
+      .orderBy(asc(assets.code))
+      .all();
+    const parent = asset.parentAssetId
+      ? (db
+          .select({ code: assets.code, name: assets.name })
+          .from(assets)
+          .where(eq(assets.id, asset.parentAssetId))
+          .get() ?? null)
+      : null;
+
+    return c.json({ asset, children, parent });
   })
   .patch('/:code', requireAuth('admin', 'operator'), zValidator('json', updateInput), (c) => {
     const db = c.get('db');
@@ -306,6 +353,11 @@ export const assetRoutes = new Hono<AppContext>()
     const input = c.req.valid('json');
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+
+    if (input.parentAssetId !== undefined) {
+      const parentError = validateParentAssetId(db, input.parentAssetId, asset.id);
+      if (parentError) return c.json({ error: { message: parentError } }, 400);
+    }
 
     // If customFields are being updated, validate against the (possibly new) type's schema.
     let patch: typeof input = { ...input };

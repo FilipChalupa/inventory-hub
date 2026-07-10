@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { currentAssetValue } from '@inventory-hub/shared';
 import { assets, assetTypes, loanItems, loans, locations } from '../db/schema.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 import type { StatsResponse } from './stats.js';
@@ -40,6 +41,7 @@ describe('stats API', () => {
     serviceIntervalDays?: number | null;
     lastServicedAt?: Date | null;
     purchasedAt?: Date | null;
+    usefulLifeMonths?: number | null;
   }): string {
     assetSeq += 1;
     const id = crypto.randomUUID();
@@ -58,6 +60,7 @@ describe('stats API', () => {
         serviceIntervalDays: input.serviceIntervalDays ?? null,
         lastServicedAt: input.lastServicedAt ?? null,
         purchasedAt: input.purchasedAt ?? null,
+        usefulLifeMonths: input.usefulLifeMonths ?? null,
       })
       .run();
     return id;
@@ -227,6 +230,31 @@ describe('stats API', () => {
     expect(valueByType.some((r) => r.typeName === '—')).toBe(false);
   });
 
+  it('sums the depreciated (current) value of non-archived assets', async () => {
+    const purchasedAt = new Date();
+    purchasedAt.setMonth(purchasedAt.getMonth() - 6);
+
+    // Depreciated over 12 months, 6 elapsed → roughly half the price.
+    addAsset({ purchasePrice: 100_000, purchasedAt, usefulLifeMonths: 12 });
+    // No useful life → current value stays at the full purchase price.
+    addAsset({ purchasePrice: 50_000 });
+    // No price → contributes nothing.
+    addAsset({ purchasePrice: null, usefulLifeMonths: 12, purchasedAt });
+    // Archived → excluded.
+    addAsset({ purchasePrice: 999_999, archived: true });
+
+    const depreciated = currentAssetValue({
+      purchasePrice: 100_000,
+      purchasedAt,
+      usefulLifeMonths: 12,
+    })!;
+
+    const stats = await getStats();
+    expect(stats.totalValue).toBe(150_000);
+    expect(stats.totalCurrentValue).toBe(depreciated + 50_000);
+    expect(stats.totalCurrentValue).toBeLessThan(stats.totalValue);
+  });
+
   it('counts warranties that are expired or expiring within 30 days', async () => {
     const day = 86_400_000;
     addAsset({ warrantyUntil: new Date(Date.now() - 5 * day) }); // expired
@@ -269,6 +297,7 @@ describe('stats API', () => {
     expect(stats.loans).toEqual({ active: 0, overdue: 0, planned: 0 });
     expect(stats.byStatus.every((s) => s.count === 0)).toBe(true);
     expect(stats.totalValue).toBe(0);
+    expect(stats.totalCurrentValue).toBe(0);
     expect(stats.valueByType).toEqual([]);
     expect(stats.warrantyExpiringSoon).toBe(0);
     expect(stats.serviceDueSoon).toBe(0);

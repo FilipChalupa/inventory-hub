@@ -338,6 +338,7 @@ export type DashboardStats = {
   loans: { active: number; overdue: number; planned: number };
   inRepair: number;
   totalValue: number;
+  totalCurrentValue: number;
   valueByType: { typeId: string; typeName: string; value: number }[];
   warrantyExpiringSoon: number;
   serviceDueSoon: number;
@@ -423,9 +424,14 @@ export const apiClient = {
       if (params.limit != null) qs.set('limit', String(params.limit));
       if (params.offset != null) qs.set('offset', String(params.offset));
       const suffix = qs.toString() ? `?${qs}` : '';
-      return api<{ items: Asset[]; total: number }>(`/api/assets${suffix}`);
+      return api<{ items: (Asset & { id: string })[]; total: number }>(`/api/assets${suffix}`);
     },
-    get: (code: string) => api<{ asset: Asset }>(`/api/assets/${encodeURIComponent(code)}`),
+    get: (code: string) =>
+      api<{
+        asset: Asset;
+        children: { code: string; name: string; status: AssetStatus }[];
+        parent: { code: string; name: string } | null;
+      }>(`/api/assets/${encodeURIComponent(code)}`),
     create: (input: CreateAssetInput) =>
       api<{ code: string; id: string }>('/api/assets', { method: 'POST', body: input }),
     update: (
@@ -442,6 +448,8 @@ export const apiClient = {
         supplier?: string | null;
         serviceIntervalDays?: number | null;
         lastServicedAt?: string | Date | null;
+        usefulLifeMonths?: number | null;
+        parentAssetId?: string | null;
       },
     ) =>
       api<{ ok: true }>(`/api/assets/${encodeURIComponent(code)}`, {

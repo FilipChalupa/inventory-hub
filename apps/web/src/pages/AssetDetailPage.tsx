@@ -9,6 +9,7 @@ import { AvailabilityCalendar } from '../components/AvailabilityCalendar.js';
 import { nextFreeAt, nonLoanableReason, toISODate, type BusyWindow } from '../lib/availability.js';
 import { locationPath } from '../lib/locations.js';
 import {
+  currentAssetValue,
   nextServiceDue,
   type CustomFieldsSchema,
   type DamageSeverity,
@@ -74,6 +75,11 @@ export function AssetDetailPage() {
     queryKey: ['asset-loans', code],
     queryFn: () => apiClient.loans.forAsset(code),
     enabled: !!code,
+  });
+  // Candidate parents for the kit (parent asset) picker in the edit form.
+  const assetsList = useQuery({
+    queryKey: ['assets', 'parent-options'],
+    queryFn: () => apiClient.assets.list({ limit: 500 }),
   });
 
   const invalidateAll = () => {
@@ -161,6 +167,20 @@ export function AssetDetailPage() {
 
   const nextDue = nextServiceDue(a);
   const serviceState = serviceStatus(nextDue);
+
+  // Straight-line depreciated value. Build a Date so the calc is robust whether
+  // the API delivered a Date or an ISO string.
+  const currentValue = currentAssetValue({
+    purchasePrice: a.purchasePrice,
+    purchasedAt: a.purchasedAt ? new Date(a.purchasedAt) : null,
+    usefulLifeMonths: a.usefulLifeMonths,
+  });
+  const children = asset.data.children;
+  const parent = asset.data.parent;
+  // Exclude the current asset from the parent picker (can't be its own parent).
+  const parentOptions = (assetsList.data?.items ?? [])
+    .filter((item) => item.code !== a.code)
+    .map((item) => ({ id: item.id, code: item.code, name: item.name }));
 
   const blockReason = nonLoanableReason(a.status);
   const loanWindows: BusyWindow[] = (assetLoans.data?.items ?? []).map((loan) => ({
@@ -328,15 +348,20 @@ export function AssetDetailPage() {
             supplier: a.supplier ?? '',
             serviceIntervalDays: a.serviceIntervalDays != null ? String(a.serviceIntervalDays) : '',
             lastServicedAt: toDateInput(a.lastServicedAt),
+            usefulLifeMonths: a.usefulLifeMonths != null ? String(a.usefulLifeMonths) : '',
+            parentAssetId: a.parentAssetId ?? '',
           }}
           types={types.data?.items ?? []}
           locationsList={locations.data?.items ?? []}
+          parentOptions={parentOptions}
           customSchema={customSchema}
           onSubmit={async (values) => {
             const price = values.purchasePrice.trim().replace(',', '.');
             const priceNum = price ? Number(price) : NaN;
             const intervalRaw = values.serviceIntervalDays.trim();
             const intervalNum = intervalRaw ? Number(intervalRaw) : NaN;
+            const lifeRaw = values.usefulLifeMonths.trim();
+            const lifeNum = lifeRaw ? Number(lifeRaw) : NaN;
             await apiClient.assets.update(code, {
               name: values.name,
               typeId: values.typeId || null,
@@ -353,6 +378,9 @@ export function AssetDetailPage() {
               lastServicedAt: values.lastServicedAt
                 ? new Date(values.lastServicedAt).toISOString()
                 : null,
+              usefulLifeMonths:
+                Number.isFinite(lifeNum) && lifeNum > 0 ? Math.round(lifeNum) : null,
+              parentAssetId: values.parentAssetId || null,
             });
             setShowEditForm(false);
             invalidateAll();
@@ -422,6 +450,14 @@ export function AssetDetailPage() {
           </dd>
           <dt className="text-slate-500">{t.assetDetail.purchasePrice}</dt>
           <dd>{a.purchasePrice != null ? formatPrice(a.purchasePrice) : t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.currentValue}</dt>
+          <dd>{currentValue != null ? formatPrice(currentValue) : t.common.none}</dd>
+          <dt className="text-slate-500">{t.assetDetail.usefulLifeLabel}</dt>
+          <dd>
+            {a.usefulLifeMonths
+              ? t.assetDetail.usefulLifeMonths(a.usefulLifeMonths)
+              : t.common.none}
+          </dd>
           <dt className="text-slate-500">{t.assetDetail.supplier}</dt>
           <dd>{a.supplier || t.common.none}</dd>
           <dt className="text-slate-500">{t.assetDetail.serviceIntervalLabel}</dt>
@@ -467,6 +503,47 @@ export function AssetDetailPage() {
           })}
         </dl>
       </Card>
+
+      {(parent || children.length > 0) && (
+        <Card>
+          <h2 className="font-semibold mb-2">{t.assetDetail.kitHeading}</h2>
+          <dl className="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-2 text-sm">
+            {parent && (
+              <>
+                <dt className="text-slate-500">{t.assetDetail.kitParentLabel}</dt>
+                <dd>
+                  <Link
+                    to={`/a/${parent.code}`}
+                    className="text-blue-600 hover:underline dark:text-blue-400"
+                  >
+                    <span className="font-mono">{parent.code}</span> — {parent.name}
+                  </Link>
+                </dd>
+              </>
+            )}
+            {children.length > 0 && (
+              <>
+                <dt className="text-slate-500">{t.assetDetail.kitChildrenLabel}</dt>
+                <dd>
+                  <ul className="space-y-1">
+                    {children.map((child) => (
+                      <li key={child.code} className="flex items-center gap-2">
+                        <Link
+                          to={`/a/${child.code}`}
+                          className="text-blue-600 hover:underline dark:text-blue-400"
+                        >
+                          <span className="font-mono">{child.code}</span> — {child.name}
+                        </Link>
+                        <StatusBadge status={child.status} />
+                      </li>
+                    ))}
+                  </ul>
+                </dd>
+              </>
+            )}
+          </dl>
+        </Card>
+      )}
 
       <ExternalIdsCard
         code={code}

@@ -12,6 +12,7 @@ export function EditAssetForm({
   initial,
   types,
   locationsList,
+  parentOptions,
   customSchema,
   onSubmit,
   onCancel,
@@ -27,9 +28,12 @@ export function EditAssetForm({
     supplier: string;
     serviceIntervalDays: string;
     lastServicedAt: string;
+    usefulLifeMonths: string;
+    parentAssetId: string;
   };
   types: { id: string; name: string; codePrefix: string }[];
   locationsList: LocationRow[];
+  parentOptions: { id: string; code: string; name: string }[];
   customSchema: CustomFieldsSchema;
   onSubmit: (v: {
     name: string;
@@ -42,6 +46,8 @@ export function EditAssetForm({
     supplier: string;
     serviceIntervalDays: string;
     lastServicedAt: string;
+    usefulLifeMonths: string;
+    parentAssetId: string;
   }) => Promise<void>;
   onCancel: () => void;
 }) {
@@ -130,7 +136,32 @@ export function EditAssetForm({
             <Field label={t.assetDetail.lastServicedAt}>
               <Input type="date" {...register('lastServicedAt')} />
             </Field>
+            <Field label={t.assetDetail.usefulLifeLabel}>
+              <Input
+                type="number"
+                inputMode="numeric"
+                step="1"
+                min="1"
+                placeholder={t.assetDetail.usefulLifePlaceholder}
+                {...register('usefulLifeMonths')}
+              />
+            </Field>
           </div>
+        </div>
+        <div className="border-t pt-3">
+          <h3 className="font-medium text-sm text-slate-700 dark:text-slate-200 mb-2">
+            {t.assetDetail.kitHeading}
+          </h3>
+          <Field label={t.assetDetail.parentAssetLabel}>
+            <Select {...register('parentAssetId')}>
+              <option value="">{t.assetDetail.parentAssetNone}</option>
+              {parentOptions.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.code} — {option.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
         </div>
         {customSchema.length > 0 && (
           <div className="border-t pt-3">

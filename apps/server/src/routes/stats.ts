@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { and, desc, eq, isNotNull, isNull, lte, sql } from 'drizzle-orm';
-import { nextServiceDue } from '@inventory-hub/shared';
+import { currentAssetValue, nextServiceDue } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assets, assetTypes, loanItems, loans, locations } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
@@ -32,6 +32,7 @@ export type StatsResponse = {
   loans: { active: number; overdue: number; planned: number };
   inRepair: number;
   totalValue: number;
+  totalCurrentValue: number;
   valueByType: { typeId: string; typeName: string; value: number }[];
   warrantyExpiringSoon: number;
   serviceDueSoon: number;
@@ -148,6 +149,23 @@ export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) =>
     .get();
   const totalValue = totalValueRow?.total ?? 0;
 
+  // Depreciated ("current") value of the active fleet — straight-line depreciation
+  // depends on purchasedAt/usefulLifeMonths, so compute it in JS over the bounded
+  // set of non-archived assets that actually have a price.
+  const valueCandidates = db
+    .select({
+      purchasePrice: assets.purchasePrice,
+      purchasedAt: assets.purchasedAt,
+      usefulLifeMonths: assets.usefulLifeMonths,
+    })
+    .from(assets)
+    .where(and(isNull(assets.archivedAt), isNotNull(assets.purchasePrice)))
+    .all();
+  const totalCurrentValue = valueCandidates.reduce(
+    (sum, a) => sum + (currentAssetValue(a) ?? 0),
+    0,
+  );
+
   // Value grouped by type (minor units), typeless assets excluded (nothing to
   // attribute the value to). Only types with a non-zero total are surfaced.
   const valueTypeRows = db
@@ -206,6 +224,7 @@ export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) =>
     loans: { active, overdue, planned },
     inRepair,
     totalValue,
+    totalCurrentValue,
     valueByType,
     warrantyExpiringSoon,
     serviceDueSoon,

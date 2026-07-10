@@ -68,6 +68,11 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
           value={formatMoney(stats.totalValue, stats.currency)}
           accent="emerald"
         />
+        <Tile
+          label={t.dashboard.currentValue}
+          value={formatMoney(stats.totalCurrentValue, stats.currency)}
+          accent="emerald"
+        />
         <Tile label={t.dashboard.onLoan} value={stats.loans.active} to="/loans" accent="amber" />
         <Tile
           label={t.dashboard.overdue}

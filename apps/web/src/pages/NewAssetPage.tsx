@@ -22,6 +22,7 @@ type FormValues = {
   supplier: string;
   serviceIntervalDays: string;
   lastServicedAt: string;
+  usefulLifeMonths: string;
 };
 
 export function NewAssetPage() {
@@ -40,6 +41,7 @@ export function NewAssetPage() {
       supplier: '',
       serviceIntervalDays: '',
       lastServicedAt: '',
+      usefulLifeMonths: '',
     },
   });
 
@@ -65,6 +67,8 @@ export function NewAssetPage() {
       const priceNum = price ? Number(price) : NaN;
       const intervalRaw = values.serviceIntervalDays.trim();
       const intervalNum = intervalRaw ? Number(intervalRaw) : NaN;
+      const lifeRaw = values.usefulLifeMonths.trim();
+      const lifeNum = lifeRaw ? Number(lifeRaw) : NaN;
       return apiClient.assets.create({
         name: values.name,
         code: values.code.trim() ? values.code.trim().toUpperCase() : undefined,
@@ -80,6 +84,7 @@ export function NewAssetPage() {
         serviceIntervalDays:
           Number.isFinite(intervalNum) && intervalNum > 0 ? Math.round(intervalNum) : null,
         lastServicedAt: values.lastServicedAt ? new Date(values.lastServicedAt) : null,
+        usefulLifeMonths: Number.isFinite(lifeNum) && lifeNum > 0 ? Math.round(lifeNum) : null,
       });
     },
     onSuccess: async (res) => {
@@ -177,6 +182,16 @@ export function NewAssetPage() {
             </Field>
             <Field label={t.newAsset.lastServicedAtLabel}>
               <Input type="date" {...register('lastServicedAt')} />
+            </Field>
+            <Field label={t.newAsset.usefulLifeLabel}>
+              <Input
+                type="number"
+                inputMode="numeric"
+                step="1"
+                min="1"
+                placeholder={t.newAsset.usefulLifePlaceholder}
+                {...register('usefulLifeMonths')}
+              />
             </Field>
           </div>
         </div>

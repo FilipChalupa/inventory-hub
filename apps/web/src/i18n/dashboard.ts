@@ -12,6 +12,7 @@ export const dashboard = ns({
     inRepair: 'V opravě',
     planned: 'Naplánováno',
     totalValue: 'Celková hodnota',
+    currentValue: 'Aktuální hodnota',
     warrantyExpiringSoon: 'Záruka brzy končí',
     serviceDueSoon: 'Servis brzy',
     // Sections
@@ -34,6 +35,7 @@ export const dashboard = ns({
     inRepair: 'In repair',
     planned: 'Planned',
     totalValue: 'Total value',
+    currentValue: 'Current value',
     warrantyExpiringSoon: 'Warranty ending soon',
     serviceDueSoon: 'Service due soon',
     // Sections

@@ -43,6 +43,11 @@ export const assetLifecycleFields = {
   // (or purchase/creation date). Null interval = no schedule.
   serviceIntervalDays: z.number().int().min(1).max(3650).nullable().optional(),
   lastServicedAt: z.coerce.date().nullable().optional(),
+  // Straight-line depreciation period in months from the purchase date. Null =
+  // not depreciated (current value stays at the purchase price).
+  usefulLifeMonths: z.number().int().min(1).max(1200).nullable().optional(),
+  // Kit membership: the container asset this one belongs to. Null = standalone.
+  parentAssetId: z.string().uuid().nullable().optional(),
 };
 
 export const assetSchema = z.object({
@@ -62,6 +67,8 @@ export const assetSchema = z.object({
   supplier: z.string().nullable(),
   serviceIntervalDays: z.number().int().nullable(),
   lastServicedAt: z.coerce.date().nullable(),
+  usefulLifeMonths: z.number().int().nullable(),
+  parentAssetId: z.string().uuid().nullable(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
 });
@@ -110,4 +117,26 @@ export function nextServiceDue(asset: {
   if (!asset.serviceIntervalDays) return null;
   const base = asset.lastServicedAt ?? asset.purchasedAt ?? asset.createdAt;
   return new Date(base.getTime() + asset.serviceIntervalDays * 24 * 60 * 60 * 1000);
+}
+
+/**
+ * Straight-line depreciated value in the same minor units as `purchasePrice`.
+ * Returns null when the price is unknown; returns the full price when the asset
+ * isn't depreciated (no useful life or no purchase date). Never goes below 0.
+ */
+export function currentAssetValue(
+  asset: {
+    purchasePrice: number | null;
+    purchasedAt: Date | null;
+    usefulLifeMonths: number | null;
+  },
+  now: Date = new Date(),
+): number | null {
+  if (asset.purchasePrice == null) return null;
+  if (!asset.usefulLifeMonths || !asset.purchasedAt) return asset.purchasePrice;
+  const elapsedMonths =
+    (now.getFullYear() - asset.purchasedAt.getFullYear()) * 12 +
+    (now.getMonth() - asset.purchasedAt.getMonth());
+  const remainingFraction = Math.max(0, 1 - elapsedMonths / asset.usefulLifeMonths);
+  return Math.round(asset.purchasePrice * remainingFraction);
 }
