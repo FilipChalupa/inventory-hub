@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, asc, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 import QRCode from 'qrcode';
 import { z } from 'zod';
 import {
@@ -16,6 +16,7 @@ import type { AppContext } from '../app.js';
 import { assetEvents, assetExternalIds, assetTypes, assets, orgSettings } from '../db/schema.js';
 import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
+import { likeContains } from '../lib/search.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Db } from '../db/client.js';
 
@@ -99,14 +100,14 @@ export const assetRoutes = new Hono<AppContext>()
       const matchingByExternal = db
         .select({ assetId: assetExternalIds.assetId })
         .from(assetExternalIds)
-        .where(like(assetExternalIds.value, `%${q}%`))
+        .where(likeContains(assetExternalIds.value, q))
         .all();
       const externalIds = matchingByExternal.map((r) => r.assetId);
       conditions.push(
         or(
-          like(assets.code, `%${q.toUpperCase()}%`),
-          like(assets.name, `%${q}%`),
-          like(assets.customFields, `%${q}%`),
+          likeContains(assets.code, q.toUpperCase()),
+          likeContains(assets.name, q),
+          likeContains(assets.customFields, q),
           externalIds.length > 0 ? inArray(assets.id, externalIds) : sql`0`,
         ),
       );

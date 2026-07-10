@@ -182,6 +182,25 @@ describe('assets API', () => {
       expect(stockBody.items.map((i) => i.code)).toEqual([c1Code]);
     });
 
+    it('treats LIKE wildcards in the search term literally', async () => {
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'AB_C',
+        typeId: server.laptopTypeId,
+      });
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'ABXC',
+        typeId: server.laptopTypeId,
+      });
+
+      // A bare `_` is a single-char wildcard in SQL LIKE; escaped, "AB_C" must
+      // match only the literal "AB_C" and not "ABXC".
+      const res = await server.authRequest(`/api/assets?q=${encodeURIComponent('AB_C')}`, {
+        cookie,
+      });
+      const names = ((await res.json()) as { items: { name: string }[] }).items.map((i) => i.name);
+      expect(names).toEqual(['AB_C']);
+    });
+
     it('paginates with limit/offset and reports the full total', async () => {
       for (let i = 0; i < 5; i++) {
         await jsonPost(server, cookie, '/api/assets', {

@@ -1,10 +1,11 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { asc, eq, like, or } from 'drizzle-orm';
+import { asc, eq, or } from 'drizzle-orm';
 import { z } from 'zod';
 import type { AppContext } from '../app.js';
 import { contacts, loans } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { likeContains } from '../lib/search.js';
 
 const createInput = z.object({
   name: z.string().trim().min(1).max(200),
@@ -24,7 +25,7 @@ export const contactRoutes = new Hono<AppContext>()
       .select()
       .from(contacts)
       .where(
-        q ? or(like(contacts.name, `%${q}%`), like(contacts.organization, `%${q}%`)) : undefined,
+        q ? or(likeContains(contacts.name, q), likeContains(contacts.organization, q)) : undefined,
       )
       .orderBy(asc(contacts.name))
       .all();
