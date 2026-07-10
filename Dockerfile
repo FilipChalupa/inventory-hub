@@ -49,9 +49,13 @@ COPY --from=build /repo/apps/server/src/db/migrations apps/server/src/db/migrati
 COPY --from=build /repo/packages/shared/dist packages/shared/dist
 COPY --from=build /repo/apps/web/dist apps/web/dist
 
-# Data volume for SQLite + uploads
+# Data volume for SQLite + uploads. Owned by the unprivileged `node` user
+# (present in the base image) so the server can write without running as root.
+RUN mkdir -p /data/uploads && chown -R node:node /data /app
 VOLUME ["/data"]
-RUN mkdir -p /data/uploads
+
+# Drop root — the runtime never needs it.
+USER node
 
 EXPOSE 3001
 

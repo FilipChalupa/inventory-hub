@@ -29,22 +29,24 @@ export const loanSchema = z.object({
 });
 export type Loan = z.infer<typeof loanSchema>;
 
-export const createLoanInput = z.object({
-  borrowerName: z.string().trim().min(1).max(200),
-  borrowerUserId: z.string().uuid().nullable().optional(),
-  borrowerContactId: z.string().uuid().nullable().optional(),
-  borrowerContact: z.string().trim().max(200).nullable().optional(),
-  purpose: z.string().trim().max(500).nullable().optional(),
-  // When set to a future moment the loan is created as "planned": the
-  // assets are reserved (one active/planned loan per asset) but stay in
-  // stock until the loan is started. Omitted/past => starts immediately.
-  loanedAt: z.coerce.date().nullable().optional(),
-  expectedReturnAt: z.coerce.date().nullable().optional(),
-  assetCodes: z.array(assetCodeSchema).min(1, 'Výpůjčka musí obsahovat alespoň jeden asset'),
-}).refine(
-  (v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt,
-  { message: 'Návrat nemůže být dříve než začátek výpůjčky', path: ['expectedReturnAt'] },
-);
+export const createLoanInput = z
+  .object({
+    borrowerName: z.string().trim().min(1).max(200),
+    borrowerUserId: z.string().uuid().nullable().optional(),
+    borrowerContactId: z.string().uuid().nullable().optional(),
+    borrowerContact: z.string().trim().max(200).nullable().optional(),
+    purpose: z.string().trim().max(500).nullable().optional(),
+    // When set to a future moment the loan is created as "planned": the
+    // assets are reserved (one active/planned loan per asset) but stay in
+    // stock until the loan is started. Omitted/past => starts immediately.
+    loanedAt: z.coerce.date().nullable().optional(),
+    expectedReturnAt: z.coerce.date().nullable().optional(),
+    assetCodes: z.array(assetCodeSchema).min(1, 'Výpůjčka musí obsahovat alespoň jeden asset'),
+  })
+  .refine((v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt, {
+    message: 'Návrat nemůže být dříve než začátek výpůjčky',
+    path: ['expectedReturnAt'],
+  });
 export type CreateLoanInput = z.infer<typeof createLoanInput>;
 
 /**
@@ -74,10 +76,10 @@ export const updateLoanInput = z
     loanedAt: z.coerce.date().optional(),
     expectedReturnAt: z.coerce.date().nullable().optional(),
   })
-  .refine(
-    (v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt,
-    { message: 'Návrat nemůže být dříve než začátek výpůjčky', path: ['expectedReturnAt'] },
-  );
+  .refine((v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt, {
+    message: 'Návrat nemůže být dříve než začátek výpůjčky',
+    path: ['expectedReturnAt'],
+  });
 export type UpdateLoanInput = z.infer<typeof updateLoanInput>;
 
 export const addLoanItemsInput = z.object({
@@ -97,9 +99,10 @@ export type ReturnLoanItemInput = z.infer<typeof returnLoanItemInput>;
 
 export type LoanStatus = 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 
-export function deriveLoanStatus(
-  loan: { startedAt: Date | null; items: Pick<LoanItem, 'returnedAt'>[] },
-): LoanStatus {
+export function deriveLoanStatus(loan: {
+  startedAt: Date | null;
+  items: Pick<LoanItem, 'returnedAt'>[];
+}): LoanStatus {
   // A loan that has not been started yet is still just a reservation.
   if (loan.startedAt === null) return 'planned';
   const total = loan.items.length;

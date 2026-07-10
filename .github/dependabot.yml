@@ -1,0 +1,28 @@
+version: 2
+updates:
+  # npm dependencies across the monorepo (root + workspaces are covered by the
+  # root manifest / lockfile).
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 10
+    groups:
+      # Batch low-risk dev tooling so it doesn't spam individual PRs.
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+
+  # Keep GitHub Actions pinned versions current.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+
+  # Base image for the runtime container.
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: weekly

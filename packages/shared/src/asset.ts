@@ -12,14 +12,22 @@ export const ASSET_STATUSES = [
 ] as const;
 export type AssetStatus = (typeof ASSET_STATUSES)[number];
 
-export const TERMINAL_ASSET_STATUSES = ['damaged', 'sold', 'lost', 'retired'] as const satisfies readonly AssetStatus[];
+export const TERMINAL_ASSET_STATUSES = [
+  'damaged',
+  'sold',
+  'lost',
+  'retired',
+] as const satisfies readonly AssetStatus[];
 
 export const assetCodeSchema = z
   .string()
   .trim()
   .min(3)
   .max(40)
-  .regex(/^[A-Z0-9]+(-[A-Z0-9]+)+$/, 'Kód musí být ve formátu PREFIX-SEKCE-CISLO (jen A–Z, 0–9, -)');
+  .regex(
+    /^[A-Z0-9]+(-[A-Z0-9]+)+$/,
+    'Kód musí být ve formátu PREFIX-SEKCE-CISLO (jen A–Z, 0–9, -)',
+  );
 
 export const assetSchema = z.object({
   code: assetCodeSchema,
