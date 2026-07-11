@@ -4,6 +4,10 @@ export const login = ns({
   cs: {
     subtitle: 'Přihlas se a pokračuj.',
     continueWithGoogle: 'Pokračovat přes Google',
+    noMethodTitle: 'Přihlášení zatím není nastavené',
+    noMethodBody:
+      'Tento server nemá nakonfigurované přihlášení přes Google a dev login je v produkci vypnutý. Nastav Google OAuth (GOOGLE_CLIENT_ID / SECRET / REDIRECT_URL) podle návodu.',
+    setupGuide: 'Návod v SELF_HOSTING →',
     devMode: 'dev mode',
     existingUserEmail: 'E-mail existujícího uživatele',
     signingIn: 'Přihlašuji…',
@@ -15,6 +19,10 @@ export const login = ns({
   en: {
     subtitle: 'Sign in to continue.',
     continueWithGoogle: 'Continue with Google',
+    noMethodTitle: 'Sign-in is not set up yet',
+    noMethodBody:
+      'This server has no Google sign-in configured and dev login is disabled in production. Set up Google OAuth (GOOGLE_CLIENT_ID / SECRET / REDIRECT_URL) following the guide.',
+    setupGuide: 'See SELF_HOSTING →',
     devMode: 'dev mode',
     existingUserEmail: 'Existing user email',
     signingIn: 'Signing in…',

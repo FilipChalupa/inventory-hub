@@ -56,6 +56,15 @@ describe('auth guards', () => {
     expect(body.authenticated).toBe(false);
   });
 
+  it('exposes available sign-in methods via public /auth/config', async () => {
+    const res = await server.app.request('/auth/config');
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { googleConfigured: boolean; devLoginEnabled: boolean };
+    // The test server ships no Google credentials and does not run as production.
+    expect(body.googleConfigured).toBe(false);
+    expect(body.devLoginEnabled).toBe(true);
+  });
+
   describe('CSRF', () => {
     it('rejects a POST with no Origin header', async () => {
       const user = server.createUser();

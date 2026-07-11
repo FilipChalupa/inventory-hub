@@ -61,6 +61,18 @@ export const authRoutes = new Hono<AppContext>()
     });
   })
 
+  // Public capability probe for the login page: which sign-in methods this
+  // deployment actually offers. Lets the SPA show setup guidance instead of a
+  // dead "Continue with Google" button when OAuth isn't configured, and reflect
+  // dev-login availability from the running server rather than the build mode.
+  .get('/config', (c) => {
+    const env = c.get('env');
+    return c.json({
+      googleConfigured: googleConfig(env) !== null,
+      devLoginEnabled: env.NODE_ENV !== 'production',
+    });
+  })
+
   .post('/logout', (c) => {
     const env = c.get('env');
     const db = c.get('db');

@@ -371,6 +371,7 @@ export const apiClient = {
 
   auth: {
     me: () => api<AuthMe>('/auth/me'),
+    config: () => api<{ googleConfigured: boolean; devLoginEnabled: boolean }>('/auth/config'),
     logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
     googleStartUrl: '/auth/google/start',
     devLogin: (email: string) =>
