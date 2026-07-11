@@ -106,6 +106,20 @@ export const settings = ns({
     invitationMeta: (role: string, expiry: string) => `role ${role} · platí do ${expiry}`,
     cancelInvitationButton: 'Zrušit',
 
+    // Integrations (admin-only)
+    integrationsTitle: 'Integrace',
+    publicLookupLabel: 'Povolit veřejnou stránku assetu (lost & found)',
+    publicLookupHint1: 'QR kód i kód assetu pak vedou na veřejnou stránku ',
+    publicLookupHint2:
+      ' s minimem informací (bez interních dat) a poznámkou z nastavení štítků — aby nálezce věděl, komu věc vrátit.',
+    webhookUrlLabel: 'Webhook URL',
+    webhookSecretLabel: 'Webhook secret',
+    webhookSecretPlaceholder: 'např. dlouhý náhodný řetězec',
+    webhookSecretSetPlaceholder: 'nastaveno — nech prázdné pro ponechání',
+    webhookHint1: 'Na tuto URL posíláme události (',
+    webhookHint2: '), podepsané hlavičkou ',
+    webhookHint3: ' pro ověření pravosti.',
+
     // Allowed domains editor
     removeDomain: 'Odebrat',
     addDomain: 'Přidat',
@@ -220,6 +234,20 @@ export const settings = ns({
     invitationsEmpty: 'No pending invitations.',
     invitationMeta: (role: string, expiry: string) => `role ${role} · valid until ${expiry}`,
     cancelInvitationButton: 'Cancel',
+
+    // Integrations (admin-only)
+    integrationsTitle: 'Integrations',
+    publicLookupLabel: 'Enable public asset page (lost & found)',
+    publicLookupHint1: 'The QR code and asset code then lead to a public page ',
+    publicLookupHint2:
+      ' with minimal information (no internal data) and the note from label settings — so a finder knows who to return the item to.',
+    webhookUrlLabel: 'Webhook URL',
+    webhookSecretLabel: 'Webhook secret',
+    webhookSecretPlaceholder: 'e.g. a long random string',
+    webhookSecretSetPlaceholder: 'set — leave empty to keep it',
+    webhookHint1: 'We send events (',
+    webhookHint2: ') to this URL, signed with the ',
+    webhookHint3: ' header for authenticity.',
 
     // Allowed domains editor
     removeDomain: 'Remove',

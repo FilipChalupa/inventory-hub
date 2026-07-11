@@ -405,11 +405,24 @@ export const apiClient = {
         initialized: boolean;
         appUrl?: string;
         backupsConfigured?: boolean;
-        settings?: { name: string; codePrefix: string | null; allowedDomains: AllowedDomain[] };
+        settings?: {
+          name: string;
+          codePrefix: string | null;
+          allowedDomains: AllowedDomain[];
+          publicLookupEnabled: boolean;
+          webhookUrl: string | null;
+          webhookSecretSet: boolean;
+        };
         labelSettings: LabelSettings;
       }>('/api/org'),
-    put: (input: { name: string; codePrefix: string | null; allowedDomains: AllowedDomain[] }) =>
-      api<{ ok: true }>('/api/org', { method: 'PUT', body: input }),
+    put: (input: {
+      name: string;
+      codePrefix: string | null;
+      allowedDomains: AllowedDomain[];
+      publicLookupEnabled: boolean;
+      webhookUrl: string | null;
+      webhookSecret: string | null;
+    }) => api<{ ok: true }>('/api/org', { method: 'PUT', body: input }),
     putLabelSettings: (input: LabelSettings) =>
       api<{ ok: true }>('/api/org/label-settings', { method: 'PUT', body: input }),
     mcpInfo: () => api<{ url: string; googleConfigured: boolean }>('/api/org/mcp-info'),

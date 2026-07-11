@@ -13,15 +13,31 @@ import type { AllowedDomain, UserRole } from '@inventory-hub/shared';
 const SELF_HOSTING_DOCS_URL =
   'https://github.com/FilipChalupa/inventory-hub/blob/main/docs/SELF_HOSTING.md#backups';
 
-type SettingsForm = { name: string; codePrefix: string };
+type SettingsForm = {
+  name: string;
+  codePrefix: string;
+  publicLookupEnabled: boolean;
+  webhookUrl: string;
+  // Write-only: never populated from the server (GET returns null). Sent only
+  // when the admin types a new value; empty means "keep the existing secret".
+  webhookSecret: string;
+};
 
 export function SettingsPage() {
   const t = useT();
   const qc = useQueryClient();
+  const isAdmin = hasRole(useCurrentUser(), 'admin');
   const org = useQuery({ queryKey: ['org'], queryFn: () => apiClient.org.get() });
+  const webhookSecretSet = org.data?.settings?.webhookSecretSet ?? false;
 
-  const { register, handleSubmit, reset, formState } = useForm<SettingsForm>({
-    defaultValues: { name: '', codePrefix: '' },
+  const { register, handleSubmit, reset, watch, formState } = useForm<SettingsForm>({
+    defaultValues: {
+      name: '',
+      codePrefix: '',
+      publicLookupEnabled: false,
+      webhookUrl: '',
+      webhookSecret: '',
+    },
   });
 
   const [domains, setDomains] = useState<AllowedDomain[]>([]);
@@ -35,6 +51,9 @@ export function SettingsPage() {
       reset({
         name: org.data.settings.name,
         codePrefix: org.data.settings.codePrefix ?? '',
+        publicLookupEnabled: org.data.settings.publicLookupEnabled,
+        webhookUrl: org.data.settings.webhookUrl ?? '',
+        webhookSecret: '',
       });
       setDomains(org.data.settings.allowedDomains);
       initialized.current = true;
@@ -47,6 +66,11 @@ export function SettingsPage() {
         name: values.name,
         codePrefix: values.codePrefix.trim() ? values.codePrefix.trim().toUpperCase() : null,
         allowedDomains: domains,
+        // Round-trip the integration settings too, otherwise the backend
+        // defaults (false/null) would overwrite them on every save.
+        publicLookupEnabled: values.publicLookupEnabled,
+        webhookUrl: values.webhookUrl.trim() ? values.webhookUrl.trim() : null,
+        webhookSecret: values.webhookSecret.trim() ? values.webhookSecret.trim() : null,
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['org'] }),
   });
@@ -94,6 +118,61 @@ export function SettingsPage() {
           </p>
           <AllowedDomainsEditor value={domains} onChange={setDomains} />
         </Card>
+
+        {isAdmin && (
+          <Card>
+            <h2 className="font-semibold mb-2">{t.settings.integrationsTitle}</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" className="mt-1" {...register('publicLookupEnabled')} />
+                  <span className="text-sm font-medium text-slate-700 dark:text-slate-200">
+                    {t.settings.publicLookupLabel}
+                  </span>
+                </label>
+                {watch('publicLookupEnabled') && (
+                  <p className="mt-1 ml-6 text-xs text-slate-500">
+                    {t.settings.publicLookupHint1}
+                    <span className="font-mono">/p/&lt;code&gt;</span>
+                    {t.settings.publicLookupHint2}
+                  </p>
+                )}
+              </div>
+
+              <div className="space-y-3 border-t border-slate-200 pt-4 dark:border-slate-700">
+                <Field label={t.settings.webhookUrlLabel}>
+                  <Input
+                    type="url"
+                    {...register('webhookUrl')}
+                    placeholder="https://example.com/webhooks/inventory"
+                  />
+                </Field>
+                <Field label={t.settings.webhookSecretLabel}>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    {...register('webhookSecret')}
+                    placeholder={
+                      webhookSecretSet
+                        ? t.settings.webhookSecretSetPlaceholder
+                        : t.settings.webhookSecretPlaceholder
+                    }
+                  />
+                </Field>
+                <p className="text-xs text-slate-500">
+                  {t.settings.webhookHint1}
+                  <span className="font-mono">loan.overdue</span>,{' '}
+                  <span className="font-mono">damage.reported</span>,{' '}
+                  <span className="font-mono">asset.archived</span>
+                  {t.settings.webhookHint2}
+                  <span className="font-mono">x-inventory-signature</span>
+                  {t.settings.webhookHint3}
+                </p>
+              </div>
+            </div>
+          </Card>
+        )}
 
         {save.error && <p className="text-sm text-red-600">{errorMessage(save.error)}</p>}
         {save.isSuccess && !save.isPending && (
