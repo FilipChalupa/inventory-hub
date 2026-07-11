@@ -111,7 +111,8 @@ function Shell() {
           <button
             type="button"
             className="sm:hidden -ml-1 rounded p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
-            aria-label="Menu"
+            aria-label={t.common.menu}
+            aria-controls="mobile-nav"
             aria-expanded={mobileOpen}
             onClick={() => setMobileOpen((v) => !v)}
           >
@@ -254,7 +255,10 @@ function MobileMenu() {
         : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700',
     );
   return (
-    <nav className="sm:hidden border-t border-slate-200 px-2 py-2 dark:border-slate-700">
+    <nav
+      id="mobile-nav"
+      className="sm:hidden border-t border-slate-200 px-2 py-2 dark:border-slate-700"
+    >
       {mainNav.map((item) => (
         <NavLink key={item.to} to={item.to} end={item.end} className={mobileLink}>
           {t.nav[item.key]}
@@ -278,9 +282,10 @@ function MobileMenu() {
 /** Language selector used in the user menu (desktop) and mobile menu. */
 function LanguageSwitcher({ className }: { className?: string }) {
   const [locale, setLocale] = useLocale();
+  const t = useT();
   return (
     <select
-      aria-label="Language"
+      aria-label={t.common.language}
       value={locale}
       onChange={(e) => setLocale(e.target.value as (typeof LOCALES)[number])}
       className={clsx(
@@ -396,7 +401,6 @@ function Dropdown({
     <div ref={ref} className="relative">
       <button
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
         className={
@@ -422,7 +426,6 @@ function Dropdown({
       </button>
       {open && (
         <div
-          role="menu"
           onClick={() => setOpen(false)}
           className={clsx(
             'absolute mt-1 min-w-44 rounded-md border border-slate-200 bg-white py-1 shadow-lg z-20 dark:bg-slate-800 dark:border-slate-700',
@@ -440,7 +443,6 @@ function DropdownLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <NavLink
       to={to}
-      role="menuitem"
       className={({ isActive }) =>
         clsx(
           'block px-3 py-2 text-sm whitespace-nowrap',

@@ -1,4 +1,12 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
 import { LOCALES, type Locale } from './util.js';
 import { nav, assetStatuses, loanStatuses, common } from './core.js';
 import { dashboard } from './dashboard.js';
@@ -143,6 +151,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   // Keep the module mirror in sync for non-component helpers (runs before
   // children render, so they read the current locale this pass).
   activeLocale = locale;
+  // Reflect the active language on <html lang> so assistive tech announces
+  // content with the right pronunciation (index.html ships a static "cs").
+  useEffect(() => {
+    document.documentElement.lang = locale;
+  }, [locale]);
   const setLocale = useCallback((l: Locale) => {
     try {
       localStorage.setItem(STORAGE_KEY, l);

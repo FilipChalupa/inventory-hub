@@ -674,7 +674,7 @@ export function AssetDetailPage() {
               </div>
               {d.photoPaths.length > 0 && (
                 <div className="flex gap-2 flex-wrap">
-                  {d.photoPaths.map((p) => (
+                  {d.photoPaths.map((p, i) => (
                     <a
                       key={p}
                       href={`/api/uploads/${p}`}
@@ -684,7 +684,7 @@ export function AssetDetailPage() {
                     >
                       <img
                         src={`/api/uploads/${p}`}
-                        alt=""
+                        alt={t.assetDetail.damagePhotoAlt(i + 1)}
                         className="w-full h-full object-cover"
                       />
                     </a>

@@ -124,6 +124,8 @@ export const assetDetail = ns({
 
     photosHeading: 'Fotky',
     noPhotos: 'Žádné fotky.',
+    photoAlt: (n: number) => `Fotka ${n}`,
+    damagePhotoAlt: (n: number) => `Fotka poškození ${n}`,
     removePhotoTitle: 'Odebrat fotku?',
 
     nameLabel: 'Název',
@@ -271,6 +273,8 @@ export const assetDetail = ns({
 
     photosHeading: 'Photos',
     noPhotos: 'No photos.',
+    photoAlt: (n: number) => `Photo ${n}`,
+    damagePhotoAlt: (n: number) => `Damage photo ${n}`,
     removePhotoTitle: 'Remove photo?',
 
     nameLabel: 'Name',

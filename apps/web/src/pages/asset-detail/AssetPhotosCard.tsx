@@ -73,7 +73,7 @@ export function AssetPhotosCard({
         <p className="text-sm text-slate-500">{t.assetDetail.noPhotos}</p>
       ) : (
         <div className="flex gap-2 flex-wrap">
-          {photos.map((p) => (
+          {photos.map((p, i) => (
             <div
               key={p}
               className="relative w-24 h-24 rounded border overflow-hidden bg-slate-50 group"
@@ -84,12 +84,16 @@ export function AssetPhotosCard({
                 rel="noreferrer"
                 className="block w-full h-full"
               >
-                <img src={`/api/uploads/${p}`} alt="" className="w-full h-full object-cover" />
+                <img
+                  src={`/api/uploads/${p}`}
+                  alt={t.assetDetail.photoAlt(i + 1)}
+                  className="w-full h-full object-cover"
+                />
               </a>
               <button
                 type="button"
                 onClick={() => removePhoto(p)}
-                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-slate-700 text-xs leading-none border opacity-0 group-hover:opacity-100"
+                className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/90 text-slate-700 text-xs leading-none border opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100"
                 aria-label={t.assetDetail.remove}
               >
                 ×

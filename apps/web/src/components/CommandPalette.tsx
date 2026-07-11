@@ -183,6 +183,8 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const optionId = (index: number) => `cmdk-option-${index}`;
+
   const rowClass = (index: number) =>
     clsx(
       'flex w-full items-center gap-2 px-3 py-2 text-left text-sm',
@@ -209,6 +211,11 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
           <input
             ref={inputRef}
             type="text"
+            role="combobox"
+            aria-expanded={total > 0}
+            aria-controls="cmdk-listbox"
+            aria-activedescendant={total > 0 ? optionId(active) : undefined}
+            aria-autocomplete="list"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onInputKeyDown}
@@ -218,7 +225,7 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
           />
         </div>
 
-        <div className="max-h-80 overflow-y-auto py-1">
+        <div id="cmdk-listbox" role="listbox" className="max-h-80 overflow-y-auto py-1">
           {navItems.length > 0 && (
             <>
               <SectionHeader>{t.commandPalette.navSection}</SectionHeader>
@@ -226,6 +233,9 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
                 <button
                   key={item.to}
                   type="button"
+                  role="option"
+                  id={optionId(i)}
+                  aria-selected={i === active}
                   className={rowClass(i)}
                   onMouseMove={() => setActive(i)}
                   onClick={() => activate(i)}
@@ -246,6 +256,9 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
                     <button
                       key={asset.id}
                       type="button"
+                      role="option"
+                      id={optionId(index)}
+                      aria-selected={index === active}
                       className={rowClass(index)}
                       onMouseMove={() => setActive(index)}
                       onClick={() => activate(index)}

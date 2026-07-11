@@ -171,17 +171,17 @@ export function LoansPage() {
 
       {view === 'list' && (loadedCount > 0 || borrower || status || from || to) && (
         <div className="flex flex-wrap gap-2 items-end">
-          <div className="flex-1 min-w-[160px]">
-            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.borrower}</label>
+          <label className="flex-1 min-w-[160px] block">
+            <span className="text-xs text-slate-500 block mb-0.5">{t.loans.borrower}</span>
             <Input
               type="search"
               value={borrower}
               onChange={(e) => setBorrower(e.target.value)}
               placeholder={t.loans.borrowerPlaceholder}
             />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.status}</label>
+          </label>
+          <label className="block">
+            <span className="text-xs text-slate-500 block mb-0.5">{t.loans.status}</span>
             <Select value={status} onChange={(e) => updateStatus(e.target.value as StatusFilter)}>
               <option value="">{t.loans.statusAll}</option>
               <option value="planned">{t.loanStatuses.planned}</option>
@@ -190,15 +190,15 @@ export function LoansPage() {
               <option value="fully_returned">{t.loanStatuses.fully_returned}</option>
               <option value="overdue">{t.loanStatuses.overdue}</option>
             </Select>
-          </div>
-          <div>
-            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.from}</label>
+          </label>
+          <label className="block">
+            <span className="text-xs text-slate-500 block mb-0.5">{t.loans.from}</span>
             <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-          </div>
-          <div>
-            <label className="text-xs text-slate-500 block mb-0.5">{t.loans.to}</label>
+          </label>
+          <label className="block">
+            <span className="text-xs text-slate-500 block mb-0.5">{t.loans.to}</span>
             <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-          </div>
+          </label>
           {(status || borrower || from || to) && (
             <Button
               variant="ghost"
@@ -362,6 +362,7 @@ function ViewTab({
     <button
       type="button"
       onClick={onClick}
+      aria-pressed={active}
       className={clsx(
         'px-3 py-1.5 transition-colors',
         active

@@ -153,6 +153,7 @@ export function AssetsPage() {
           type="search"
           value={q}
           onChange={(e) => setQ(e.target.value)}
+          aria-label={t.assets.searchPlaceholder}
           placeholder={t.assets.searchPlaceholder}
           className="flex-1 min-w-[200px]"
         />

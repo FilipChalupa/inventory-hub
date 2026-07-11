@@ -98,6 +98,7 @@ export function ScanPage() {
             type="text"
             value={manualCode}
             onChange={(e) => setManualCode(e.target.value)}
+            aria-label={t.scan.manualEntry}
             placeholder="LAP-00001"
             className="flex-1 border rounded px-2 py-1 font-mono"
           />

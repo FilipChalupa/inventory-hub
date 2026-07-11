@@ -81,21 +81,21 @@ export function AuditLogPage() {
       </p>
 
       <div className="flex flex-wrap gap-2 items-end">
-        <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">
+        <label className="flex-1 min-w-[200px] block">
+          <span className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">
             {t.audit.asset}
-          </label>
+          </span>
           <Input
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder={t.audit.assetPlaceholder}
           />
-        </div>
-        <div>
-          <label className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">
+        </label>
+        <label className="block">
+          <span className="text-xs text-slate-500 dark:text-slate-400 block mb-0.5">
             {t.audit.type}
-          </label>
+          </span>
           <Select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)}>
             <option value="">{t.audit.allTypes}</option>
             {EVENT_KEYS.map((k) => (
@@ -104,7 +104,7 @@ export function AuditLogPage() {
               </option>
             ))}
           </Select>
-        </div>
+        </label>
       </div>
 
       {isLoading && <SkeletonList />}

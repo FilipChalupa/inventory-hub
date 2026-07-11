@@ -102,6 +102,8 @@ export const common = ns({
     copied: 'Zkopírováno',
     role: 'Role',
     required: 'Povinné',
+    menu: 'Menu',
+    language: 'Jazyk',
     roles: {
       admin: 'Administrátor',
       operator: 'Operátor',
@@ -127,6 +129,8 @@ export const common = ns({
     copied: 'Copied',
     role: 'Role',
     required: 'Required',
+    menu: 'Menu',
+    language: 'Language',
     roles: {
       admin: 'Admin',
       operator: 'Operator',

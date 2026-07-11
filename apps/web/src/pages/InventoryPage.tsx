@@ -140,6 +140,7 @@ export function InventoryPage() {
               type="search"
               value={assetSearch}
               onChange={(e) => setAssetSearch(e.target.value)}
+              aria-label={t.inventory.assetSearchPlaceholder}
               placeholder={t.inventory.assetSearchPlaceholder}
               className="mb-2"
             />
@@ -150,18 +151,22 @@ export function InventoryPage() {
               {assetList.data?.items.map((a) => {
                 const checked = pickedAssetCodes.includes(a.code);
                 return (
-                  <li key={a.code} className="flex items-center gap-2 p-2 text-sm">
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      onChange={() =>
-                        setPickedAssetCodes((prev) =>
-                          checked ? prev.filter((x) => x !== a.code) : [...prev, a.code],
-                        )
-                      }
-                    />
-                    <span className="font-mono text-xs text-slate-500 w-28 shrink-0">{a.code}</span>
-                    <span className="flex-1 truncate">{a.name}</span>
+                  <li key={a.code}>
+                    <label className="flex items-center gap-2 p-2 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setPickedAssetCodes((prev) =>
+                            checked ? prev.filter((x) => x !== a.code) : [...prev, a.code],
+                          )
+                        }
+                      />
+                      <span className="font-mono text-xs text-slate-500 w-28 shrink-0">
+                        {a.code}
+                      </span>
+                      <span className="flex-1 truncate">{a.name}</span>
+                    </label>
                   </li>
                 );
               })}

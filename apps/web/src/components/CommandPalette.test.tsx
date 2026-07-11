@@ -55,7 +55,7 @@ describe('CommandPalette', () => {
     act(() => {
       openCommandPalette();
     });
-    const input = screen.getByRole('textbox');
+    const input = screen.getByRole('combobox');
     fireEvent.change(input, { target: { value: 'kontakt' } });
 
     // "Kontakty" matches, "Přehled" does not.

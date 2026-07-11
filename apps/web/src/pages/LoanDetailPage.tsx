@@ -198,8 +198,11 @@ function ReturnAllButton({
 
   return (
     <div className="flex flex-wrap items-center justify-end gap-2">
-      <label className="text-xs text-slate-500">{t.loanDetail.returnDate}</label>
+      <label htmlFor="loan-return-date" className="text-xs text-slate-500">
+        {t.loanDetail.returnDate}
+      </label>
       <Input
+        id="loan-return-date"
         type="date"
         value={returnedAt}
         max={new Date().toISOString().slice(0, 10)}

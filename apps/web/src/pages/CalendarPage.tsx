@@ -124,23 +124,23 @@ export function CalendarPage() {
       </div>
 
       <div className="flex flex-wrap items-end gap-3">
-        <div className="flex-1 min-w-[200px]">
-          <label className="text-xs text-slate-500 block mb-0.5">{t.calendar.search}</label>
+        <label className="flex-1 min-w-[200px] block">
+          <span className="text-xs text-slate-500 block mb-0.5">{t.calendar.search}</span>
           <Input
             type="search"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder={t.calendar.searchPlaceholder}
           />
-        </div>
-        <div>
-          <label className="text-xs text-slate-500 block mb-0.5">{t.calendar.freeFrom}</label>
+        </label>
+        <label className="block">
+          <span className="text-xs text-slate-500 block mb-0.5">{t.calendar.freeFrom}</span>
           <Input type="date" value={rangeFrom} onChange={(e) => setRangeFrom(e.target.value)} />
-        </div>
-        <div>
-          <label className="text-xs text-slate-500 block mb-0.5">{t.calendar.rangeTo}</label>
+        </label>
+        <label className="block">
+          <span className="text-xs text-slate-500 block mb-0.5">{t.calendar.rangeTo}</span>
           <Input type="date" value={rangeTo} onChange={(e) => setRangeTo(e.target.value)} />
-        </div>
+        </label>
         {(rangeFrom || rangeTo) && (
           <Button
             variant="ghost"

@@ -74,7 +74,6 @@ export function NotificationBell() {
     <div ref={ref} className="relative print:hidden">
       <button
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         aria-label={
           unread > 0
@@ -96,10 +95,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div
-          role="menu"
-          className="absolute right-0 mt-1 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg z-20 dark:border-slate-700 dark:bg-slate-800"
-        >
+        <div className="absolute right-0 mt-1 w-80 max-w-[calc(100vw-2rem)] overflow-hidden rounded-md border border-slate-200 bg-white shadow-lg z-20 dark:border-slate-700 dark:bg-slate-800">
           <div className="flex items-center justify-between gap-2 border-b border-slate-200 px-3 py-2 dark:border-slate-700">
             <span className="text-sm font-medium text-slate-900 dark:text-slate-100">
               {t.notifications.title}
@@ -131,7 +127,6 @@ export function NotificationBell() {
                   <li key={item.id}>
                     <button
                       type="button"
-                      role="menuitem"
                       onClick={() => openItem(item)}
                       className="flex w-full gap-2.5 px-3 py-2.5 text-left hover:bg-slate-50 dark:hover:bg-slate-700/50"
                     >
