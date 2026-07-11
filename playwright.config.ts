@@ -46,7 +46,10 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: `VITE_API_PROXY=http://127.0.0.1:${SERVER_PORT} npm run -s --workspace @inventory-hub/web dev -- --port ${PORT} --strictPort`,
+      // Bind Vite explicitly to 127.0.0.1 (not the default `localhost`, which
+      // can resolve to IPv6 `::1` on CI runners) so the `url` health check on
+      // 127.0.0.1 doesn't time out.
+      command: `VITE_API_PROXY=http://127.0.0.1:${SERVER_PORT} npm run -s --workspace @inventory-hub/web dev -- --host 127.0.0.1 --port ${PORT} --strictPort`,
       url: BASE_URL,
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
