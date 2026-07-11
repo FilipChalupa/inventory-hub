@@ -7,7 +7,7 @@ test.describe('reservations', () => {
     await devLogin(page);
     const create = await page.request.post('/api/assets', {
       headers: { 'content-type': 'application/json' },
-      data: JSON.stringify({ name: 'Reservable', code: 'LAP-93001' }),
+      data: JSON.stringify({ name: 'Reservable', code: 'LAP-95001' }),
     });
     expect(create.ok()).toBeTruthy();
 
@@ -16,7 +16,7 @@ test.describe('reservations', () => {
     await devLogin(page, 'member@example.com');
     const request = await page.request.post('/api/loans/request', {
       headers: { 'content-type': 'application/json' },
-      data: JSON.stringify({ assetCodes: ['LAP-93001'], purpose: 'E2E reservation' }),
+      data: JSON.stringify({ assetCodes: ['LAP-95001'], purpose: 'E2E reservation' }),
     });
     expect(request.ok()).toBeTruthy();
 
