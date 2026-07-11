@@ -1187,6 +1187,12 @@ describe('loans API', () => {
       expect(row.approvedAt).not.toBeNull();
       expect(row.startedAt).toBeNull();
 
+      // The requester is emailed that their reservation was approved.
+      const mail = server.sentEmails.find((m) => m.to === 'req-approve@example.com');
+      expect(mail).toBeDefined();
+      expect(mail!.subject).toMatch(/schválena/);
+      expect(mail!.text).toMatch(/1 ks/);
+
       const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
       const body = (await detail.json()) as { loan: { status: string } };
       expect(body.loan.status).toBe('planned');
@@ -1201,6 +1207,11 @@ describe('loans API', () => {
 
       const reject = await jsonPost(server, cookie, `/api/loans/${loanId}/reject`, {});
       expect(reject.status).toBe(200);
+
+      // The requester is emailed that their reservation was rejected.
+      const mail = server.sentEmails.find((m) => m.to === 'req-reject@example.com');
+      expect(mail).toBeDefined();
+      expect(mail!.subject).toMatch(/zamítnuta/);
 
       expect(server.db.select().from(loans).where(eq(loans.id, loanId)).get()).toBeUndefined();
       expect(

@@ -22,6 +22,8 @@ import {
   type LoanRow,
   type UserRow,
 } from '../db/schema.js';
+import type { Db } from '../db/client.js';
+import { type Email, type EmailSender } from '../lib/email.js';
 import { findLoanWindowConflicts } from '../lib/loan.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
@@ -66,6 +68,78 @@ function returnDateError(returnedAt: Date, loanStart: Date, now: Date): string |
   );
   if (returnedAt.getTime() < startOfLoanDay) return 'Datum vrácení nemůže být před zapůjčením';
   return null;
+}
+
+function fmtDay(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Emails the member who filed a self-service reservation once an
+ * admin/operator decides on it — the missing half of the request → approve
+ * loop (in-app the requester sees nothing, and a rejection is deleted outright).
+ *
+ * Never throws: the decision has already committed to the DB, so a failed
+ * send must not surface as an error. No-op for direct loans (no requester) or
+ * a disabled requester account. Call after the transaction so the emailed
+ * details match what was persisted.
+ */
+async function notifyReservationDecision(
+  db: Db,
+  emailSender: EmailSender,
+  loan: {
+    id: string;
+    requestedByUserId: string | null;
+    loanedAt: Date;
+    expectedReturnAt: Date | null;
+  },
+  itemCount: number,
+  decision: 'approved' | 'rejected',
+  publicAppUrl: string,
+): Promise<void> {
+  if (!loan.requestedByUserId) return;
+  const requester = db.select().from(users).where(eq(users.id, loan.requestedByUserId)).get();
+  if (!requester || requester.disabledAt) return;
+
+  const period = loan.expectedReturnAt
+    ? `${fmtDay(loan.loanedAt)} – ${fmtDay(loan.expectedReturnAt)}`
+    : fmtDay(loan.loanedAt);
+  const email: Email =
+    decision === 'approved'
+      ? {
+          to: requester.email,
+          subject: 'Inventory Hub: rezervace schválena',
+          text: [
+            `Ahoj ${requester.name},`,
+            '',
+            `tvoje žádost o výpůjčku (${itemCount} ks) byla schválena.`,
+            `Termín: ${period}`,
+            '',
+            publicAppUrl ? `Detail: ${publicAppUrl}/loans/${loan.id}` : '',
+            '',
+            'Až si věci vyzvedneš, obsluha výpůjčku zahájí.',
+          ]
+            .filter((l) => l !== '')
+            .join('\n'),
+        }
+      : {
+          to: requester.email,
+          subject: 'Inventory Hub: rezervace zamítnuta',
+          text: [
+            `Ahoj ${requester.name},`,
+            '',
+            `tvoje žádost o výpůjčku (${itemCount} ks) byla bohužel zamítnuta.`,
+            '',
+            publicAppUrl ? `Podat novou žádost: ${publicAppUrl}/today` : '',
+          ]
+            .filter((l) => l !== '')
+            .join('\n'),
+        };
+  try {
+    await emailSender.send(email);
+  } catch (err) {
+    console.error(`Reservation ${decision} notify failed for loan ${loan.id}:`, err);
+  }
 }
 
 export const loanRoutes = new Hono<AppContext>()
@@ -1070,7 +1144,7 @@ export const loanRoutes = new Hono<AppContext>()
   })
   // Approve a pending request → it becomes a normal planned loan. Availability
   // is re-checked because the window may have been taken since the request.
-  .post('/:id/approve', requireAuth('admin', 'operator'), (c) => {
+  .post('/:id/approve', requireAuth('admin', 'operator'), async (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const loan = db.select().from(loans).where(eq(loans.id, id)).get();
@@ -1110,11 +1184,19 @@ export const loanRoutes = new Hono<AppContext>()
           .run();
       }
     });
+    await notifyReservationDecision(
+      db,
+      c.get('emailSender'),
+      loan,
+      assetIds.length,
+      'approved',
+      c.get('env').PUBLIC_APP_URL,
+    );
     return c.json({ ok: true });
   })
   // Reject a pending request → delete it and its reserved items (in one
   // transaction), logging the rejection on each freed asset first.
-  .post('/:id/reject', requireAuth('admin', 'operator'), (c) => {
+  .post('/:id/reject', requireAuth('admin', 'operator'), async (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
     const loan = db.select().from(loans).where(eq(loans.id, id)).get();
@@ -1138,6 +1220,15 @@ export const loanRoutes = new Hono<AppContext>()
       }
       tx.delete(loans).where(eq(loans.id, id)).run();
     });
+    // `loan` still holds the pre-delete snapshot the email needs.
+    await notifyReservationDecision(
+      db,
+      c.get('emailSender'),
+      loan,
+      items.length,
+      'rejected',
+      c.get('env').PUBLIC_APP_URL,
+    );
     return c.json({ ok: true });
   })
   .post('/:id/start', requireAuth('admin', 'operator'), (c) => {
