@@ -28,6 +28,7 @@ import { labels } from './labels.js';
 import { importAssets } from './importAssets.js';
 import { components } from './components.js';
 import { notifications } from './notifications.js';
+import { commandPalette } from './commandPalette.js';
 
 // Compose every namespace into one catalog per locale. Add a namespace here
 // when you create its file; pages then read it as `t.<namespace>.<key>`.
@@ -64,6 +65,7 @@ const catalog = {
     importAssets: importAssets.cs,
     components: components.cs,
     notifications: notifications.cs,
+    commandPalette: commandPalette.cs,
   },
   en: {
     nav: nav.en,
@@ -97,6 +99,7 @@ const catalog = {
     importAssets: importAssets.en,
     components: components.en,
     notifications: notifications.en,
+    commandPalette: commandPalette.en,
   },
 };
 

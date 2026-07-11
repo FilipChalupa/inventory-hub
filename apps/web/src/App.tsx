@@ -11,9 +11,11 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { NotificationBell } from './components/NotificationBell.js';
+import { mainNav, catalogNav, adminNav } from './nav.js';
+import { CommandPalette, openCommandPalette } from './components/CommandPalette.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { SkeletonList } from './components/ui.js';
-import { useT, useLocale, type Messages } from './i18n/index.js';
+import { useT, useLocale } from './i18n/index.js';
 import { LOCALES, LOCALE_LABELS } from './i18n/util.js';
 import { AuthProvider, useAuth } from './auth/AuthContext.js';
 
@@ -54,35 +56,8 @@ const UsersPage = page(() => import('./pages/UsersPage.js'), 'UsersPage');
 const ContactsPage = page(() => import('./pages/ContactsPage.js'), 'ContactsPage');
 const AuditLogPage = page(() => import('./pages/AuditLogPage.js'), 'AuditLogPage');
 
-// Nav items carry an i18n `key`; the visible label is resolved per render from
-// the active locale (t.nav[key]).
-type NavKey = keyof Messages['nav'];
-type NavItem = { to: string; key: NavKey; end?: boolean };
-
-// Primary workflow — always visible in the bar.
-const mainNav: NavItem[] = [
-  { to: '/dashboard', key: 'dashboard' },
-  { to: '/assets', key: 'assets' },
-  { to: '/scan', key: 'scan' },
-  { to: '/loans', key: 'loans' },
-  { to: '/calendar', key: 'calendar' },
-  { to: '/inventory', key: 'inventory' },
-];
-
-// Reference data — grouped under the "Číselníky" dropdown.
-const catalogNav: NavItem[] = [
-  { to: '/asset-types', key: 'types' },
-  { to: '/locations', key: 'locations' },
-  { to: '/labels', key: 'labels' },
-  { to: '/contacts', key: 'contacts' },
-];
-
-// Admin-only — grouped under the user menu (top right).
-const adminNav: NavItem[] = [
-  { to: '/audit', key: 'audit' },
-  { to: '/users', key: 'users' },
-  { to: '/settings', key: 'settings' },
-];
+// Nav config lives in ./nav so the command palette can reuse it without a
+// circular import back through App.
 
 export function App() {
   return (
@@ -182,12 +157,14 @@ function Shell() {
             </Dropdown>
           </nav>
           <div className="ml-auto flex items-center gap-1 sm:ml-0 sm:gap-2">
+            <SearchButton />
             <NotificationBell />
             <UserMenu />
           </div>
         </div>
         {mobileOpen && <MobileMenu />}
       </header>
+      <CommandPalette />
       <main className="flex-1">
         <div className="max-w-6xl mx-auto px-4 py-6">
           {/* key on the path remounts the boundary on navigation, so a crashed
@@ -223,6 +200,37 @@ function Shell() {
         </div>
       </main>
     </div>
+  );
+}
+
+// Mac users get the ⌘ glyph; everyone else a spelled-out Ctrl. Computed once
+// at module load — the platform doesn't change mid-session.
+const isMac =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/.test(navigator.platform ?? '');
+const SHORTCUT_HINT = isMac ? '⌘K' : 'Ctrl K';
+
+/** Subtle top-bar entry point to the command palette (icon-only on mobile). */
+function SearchButton() {
+  const t = useT();
+  return (
+    <button
+      type="button"
+      onClick={() => openCommandPalette()}
+      aria-label={t.commandPalette.searchButton}
+      className="flex items-center gap-2 rounded p-1.5 text-slate-600 transition-colors hover:bg-slate-100 sm:border sm:border-slate-300 sm:px-2.5 sm:py-1.5 dark:text-slate-300 dark:hover:bg-slate-700 sm:dark:border-slate-600 print:hidden"
+    >
+      <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-5 w-5 shrink-0">
+        <path
+          fillRule="evenodd"
+          d="M9 3.5a5.5 5.5 0 1 0 3.4 9.82l3.14 3.14a.75.75 0 1 0 1.06-1.06l-3.14-3.14A5.5 5.5 0 0 0 9 3.5ZM5 9a4 4 0 1 1 8 0 4 4 0 0 1-8 0Z"
+          clipRule="evenodd"
+        />
+      </svg>
+      <span className="hidden text-sm sm:inline">{t.commandPalette.searchButton}</span>
+      <kbd className="hidden rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 sm:inline dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
+        {SHORTCUT_HINT}
+      </kbd>
+    </button>
   );
 }
 
