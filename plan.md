@@ -38,10 +38,11 @@ kompletní historii pohybů, poškození a výpůjček.
 
 Hotové jsou mezitím: plánovaná údržba/servisní intervaly, odpisy (aktuální
 hodnota), in-app notifikace, self-service rezervace, kity (parent-child),
-REST + MCP API. Stále mimo:
+REST + MCP API, odchozí webhooky, veřejný QR lookup, týdenní e-mailové
+reporty, GDPR (export/anonymizace/retence). Stále mimo:
 
 - Mobilní appka (nejdřív stačí responsive web + kamera pro QR).
-- Notifikace do externích systémů (webhook, Slack).
+- Slack/Teams integrace (nad rámec generických webhooků).
 - Účetní napojení (fakturace, DPH).
 - RFID / Bluetooth tagy.
 - Billing & subscription tiers.
@@ -109,8 +110,9 @@ hlavního vyhledávání i ze skeneru.
    pass-through s offline banner; queue offline mutací odložen.
 7. **Lokalizace** — CZ + EN hotové (per-namespace katalogy v `i18n/`,
    runtime přepínač jazyka, default z jazyka prohlížeče).
-8. **Compliance** — TODO koment ve `lib/sessions.ts`. GDPR v scope, další
-   regimes (HIPAA, SOC 2, ISO 27001…) explicitně mimo MVP.
+8. **Compliance** — GDPR hotové: export dat a right-to-erasure (anonymizace)
+   v `lib/gdpr.ts` + admin UI, retence audit logu přes `AUDIT_RETENTION_DAYS`
+   (`lib/retention.ts`). Další regimes (HIPAA, SOC 2, ISO 27001…) mimo MVP.
 
 ## 8. Rizika
 

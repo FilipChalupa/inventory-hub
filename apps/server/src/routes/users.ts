@@ -6,6 +6,7 @@ import { USER_ROLES } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { sessions, users } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { anonymizeUser, exportUserData } from '../lib/gdpr.js';
 
 const updateInput = z.object({
   role: z.enum(USER_ROLES).optional(),
@@ -59,5 +60,27 @@ export const userRoutes = new Hono<AppContext>()
       patch.disabledAt = input.disabled ? new Date() : null;
     }
     db.update(users).set(patch).where(eq(users.id, id)).run();
+    return c.json({ ok: true });
+  })
+  // GDPR data export (right of access): everything the system holds about a
+  // user, as a downloadable JSON bundle.
+  .get('/:id/export', requireAuth('admin'), (c) => {
+    const db = c.get('db');
+    const data = exportUserData(db, c.req.param('id'));
+    if (!data) return c.json({ error: { message: 'Uživatel nenalezen' } }, 404);
+    return c.json(data);
+  })
+  // GDPR right-to-erasure: scrub the user's personal data in place (keeping
+  // the row so history stays intact) and revoke their access.
+  .post('/:id/anonymize', requireAuth('admin'), (c) => {
+    const db = c.get('db');
+    const me = c.get('user')!;
+    const id = c.req.param('id');
+    if (id === me.id) {
+      return c.json({ error: { message: 'Nemůžeš anonymizovat sám sebe' } }, 400);
+    }
+    if (!anonymizeUser(db, id)) {
+      return c.json({ error: { message: 'Uživatel nenalezen' } }, 404);
+    }
     return c.json({ ok: true });
   });

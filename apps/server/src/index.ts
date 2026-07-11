@@ -13,6 +13,7 @@ import { runWarrantyReminders } from './lib/warranty.js';
 import { runServiceReminders } from './lib/service-reminders.js';
 import { runWeeklyReport } from './lib/weekly-report.js';
 import { pruneRateLimits } from './lib/rate-limit.js';
+import { pruneOldAuditEvents } from './lib/retention.js';
 import { pruneExpiredSessions } from './lib/sessions.js';
 import { pruneExpiredOauth } from './mcp/oauth-store.js';
 
@@ -109,6 +110,15 @@ const runActivation = () => {
     pruneRateLimits();
   } catch (err) {
     console.error('rate-limit prune failed:', err);
+  }
+  // GDPR retention: trim audit-log history beyond the configured window.
+  if (env.AUDIT_RETENTION_DAYS) {
+    try {
+      const removed = pruneOldAuditEvents(db, env.AUDIT_RETENTION_DAYS);
+      if (removed > 0) console.log(`Retenční limit: smazáno ${removed} starých audit záznamů.`);
+    } catch (err) {
+      console.error('audit retention prune failed:', err);
+    }
   }
 };
 runActivation();

@@ -2,10 +2,9 @@ import { eq, lt } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { sessions, users, type UserRow } from '../db/schema.js';
 
-// TODO(compliance): GDPR-related (data export, right-to-erasure, retention
-// limits on audit log + session history) is in scope; further compliance
-// regimes (HIPAA, SOC 2, ISO 27001…) are out of MVP scope and intentionally
-// not addressed yet.
+// Compliance: GDPR data export + right-to-erasure live in `lib/gdpr.ts`;
+// audit-log retention in `lib/retention.ts`; expired sessions are pruned below.
+// Further regimes (HIPAA, SOC 2, ISO 27001…) are out of MVP scope.
 const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 // Sliding expiry: once a session is more than halfway through its lifetime,
 // an authenticated request pushes the expiry back to a full TTL. So active
