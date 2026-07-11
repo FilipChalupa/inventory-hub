@@ -12,11 +12,13 @@
 import { z } from 'zod';
 import {
   ASSET_STATUSES,
+  TERMINAL_ASSET_STATUSES,
   addLoanItemsInput,
   createAssetInput,
   createDamageReportInput,
   createLoanInput,
   orgSettingsSchema,
+  requestLoanInput,
   returnLoanItemInput,
   updateLoanInput,
 } from '@inventory-hub/shared';
@@ -198,6 +200,26 @@ export const MCP_TOOLS: McpTool[] = [
     { code: z.string() },
     (a) => ({ method: 'POST', path: `/api/assets/${encodeURIComponent(a.code)}/unassign` }),
   ),
+  tool(
+    'record_service',
+    'write',
+    'Record a completed service on an asset (advances its next-service date).',
+    { code: z.string() },
+    (a) => ({ method: 'POST', path: `/api/assets/${encodeURIComponent(a.code)}/service` }),
+  ),
+  tool(
+    'bulk_update_assets',
+    'write',
+    'Bulk action on many asset codes: move (locationId), assign (userId), unassign, or archive (status).',
+    {
+      action: z.enum(['move', 'assign', 'unassign', 'archive']),
+      assetCodes: z.array(z.string()).min(1).max(500),
+      locationId: z.string().uuid().nullable().optional(),
+      userId: z.string().uuid().nullable().optional(),
+      status: z.enum(TERMINAL_ASSET_STATUSES).optional(),
+    },
+    (a) => ({ method: 'POST', path: '/api/assets/bulk', body: a }),
+  ),
 
   // ---- loans ---------------------------------------------------------------
   tool(
@@ -287,6 +309,30 @@ export const MCP_TOOLS: McpTool[] = [
       path: `/api/loans/${encodeURIComponent(loanId)}/items/${encodeURIComponent(itemId)}/return`,
       body,
     }),
+  ),
+  tool(
+    'request_reservation',
+    'write',
+    'Request a self-service reservation for asset codes and a time window (awaits approval).',
+    shapeOf(requestLoanInput),
+    (a) => ({ method: 'POST', path: '/api/loans/request', body: a }),
+    enrichLoans,
+  ),
+  tool(
+    'approve_reservation',
+    'write',
+    'Approve a pending reservation request into a planned loan.',
+    { id: z.string() },
+    (a) => ({ method: 'POST', path: `/api/loans/${encodeURIComponent(a.id)}/approve` }),
+    enrichLoans,
+  ),
+  tool(
+    'reject_reservation',
+    'write',
+    'Reject a pending reservation request.',
+    { id: z.string() },
+    (a) => ({ method: 'POST', path: `/api/loans/${encodeURIComponent(a.id)}/reject` }),
+    enrichLoans,
   ),
 
   // ---- contacts ------------------------------------------------------------

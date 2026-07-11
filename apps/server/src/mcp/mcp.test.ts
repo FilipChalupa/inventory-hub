@@ -224,6 +224,57 @@ describe('MCP full flow', () => {
     expect(JSON.stringify(call.result.content)).toContain('read-only');
   });
 
+  it('record_service is blocked on read-only but works on a write grant', async () => {
+    // read-only grant: the write tool is refused before hitting the router.
+    const ro = await obtainToken('read');
+    const roSid = await initSession(ro.token);
+    const blocked = await mcp(
+      ro.token,
+      {
+        jsonrpc: '2.0',
+        id: 20,
+        method: 'tools/call',
+        params: { name: 'record_service', arguments: { code: 'DOES-NOT-MATTER' } },
+      },
+      roSid,
+    );
+    const blockedCall = await readJsonRpc(blocked);
+    expect(blockedCall.result.isError).toBe(true);
+    expect(JSON.stringify(blockedCall.result.content)).toContain('read-only');
+
+    // write grant: create an asset, then record a service on it.
+    const rw = await obtainToken('read-write');
+    const rwSid = await initSession(rw.token);
+    const createAsset = await mcp(
+      rw.token,
+      {
+        jsonrpc: '2.0',
+        id: 21,
+        method: 'tools/call',
+        params: {
+          name: 'create_asset',
+          arguments: { name: 'Serviceable', typeId: server.laptopTypeId },
+        },
+      },
+      rwSid,
+    );
+    const code = JSON.parse((await readJsonRpc(createAsset)).result.content[0].text).code as string;
+
+    const service = await mcp(
+      rw.token,
+      {
+        jsonrpc: '2.0',
+        id: 22,
+        method: 'tools/call',
+        params: { name: 'record_service', arguments: { code } },
+      },
+      rwSid,
+    );
+    const serviceCall = await readJsonRpc(service);
+    expect(serviceCall.result.isError).toBeFalsy();
+    expect(JSON.parse(serviceCall.result.content[0].text).ok).toBe(true);
+  });
+
   it('exposes the app base URL via get_org_settings for building links', async () => {
     const { token } = await obtainToken('read');
     const sid = await initSession(token);
