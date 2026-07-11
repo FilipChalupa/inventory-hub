@@ -15,6 +15,13 @@ export const users = ns({
     confirmTitle: (email: string) => `Deaktivovat uživatele ${email}?`,
     confirmMessage: 'Ztratí přístup do aplikace. Lze ho později znovu aktivovat.',
     deactivated: 'Uživatel deaktivován',
+    exportData: 'Exportovat data',
+    exportFailed: 'Export dat se nezdařil',
+    anonymize: 'Anonymizovat',
+    anonymizeConfirmTitle: (email: string) => `Anonymizovat uživatele ${email}?`,
+    anonymizeConfirmMessage:
+      'Nevratné — smaže osobní údaje uživatele a odhlásí ho. Historie zůstane zachována, ale bez jména a e-mailu.',
+    anonymized: 'Uživatel anonymizován',
   },
   en: {
     title: 'Users',
@@ -30,5 +37,12 @@ export const users = ns({
     confirmTitle: (email: string) => `Deactivate user ${email}?`,
     confirmMessage: 'They will lose access to the app. You can reactivate them later.',
     deactivated: 'User deactivated',
+    exportData: 'Export data',
+    exportFailed: 'Data export failed',
+    anonymize: 'Anonymize',
+    anonymizeConfirmTitle: (email: string) => `Anonymize user ${email}?`,
+    anonymizeConfirmMessage:
+      'Irreversible — this erases the user’s personal data and signs them out. History is kept, but without their name and email.',
+    anonymized: 'User anonymized',
   },
 });

@@ -20,6 +20,32 @@ export function UsersPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['users'] }),
   });
 
+  const exportData = useMutation({
+    mutationFn: (id: string) => apiClient.users.exportData(id),
+    onSuccess: (data, id) => {
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+      );
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `user-${id}.json`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    },
+    onError: (err) => toast.error(errorMessage(err) || t.users.exportFailed),
+  });
+
+  const anonymize = useMutation({
+    mutationFn: (id: string) => apiClient.users.anonymize(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['users'] });
+      toast.success(t.users.anonymized);
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+
   return (
     <section className="space-y-4">
       <h1 className="text-2xl font-bold">{t.users.title}</h1>
@@ -107,6 +133,35 @@ export function UsersPage() {
                     }}
                   >
                     {t.users.deactivate}
+                  </Button>
+                )}
+
+                <Button
+                  variant="secondary"
+                  disabled={exportData.isPending && exportData.variables === u.id}
+                  onClick={() => exportData.mutate(u.id)}
+                >
+                  {t.users.exportData}
+                </Button>
+
+                {!isMe && (
+                  <Button
+                    variant="danger"
+                    disabled={anonymize.isPending && anonymize.variables === u.id}
+                    onClick={async () => {
+                      if (
+                        await confirm({
+                          title: t.users.anonymizeConfirmTitle(u.email),
+                          message: t.users.anonymizeConfirmMessage,
+                          confirmLabel: t.users.anonymize,
+                          danger: true,
+                        })
+                      ) {
+                        anonymize.mutate(u.id);
+                      }
+                    }}
+                  >
+                    {t.users.anonymize}
                   </Button>
                 )}
               </li>

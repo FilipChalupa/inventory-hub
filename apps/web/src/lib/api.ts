@@ -397,6 +397,8 @@ export const apiClient = {
     list: () => api<{ items: UserRow[] }>('/api/users'),
     update: (id: string, input: { role?: UserRole; disabled?: boolean }) =>
       api<{ ok: true }>(`/api/users/${id}`, { method: 'PATCH', body: input }),
+    exportData: (id: string) => api<Record<string, unknown>>(`/api/users/${id}/export`),
+    anonymize: (id: string) => api<{ ok: true }>(`/api/users/${id}/anonymize`, { method: 'POST' }),
   },
 
   org: {
