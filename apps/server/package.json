@@ -38,7 +38,7 @@
     "@types/swagger-ui-dist": "^3.30.6",
     "drizzle-kit": "^0.31.10",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.0",
+    "typescript": "^7.0.2",
     "vitest": "^4.1.10"
   }
 }
