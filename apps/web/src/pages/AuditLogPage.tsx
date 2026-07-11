@@ -26,6 +26,10 @@ const EVENT_KEYS = [
   'loan_item_removed',
   'repair_started',
   'repair_finished',
+  'serviced',
+  'loan_requested',
+  'loan_approved',
+  'loan_rejected',
 ];
 
 const PAGE = 300;

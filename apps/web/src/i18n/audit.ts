@@ -37,6 +37,10 @@ export const audit = ns({
       loan_item_removed: 'Položka odebrána z výpůjčky',
       repair_started: 'Poslán do opravy',
       repair_finished: 'Oprava dokončena',
+      serviced: 'Servis proveden',
+      loan_requested: 'Zažádáno o výpůjčku',
+      loan_approved: 'Výpůjčka schválena',
+      loan_rejected: 'Výpůjčka zamítnuta',
     } as Record<string, string>,
   },
   en: {
@@ -74,6 +78,10 @@ export const audit = ns({
       loan_item_removed: 'Item removed from loan',
       repair_started: 'Sent to repair',
       repair_finished: 'Repair finished',
+      serviced: 'Serviced',
+      loan_requested: 'Loan requested',
+      loan_approved: 'Loan approved',
+      loan_rejected: 'Loan rejected',
     } as Record<string, string>,
   },
 });

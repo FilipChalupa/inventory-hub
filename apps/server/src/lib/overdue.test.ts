@@ -126,6 +126,30 @@ describe('runOverdueCheck', () => {
     expect(result.found).toBe(0);
   });
 
+  it('never flags an unstarted reservation request as overdue', async () => {
+    const asset = (await jsonPost(server, cookie, '/api/assets', {
+      name: 'Requested',
+      typeId: server.laptopTypeId,
+    }).then((r) => r.json())) as { code: string };
+    // A pending request (startedAt null, approvedAt null) with a past return
+    // date must not trigger an overdue reminder.
+    await jsonPost(server, cookie, '/api/loans/request', {
+      assetCodes: [asset.code],
+      expectedReturnAt: new Date(Date.now() - 86_400_000).toISOString(),
+    });
+
+    const result = await runOverdueCheck(
+      server.db,
+      {
+        send: async (e) => {
+          server.sentEmails.push(e);
+        },
+      },
+      { publicAppUrl: '' },
+    );
+    expect(result.found).toBe(0);
+  });
+
   it('admin endpoint /api/loans/notify-overdue returns the run result', async () => {
     await setupOverdueLoan(server, cookie, 2);
     const res = await server.authRequest('/api/loans/notify-overdue', {

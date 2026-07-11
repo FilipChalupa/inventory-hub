@@ -140,6 +140,8 @@ export function currentAssetValue(
   const elapsedMonths =
     (now.getFullYear() - asset.purchasedAt.getFullYear()) * 12 +
     (now.getMonth() - asset.purchasedAt.getMonth());
-  const remainingFraction = Math.max(0, 1 - elapsedMonths / asset.usefulLifeMonths);
+  // Clamp to [0, 1]: never below 0 (fully depreciated) and never above the
+  // purchase price (e.g. a future purchase date → negative elapsed months).
+  const remainingFraction = Math.max(0, Math.min(1, 1 - elapsedMonths / asset.usefulLifeMonths));
   return Math.round(asset.purchasePrice * remainingFraction);
 }

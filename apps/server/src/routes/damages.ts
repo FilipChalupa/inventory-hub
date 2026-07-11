@@ -57,8 +57,12 @@ export const damageRoutes = new Hono<AppContext>()
 
     // total severity → asset goes to `damaged`; otherwise asset stays in
     // its current status (we don't auto-flip to in_repair — that's an
-    // explicit action).
-    if (input.severity === 'total' && asset.status !== 'damaged') {
+    // explicit action). Only operators/admins may trigger this archive: a
+    // plain member can report damage but must not be able to soft-delete any
+    // asset by filing a `total` report (their report is still recorded for an
+    // operator to act on).
+    const canArchive = user.role === 'admin' || user.role === 'operator';
+    if (input.severity === 'total' && asset.status !== 'damaged' && canArchive) {
       db.update(assets)
         .set({
           status: 'damaged',

@@ -377,8 +377,9 @@ export const loanRoutes = new Hono<AppContext>()
         approvedAt: loan.approvedAt,
       });
       const base = { id: loan.id, borrowerName: loan.borrowerName, itemCount: its.length };
-      // Pending requests ('requested') fall through: they are not yet
-      // confirmed and shouldn't appear in any operational "today" bucket.
+      // Pending requests ('requested') are not yet confirmed and must not
+      // appear in any operational "today" bucket.
+      if (status === 'requested') continue;
       if (status === 'planned') {
         startingToday.push({ ...base, date: loan.loanedAt });
       } else if (status !== 'fully_returned' && loan.expectedReturnAt) {
@@ -957,6 +958,28 @@ export const loanRoutes = new Hono<AppContext>()
     const user = c.get('user')!;
     const now = new Date();
     const startAt = input.loanedAt ?? now;
+
+    // Cap open (unapproved) requests per user so a member can't reserve-squat
+    // the whole inventory while awaiting approval.
+    const PENDING_REQUEST_CAP = 20;
+    const openRequests =
+      db
+        .select({ n: sql<number>`count(*)` })
+        .from(loans)
+        .where(
+          and(
+            eq(loans.requestedByUserId, user.id),
+            isNull(loans.approvedAt),
+            isNull(loans.startedAt),
+          ),
+        )
+        .get()?.n ?? 0;
+    if (openRequests >= PENDING_REQUEST_CAP) {
+      return c.json(
+        { error: { message: 'Máš příliš mnoho nevyřízených žádostí. Počkej na jejich vyřízení.' } },
+        429,
+      );
+    }
 
     const codes = input.assetCodes.map((code) => code.toUpperCase());
     const targets = db.select().from(assets).where(inArray(assets.code, codes)).all();

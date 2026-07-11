@@ -89,8 +89,8 @@ function isTerminalStatus(s: AssetStatus): boolean {
  * Validates a proposed kit parent for the asset identified by `selfId`. Returns
  * an error message when the link is invalid, or null when it's fine (including
  * when no parent is set). Guards against a missing parent, a self-reference and
- * the trivial two-node cycle (making an asset a child of its own child). Deeper
- * cycles are intentionally not checked.
+ * any cycle by walking the parent chain upward and rejecting if it loops back
+ * to this asset.
  */
 function validateParentAssetId(
   db: Db,
@@ -105,7 +105,20 @@ function validateParentAssetId(
     .where(eq(assets.id, parentAssetId))
     .get();
   if (!parent) return 'Nadřazený asset nenalezen';
-  if (parent.parentAssetId === selfId) return 'Cyklická vazba kitu není povolena';
+  // Walk up the chain: if we reach `selfId`, attaching here would form a cycle.
+  // The `seen` set also guards against any pre-existing loop in the data.
+  const seen = new Set<string>([selfId]);
+  let cursor: string | null | undefined = parent.parentAssetId;
+  while (cursor) {
+    if (cursor === selfId) return 'Cyklická vazba kitu není povolena';
+    if (seen.has(cursor)) break;
+    seen.add(cursor);
+    cursor = db
+      .select({ parentAssetId: assets.parentAssetId })
+      .from(assets)
+      .where(eq(assets.id, cursor))
+      .get()?.parentAssetId;
+  }
   return null;
 }
 
@@ -257,6 +270,7 @@ export const assetRoutes = new Hono<AppContext>()
     const codes = input.assetCodes.map((x) => x.toUpperCase());
 
     let updated = 0;
+    const archivedCodes: string[] = [];
     db.transaction((tx) => {
       const rows = tx.select().from(assets).where(inArray(assets.code, codes)).all();
       for (const asset of rows) {
@@ -317,10 +331,17 @@ export const assetRoutes = new Hono<AppContext>()
               payload: { status: input.status },
             })
             .run();
+          archivedCodes.push(asset.code);
           updated += 1;
         }
       }
     });
+
+    // Fire webhooks after the transaction commits, mirroring the single
+    // /:code/archive endpoint so bulk archives aren't silently dropped.
+    for (const code of archivedCodes) {
+      emitWebhook(db, 'asset.archived', { code, status: input.status });
+    }
 
     return c.json({ updated });
   })

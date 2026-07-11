@@ -28,6 +28,9 @@ export async function runOverdueCheck(
     .from(loans)
     .where(
       and(
+        // Only started loans can be overdue — a planned loan or an unapproved
+        // reservation request must never trigger an overdue reminder.
+        isNotNull(loans.startedAt),
         isNotNull(loans.expectedReturnAt),
         lt(loans.expectedReturnAt, now),
         isNull(loans.overdueNotifiedAt),

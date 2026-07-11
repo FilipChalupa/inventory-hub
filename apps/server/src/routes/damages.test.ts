@@ -110,4 +110,33 @@ describe('damages API', () => {
     const resolve = await jsonPost(server, memberCookie, `/api/damages/${id}/resolve`, {});
     expect(resolve.status).toBe(403);
   });
+
+  it("a member's 'total' report does not archive the asset, but an admin's does", async () => {
+    const code = await makeAsset(server, cookie);
+    const memberCookie = server.loginAs(
+      server.createUser({ role: 'member', email: 'member2@example.com' }),
+    );
+
+    // Member files a total-damage report: recorded, but must NOT soft-delete
+    // the asset (would be a privilege escalation).
+    const byMember = await jsonPost(server, memberCookie, `/api/damages/by-asset/${code}`, {
+      occurredAt: new Date().toISOString(),
+      description: 'total by member',
+      severity: 'total',
+    });
+    expect(byMember.status).toBe(201);
+    let row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+    expect(row.archivedAt).toBeNull();
+    expect(row.status).not.toBe('damaged');
+
+    // An operator/admin filing the same does archive it.
+    await jsonPost(server, cookie, `/api/damages/by-asset/${code}`, {
+      occurredAt: new Date().toISOString(),
+      description: 'total by admin',
+      severity: 'total',
+    });
+    row = server.db.select().from(assets).where(eq(assets.code, code)).get()!;
+    expect(row.archivedAt).not.toBeNull();
+    expect(row.status).toBe('damaged');
+  });
 });

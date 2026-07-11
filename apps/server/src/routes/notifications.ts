@@ -52,6 +52,9 @@ export const notificationRoutes = new Hono<AppContext>()
       .from(loans)
       .where(
         and(
+          // Only started loans can be overdue (excludes planned loans and
+          // unapproved reservation requests).
+          isNotNull(loans.startedAt),
           isNotNull(loans.expectedReturnAt),
           lt(loans.expectedReturnAt, now),
           scoped ? eq(loans.borrowerUserId, user.id) : undefined,
