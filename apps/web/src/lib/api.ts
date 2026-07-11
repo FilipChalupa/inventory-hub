@@ -4,6 +4,7 @@ import type {
   CreateAssetInput,
   CreateDamageReportInput,
   CreateLoanInput,
+  RequestLoanInput,
   UpdateLoanInput,
   ReturnLoanItemInput,
   AllowedDomain,
@@ -112,10 +113,12 @@ export type LoanRow = {
   loanedAt: string;
   startedAt: string | null;
   expectedReturnAt: string | null;
+  requestedByUserId: string | null;
+  approvedAt: string | null;
   createdByUserId: string;
   createdAt: string;
   items: LoanItemRow[];
-  status: 'planned' | 'open' | 'partially_returned' | 'fully_returned';
+  status: 'requested' | 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 };
 
 export type ApiKeyRow = {
@@ -597,6 +600,10 @@ export const apiClient = {
     get: (id: string) => api<{ loan: LoanRow }>(`/api/loans/${id}`),
     create: (input: CreateLoanInput) =>
       api<{ id: string }>('/api/loans', { method: 'POST', body: input }),
+    request: (input: RequestLoanInput) =>
+      api<{ id: string }>('/api/loans/request', { method: 'POST', body: input }),
+    approve: (id: string) => api<{ ok: true }>(`/api/loans/${id}/approve`, { method: 'POST' }),
+    reject: (id: string) => api<{ ok: true }>(`/api/loans/${id}/reject`, { method: 'POST' }),
     update: (id: string, input: UpdateLoanInput) =>
       api<{ ok: true }>(`/api/loans/${id}`, { method: 'PATCH', body: input }),
     remove: (id: string) => api<{ ok: true }>(`/api/loans/${id}`, { method: 'DELETE' }),

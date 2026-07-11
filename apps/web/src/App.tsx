@@ -38,6 +38,7 @@ const LocationsPage = page(() => import('./pages/LocationsPage.js'), 'LocationsP
 const LoansPage = page(() => import('./pages/LoansPage.js'), 'LoansPage');
 const LoanDetailPage = page(() => import('./pages/LoanDetailPage.js'), 'LoanDetailPage');
 const NewLoanPage = page(() => import('./pages/NewLoanPage.js'), 'NewLoanPage');
+const RequestLoanPage = page(() => import('./pages/RequestLoanPage.js'), 'RequestLoanPage');
 const CalendarPage = page(() => import('./pages/CalendarPage.js'), 'CalendarPage');
 const TodayPage = page(() => import('./pages/TodayPage.js'), 'TodayPage');
 const LabelsPage = page(() => import('./pages/LabelsPage.js'), 'LabelsPage');
@@ -205,6 +206,7 @@ function Shell() {
                 <Route path="/locations" element={<LocationsPage />} />
                 <Route path="/loans" element={<LoansPage />} />
                 <Route path="/loans/new" element={<NewLoanPage />} />
+                <Route path="/loans/request" element={<RequestLoanPage />} />
                 <Route path="/loans/:id" element={<LoanDetailPage />} />
                 <Route path="/calendar" element={<CalendarPage />} />
                 <Route path="/inventory" element={<InventoryPage />} />

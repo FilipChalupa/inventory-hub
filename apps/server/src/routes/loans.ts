@@ -4,6 +4,7 @@ import { and, asc, desc, eq, gte, inArray, isNull, isNotNull, lt, lte, or, sql }
 import { z } from 'zod';
 import {
   createLoanInput,
+  requestLoanInput,
   updateLoanInput,
   addLoanItemsInput,
   returnLoanItemInput,
@@ -118,7 +119,12 @@ export const loanRoutes = new Hono<AppContext>()
       return {
         ...loan,
         items: loanItemsForLoan,
-        status: deriveLoanStatus({ startedAt: loan.startedAt, items: loanItemsForLoan }),
+        status: deriveLoanStatus({
+          startedAt: loan.startedAt,
+          items: loanItemsForLoan,
+          requestedByUserId: loan.requestedByUserId,
+          approvedAt: loan.approvedAt,
+        }),
       };
     });
 
@@ -364,8 +370,15 @@ export const loanRoutes = new Hono<AppContext>()
 
     for (const loan of candidates) {
       const its = itemsByLoan.get(loan.id) ?? [];
-      const status = deriveLoanStatus({ startedAt: loan.startedAt, items: its });
+      const status = deriveLoanStatus({
+        startedAt: loan.startedAt,
+        items: its,
+        requestedByUserId: loan.requestedByUserId,
+        approvedAt: loan.approvedAt,
+      });
       const base = { id: loan.id, borrowerName: loan.borrowerName, itemCount: its.length };
+      // Pending requests ('requested') fall through: they are not yet
+      // confirmed and shouldn't appear in any operational "today" bucket.
       if (status === 'planned') {
         startingToday.push({ ...base, date: loan.loanedAt });
       } else if (status !== 'fully_returned' && loan.expectedReturnAt) {
@@ -430,11 +443,18 @@ export const loanRoutes = new Hono<AppContext>()
           borrowerName: loan.borrowerName,
           start: loan.startedAt ?? loan.loanedAt,
           end: loan.expectedReturnAt,
-          status: deriveLoanStatus({ startedAt: loan.startedAt, items: its }),
+          status: deriveLoanStatus({
+            startedAt: loan.startedAt,
+            items: its,
+            requestedByUserId: loan.requestedByUserId,
+            approvedAt: loan.approvedAt,
+          }),
           itemCount: its.length,
         };
       })
-      .filter((l) => l.status !== 'fully_returned');
+      // Drop fully returned (history) and pending requests (not yet confirmed
+      // commitments) from the loan-centric schedule.
+      .filter((l) => l.status !== 'fully_returned' && l.status !== 'requested');
 
     return c.json({ items });
   })
@@ -465,7 +485,12 @@ export const loanRoutes = new Hono<AppContext>()
       loan: {
         ...loan,
         items,
-        status: deriveLoanStatus({ startedAt: loan.startedAt, items }),
+        status: deriveLoanStatus({
+          startedAt: loan.startedAt,
+          items,
+          requestedByUserId: loan.requestedByUserId,
+          approvedAt: loan.approvedAt,
+        }),
       },
     });
   })
@@ -921,6 +946,177 @@ export const loanRoutes = new Hono<AppContext>()
 
     return c.json({ id: loanId }, 201);
   })
+  // Self-service reservation request (issue #2). Any signed-in user (a
+  // `member`) asks to borrow assets for a window; the loan is created pending
+  // (`requestedByUserId` set, `approvedAt` null, `startedAt` null) with the
+  // requester as borrower. Assets are reserved via loan_items but stay in
+  // stock — an operator/admin must approve before it becomes a planned loan.
+  .post('/request', requireAuth(), zValidator('json', requestLoanInput), (c) => {
+    const db = c.get('db');
+    const input = c.req.valid('json');
+    const user = c.get('user')!;
+    const now = new Date();
+    const startAt = input.loanedAt ?? now;
+
+    const codes = input.assetCodes.map((code) => code.toUpperCase());
+    const targets = db.select().from(assets).where(inArray(assets.code, codes)).all();
+    if (targets.length !== codes.length) {
+      const found = new Set(targets.map((t) => t.code));
+      const missing = codes.filter((code) => !found.has(code));
+      return c.json({ error: { message: `Asset(y) nenalezen(y): ${missing.join(', ')}` } }, 400);
+    }
+
+    const archived = targets.filter((t) => t.archivedAt !== null);
+    if (archived.length) {
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) jsou archivované: ${archived.map((b) => b.code).join(', ')}`,
+          },
+        },
+        409,
+      );
+    }
+
+    const notLoanable = targets.filter(
+      (t) => !(LOANABLE_STATUSES as readonly string[]).includes(t.status),
+    );
+    if (notLoanable.length) {
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) nelze v tomto stavu půjčit: ${notLoanable
+              .map((b) => `${b.code} (${b.status})`)
+              .join(', ')}`,
+          },
+        },
+        409,
+      );
+    }
+
+    const newEnd = input.expectedReturnAt ?? null;
+    const targetIds = targets.map((t) => t.id);
+    const loanId = crypto.randomUUID();
+    let conflictCodes: string[] = [];
+    db.transaction((tx) => {
+      conflictCodes = findLoanWindowConflicts(tx, targetIds, startAt, newEnd);
+      if (conflictCodes.length) return; // abort: nothing inserted, handled below
+
+      tx.insert(loans)
+        .values({
+          id: loanId,
+          borrowerName: user.name,
+          borrowerUserId: user.id,
+          purpose: input.purpose ?? null,
+          loanedAt: startAt,
+          startedAt: null,
+          expectedReturnAt: newEnd,
+          requestedByUserId: user.id,
+          approvedAt: null,
+          createdByUserId: user.id,
+        })
+        .run();
+
+      for (const t of targets) {
+        tx.insert(loanItems).values({ id: crypto.randomUUID(), loanId, assetId: t.id }).run();
+        tx.insert(assetEvents)
+          .values({
+            assetId: t.id,
+            actorUserId: user.id,
+            type: 'loan_requested',
+            payload: { loanId, borrower: user.name, startAt: startAt.toISOString() },
+          })
+          .run();
+      }
+    });
+
+    if (conflictCodes.length) {
+      return c.json(
+        {
+          error: {
+            message: `Asset(y) jsou v daném termínu už ve výpůjčce nebo rezervaci: ${conflictCodes.join(
+              ', ',
+            )}`,
+          },
+        },
+        409,
+      );
+    }
+
+    return c.json({ id: loanId }, 201);
+  })
+  // Approve a pending request → it becomes a normal planned loan. Availability
+  // is re-checked because the window may have been taken since the request.
+  .post('/:id/approve', requireAuth('admin', 'operator'), (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+    if (loan.requestedByUserId === null || loan.approvedAt !== null || loan.startedAt !== null) {
+      return c.json({ error: { message: 'Toto není čekající žádost' } }, 409);
+    }
+
+    const assetIds = db
+      .select({ assetId: loanItems.assetId })
+      .from(loanItems)
+      .where(eq(loanItems.loanId, id))
+      .all()
+      .map((r) => r.assetId);
+    const conflicts = assetIds.length
+      ? findLoanWindowConflicts(db, assetIds, loan.loanedAt, loan.expectedReturnAt, id)
+      : [];
+    if (conflicts.length) {
+      return c.json(
+        { error: { message: `Assety jsou v daném termínu obsazené: ${conflicts.join(', ')}` } },
+        409,
+      );
+    }
+
+    const user = c.get('user')!;
+    const now = new Date();
+    db.transaction((tx) => {
+      tx.update(loans).set({ approvedAt: now, updatedAt: now }).where(eq(loans.id, id)).run();
+      for (const assetId of assetIds) {
+        tx.insert(assetEvents)
+          .values({
+            assetId,
+            actorUserId: user.id,
+            type: 'loan_approved',
+            payload: { loanId: id, borrower: loan.borrowerName },
+          })
+          .run();
+      }
+    });
+    return c.json({ ok: true });
+  })
+  // Reject a pending request → delete it and its reserved items (in one
+  // transaction), logging the rejection on each freed asset first.
+  .post('/:id/reject', requireAuth('admin', 'operator'), (c) => {
+    const db = c.get('db');
+    const id = c.req.param('id');
+    const loan = db.select().from(loans).where(eq(loans.id, id)).get();
+    if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
+    if (loan.requestedByUserId === null || loan.approvedAt !== null || loan.startedAt !== null) {
+      return c.json({ error: { message: 'Toto není čekající žádost' } }, 409);
+    }
+
+    const user = c.get('user')!;
+    const items = db.select().from(loanItems).where(eq(loanItems.loanId, id)).all();
+    db.transaction((tx) => {
+      for (const item of items) {
+        tx.insert(assetEvents)
+          .values({
+            assetId: item.assetId,
+            actorUserId: user.id,
+            type: 'loan_rejected',
+            payload: { loanId: id, borrower: loan.borrowerName, itemCount: items.length },
+          })
+          .run();
+      }
+      tx.delete(loans).where(eq(loans.id, id)).run();
+    });
+    return c.json({ ok: true });
+  })
   .post('/:id/start', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');
     const id = c.req.param('id');
@@ -928,6 +1124,10 @@ export const loanRoutes = new Hono<AppContext>()
     if (!loan) return c.json({ error: { message: 'Výpůjčka nenalezena' } }, 404);
     if (loan.startedAt !== null) {
       return c.json({ error: { message: 'Výpůjčka už byla zahájena' } }, 409);
+    }
+    // A pending self-service request must be approved before it can start.
+    if (loan.requestedByUserId !== null && loan.approvedAt === null) {
+      return c.json({ error: { message: 'Žádost musí být nejdřív schválena' } }, 409);
     }
     const user = c.get('user')!;
     activateLoan(db, id, user.id, new Date());

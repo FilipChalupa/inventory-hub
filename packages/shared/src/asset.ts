@@ -100,6 +100,9 @@ export const assetEventTypes = [
   'repair_started',
   'repair_finished',
   'serviced',
+  'loan_requested',
+  'loan_approved',
+  'loan_rejected',
 ] as const;
 export type AssetEventType = (typeof assetEventTypes)[number];
 

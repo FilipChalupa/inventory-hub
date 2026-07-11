@@ -1,4 +1,4 @@
-import { and, eq, isNull, lte } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { assetEvents, assets, loanItems, loans } from '../db/schema.js';
 
@@ -50,7 +50,15 @@ export function activateDueLoans(db: Db, now: Date = new Date()): { activated: n
   const due = db
     .select({ id: loans.id })
     .from(loans)
-    .where(and(isNull(loans.startedAt), lte(loans.loanedAt, now)))
+    .where(
+      and(
+        isNull(loans.startedAt),
+        lte(loans.loanedAt, now),
+        // Never auto-start a pending self-service request: it must be approved
+        // first (requestedByUserId set with approvedAt still null).
+        or(isNull(loans.requestedByUserId), isNotNull(loans.approvedAt)),
+      ),
+    )
     .all();
 
   let activated = 0;

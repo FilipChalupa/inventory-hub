@@ -1,15 +1,19 @@
-import { keepPreviousData, useQuery } from '@tanstack/react-query';
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { apiClient, type LoanRow } from '../lib/api.js';
 import { errorMessage } from '../lib/errors.js';
 import { Button, Card, Input, Select, formatDate } from '../components/ui.js';
+import { confirm } from '../components/ConfirmDialog.js';
+import { toast } from '../components/Toast.js';
 import { LoansCalendar } from '../components/LoansCalendar.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
+import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 import { useT } from '../i18n/index.js';
 import clsx from 'clsx';
 
 const statusClasses = {
+  requested: 'bg-fuchsia-100 text-fuchsia-800',
   planned: 'bg-violet-100 text-violet-800',
   open: 'bg-amber-100 text-amber-800',
   partially_returned: 'bg-blue-100 text-blue-800',
@@ -33,6 +37,8 @@ function parseStatusFilter(value: string | null): StatusFilter {
 
 export function LoansPage() {
   const t = useT();
+  const me = useCurrentUser();
+  const canManage = hasRole(me, 'admin', 'operator');
   // Snapshot "now" once so it doesn't change identity every render and
   // invalidate the filtered-loans memo below.
   const now = useMemo(() => new Date(), []);
@@ -101,12 +107,21 @@ export function LoansPage() {
     });
   }, [list.data, status, from, to, now]);
 
+  // Pending self-service requests get their own approval queue at the top
+  // (operators/admins only). They're computed from the full loaded list so the
+  // status/date filters don't hide anything that needs a decision.
+  const pending = useMemo(
+    () => (canManage ? (list.data?.items.filter((l) => l.status === 'requested') ?? []) : []),
+    [canManage, list.data],
+  );
+
   // Planned loans get their own "upcoming" section, sorted by start date.
   const upcoming = filtered
     .filter((l) => l.status === 'planned')
     .slice()
     .sort((a, b) => new Date(a.loanedAt).getTime() - new Date(b.loanedAt).getTime());
-  const others = filtered.filter((l) => l.status !== 'planned');
+  // Requested loans are surfaced in the approval queue above, not in the list.
+  const others = filtered.filter((l) => l.status !== 'planned' && l.status !== 'requested');
 
   return (
     <section className="space-y-4">
@@ -151,6 +166,8 @@ export function LoansPage() {
       </div>
 
       {view === 'calendar' && <LoansCalendar />}
+
+      {view === 'list' && pending.length > 0 && <PendingApprovalSection loans={pending} />}
 
       {view === 'list' && (loadedCount > 0 || borrower || status || from || to) && (
         <div className="flex flex-wrap gap-2 items-end">
@@ -250,6 +267,85 @@ export function LoansPage() {
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * Approval queue for self-service reservation requests (issue #2). Operators
+ * and admins approve a request into a planned loan or reject it (which deletes
+ * it and frees the reservation).
+ */
+function PendingApprovalSection({ loans }: { loans: LoanRow[] }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ['loans'] });
+    qc.invalidateQueries({ queryKey: ['loans-today'] });
+  };
+
+  const approve = useMutation({
+    mutationFn: (id: string) => apiClient.loans.approve(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t.loans.approved);
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  const reject = useMutation({
+    mutationFn: (id: string) => apiClient.loans.reject(id),
+    onSuccess: () => {
+      invalidate();
+      toast.success(t.loans.rejected);
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  const busy = approve.isPending || reject.isPending;
+
+  return (
+    <div className="space-y-1">
+      <h2 className="text-sm font-semibold text-fuchsia-700 dark:text-fuchsia-300">
+        {t.loans.pendingTitle}
+        <span className="ml-2 font-normal text-slate-400">{loans.length}</span>
+      </h2>
+      <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-fuchsia-200 bg-white dark:bg-slate-800 dark:border-fuchsia-900">
+        {loans.map((loan) => (
+          <li key={loan.id} className="flex items-center justify-between gap-4 p-3">
+            <Link to={`/loans/${loan.id}`} className="min-w-0 flex-1 hover:underline">
+              <div className="font-medium truncate">{loan.borrowerName}</div>
+              <div className="text-xs text-slate-500">
+                {t.loans.pieces(loan.items.length)} · {t.loans.startsAt(formatDate(loan.loanedAt))}
+                {loan.expectedReturnAt &&
+                  ` · ${t.loans.returnBy(formatDate(loan.expectedReturnAt))}`}
+              </div>
+            </Link>
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" disabled={busy} onClick={() => approve.mutate(loan.id)}>
+                {approve.isPending ? t.loans.approving : t.loans.approve}
+              </Button>
+              <Button
+                variant="ghost"
+                className="text-red-600"
+                disabled={busy}
+                onClick={async () => {
+                  if (
+                    await confirm({
+                      title: t.loans.rejectConfirmTitle,
+                      message: t.loans.rejectConfirmMessage,
+                      confirmLabel: t.loans.reject,
+                      danger: true,
+                    })
+                  ) {
+                    reject.mutate(loan.id);
+                  }
+                }}
+              >
+                {reject.isPending ? t.loans.rejecting : t.loans.reject}
+              </Button>
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 

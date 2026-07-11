@@ -92,8 +92,15 @@ export const feedRoutes = new Hono<AppContext>().get('/loans.ics', (c) => {
 
   for (const loan of allLoans) {
     const its = itemsByLoan.get(loan.id) ?? [];
-    const status = deriveLoanStatus({ startedAt: loan.startedAt, items: its });
-    if (status === 'fully_returned') continue;
+    const status = deriveLoanStatus({
+      startedAt: loan.startedAt,
+      items: its,
+      requestedByUserId: loan.requestedByUserId,
+      approvedAt: loan.approvedAt,
+    });
+    // Skip history (returned) and pending self-service requests (not yet
+    // confirmed) — the feed only carries real reservations and loans.
+    if (status === 'fully_returned' || status === 'requested') continue;
     const url = `${base}/loans/${loan.id}`;
     const count = its.length;
     if (status === 'planned') {

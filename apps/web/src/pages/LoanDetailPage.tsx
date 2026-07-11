@@ -50,6 +50,7 @@ export function LoanDetailPage() {
 
   const l = loan.data.loan;
   const planned = l.status === 'planned';
+  const requested = l.status === 'requested';
   const openCount = l.items.filter((i) => !i.returnedAt).length;
   return (
     <article className="space-y-4">
@@ -60,6 +61,11 @@ export function LoanDetailPage() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
+            {requested && (
+              <span className="text-xs px-2 py-0.5 rounded bg-fuchsia-100 text-fuchsia-800 font-medium">
+                {t.loanStatuses.requested}
+              </span>
+            )}
             {planned && (
               <span className="text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-800 font-medium">
                 {t.loanStatuses.planned}

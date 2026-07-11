@@ -65,6 +65,7 @@ export const assetStatuses = ns({
 /** Loan status labels (derived loan state). */
 export const loanStatuses = ns({
   cs: {
+    requested: 'Čeká na schválení',
     planned: 'Naplánováno',
     open: 'Otevřená',
     partially_returned: 'Část vráceno',
@@ -72,6 +73,7 @@ export const loanStatuses = ns({
     overdue: 'Po termínu',
   },
   en: {
+    requested: 'Pending approval',
     planned: 'Planned',
     open: 'Open',
     partially_returned: 'Partially returned',

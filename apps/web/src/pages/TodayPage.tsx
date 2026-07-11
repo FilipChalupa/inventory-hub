@@ -125,7 +125,12 @@ function MyThings() {
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-semibold">{t.today.myThings}</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold">{t.today.myThings}</h2>
+        <Link to="/loans/request">
+          <Button variant="secondary">{t.today.requestLoan}</Button>
+        </Link>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <Card>
           <h3 className="font-semibold mb-2">

@@ -17,6 +17,7 @@ import { newAsset } from './newAsset.js';
 import { settings } from './settings.js';
 import { loans } from './loans.js';
 import { newLoan } from './newLoan.js';
+import { requestLoan } from './requestLoan.js';
 import { loanDetail } from './loanDetail.js';
 import { inventory } from './inventory.js';
 import { inventorySession } from './inventorySession.js';
@@ -52,6 +53,7 @@ const catalog = {
     settings: settings.cs,
     loans: loans.cs,
     newLoan: newLoan.cs,
+    requestLoan: requestLoan.cs,
     loanDetail: loanDetail.cs,
     inventory: inventory.cs,
     inventorySession: inventorySession.cs,
@@ -84,6 +86,7 @@ const catalog = {
     settings: settings.en,
     loans: loans.en,
     newLoan: newLoan.en,
+    requestLoan: requestLoan.en,
     loanDetail: loanDetail.en,
     inventory: inventory.en,
     inventorySession: inventorySession.en,

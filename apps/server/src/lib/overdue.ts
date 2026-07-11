@@ -147,6 +147,9 @@ export async function runStartReminders(
         isNull(loans.startReminderSentAt),
         gt(loans.loanedAt, now),
         lte(loans.loanedAt, soon),
+        // Skip pending self-service requests: only confirmed (approved or
+        // operator-created) reservations get a "starts soon" reminder.
+        or(isNull(loans.requestedByUserId), isNotNull(loans.approvedAt)),
       ),
     )
     .all();

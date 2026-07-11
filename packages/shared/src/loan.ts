@@ -82,6 +82,25 @@ export const updateLoanInput = z
   });
 export type UpdateLoanInput = z.infer<typeof updateLoanInput>;
 
+/**
+ * Self-service reservation request (issue #2). A `member` picks assets and a
+ * window; an operator/admin later approves it into a planned loan or rejects
+ * it. The borrower is always the requesting user, so no borrower fields here.
+ */
+export const requestLoanInput = z
+  .object({
+    assetCodes: z.array(assetCodeSchema).min(1, 'Žádost musí obsahovat alespoň jeden asset'),
+    // Requested start; omitted/past means "as soon as approved".
+    loanedAt: z.coerce.date().nullable().optional(),
+    expectedReturnAt: z.coerce.date().nullable().optional(),
+    purpose: z.string().trim().max(500).nullable().optional(),
+  })
+  .refine((v) => !(v.loanedAt && v.expectedReturnAt) || v.expectedReturnAt >= v.loanedAt, {
+    message: 'Návrat nemůže být dříve než začátek výpůjčky',
+    path: ['expectedReturnAt'],
+  });
+export type RequestLoanInput = z.infer<typeof requestLoanInput>;
+
 export const addLoanItemsInput = z.object({
   assetCodes: z.array(assetCodeSchema).min(1, 'Vyber alespoň jeden asset'),
 });
@@ -97,14 +116,23 @@ export const returnLoanItemInput = z.object({
 });
 export type ReturnLoanItemInput = z.infer<typeof returnLoanItemInput>;
 
-export type LoanStatus = 'planned' | 'open' | 'partially_returned' | 'fully_returned';
+export type LoanStatus = 'requested' | 'planned' | 'open' | 'partially_returned' | 'fully_returned';
 
 export function deriveLoanStatus(loan: {
   startedAt: Date | null;
   items: Pick<LoanItem, 'returnedAt'>[];
+  // Optional self-service fields. When a loan was requested by a member and
+  // has not been approved yet it is a pending request rather than a plain
+  // reservation. Callers that omit these keep the pre-request behaviour.
+  requestedByUserId?: string | null;
+  approvedAt?: Date | null;
 }): LoanStatus {
-  // A loan that has not been started yet is still just a reservation.
-  if (loan.startedAt === null) return 'planned';
+  // A not-yet-started loan is either a pending self-service request (requested
+  // by a member, still awaiting approval) or an ordinary reservation.
+  if (loan.startedAt === null) {
+    if (loan.requestedByUserId != null && loan.approvedAt == null) return 'requested';
+    return 'planned';
+  }
   const total = loan.items.length;
   if (total === 0) return 'open';
   const returned = loan.items.filter((i) => i.returnedAt !== null).length;

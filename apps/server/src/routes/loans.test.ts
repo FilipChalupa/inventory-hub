@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { and, eq } from 'drizzle-orm';
-import { assetEvents, assets, damageReports, loanItems, loans } from '../db/schema.js';
+import { assetEvents, assets, damageReports, loanItems, loans, users } from '../db/schema.js';
 import { activateDueLoans } from '../lib/loanActivation.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
@@ -1129,6 +1129,181 @@ describe('loans API', () => {
         returnCondition: 'ok',
       });
       expect(second.status).toBe(409);
+    });
+  });
+
+  describe('self-service reservation requests', () => {
+    const inDays = (n: number) => new Date(Date.now() + n * 24 * 60 * 60 * 1000).toISOString();
+
+    it('lets a member request a loan (status requested, asset stays in stock)', async () => {
+      const member = server.createUser({ email: 'req-member@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const memberCookie = server.loginAs(member);
+
+      const res = await jsonPost(server, memberCookie, '/api/loans/request', {
+        assetCodes: [a],
+        loanedAt: inDays(3),
+        expectedReturnAt: inDays(6),
+        purpose: 'Konference',
+      });
+      expect(res.status).toBe(201);
+      const { id: loanId } = (await res.json()) as { id: string };
+
+      const row = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+      expect(row.requestedByUserId).toBe(member.id);
+      expect(row.approvedAt).toBeNull();
+      expect(row.startedAt).toBeNull();
+      expect(row.borrowerUserId).toBe(member.id);
+
+      // Asset is reserved but not marked on_loan.
+      expect(server.db.select().from(assets).where(eq(assets.code, a)).get()!.status).toBe(
+        'in_stock',
+      );
+
+      // Status derives as 'requested' in list + detail.
+      const list = await server.authRequest('/api/loans', { cookie });
+      const body = (await list.json()) as { items: { id: string; status: string }[] };
+      expect(body.items.find((l) => l.id === loanId)!.status).toBe('requested');
+
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      const detailBody = (await detail.json()) as { loan: { status: string } };
+      expect(detailBody.loan.status).toBe('requested');
+    });
+
+    it('an operator approves a request → it becomes a planned loan', async () => {
+      const member = server.createUser({ email: 'req-approve@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const memberCookie = server.loginAs(member);
+      const req = await jsonPost(server, memberCookie, '/api/loans/request', {
+        assetCodes: [a],
+        loanedAt: inDays(3),
+      });
+      const { id: loanId } = (await req.json()) as { id: string };
+
+      const approve = await jsonPost(server, cookie, `/api/loans/${loanId}/approve`, {});
+      expect(approve.status).toBe(200);
+
+      const row = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+      expect(row.approvedAt).not.toBeNull();
+      expect(row.startedAt).toBeNull();
+
+      const detail = await server.authRequest(`/api/loans/${loanId}`, { cookie });
+      const body = (await detail.json()) as { loan: { status: string } };
+      expect(body.loan.status).toBe('planned');
+    });
+
+    it('an operator rejects a request → the loan and its items are deleted', async () => {
+      const member = server.createUser({ email: 'req-reject@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const memberCookie = server.loginAs(member);
+      const req = await jsonPost(server, memberCookie, '/api/loans/request', { assetCodes: [a] });
+      const { id: loanId } = (await req.json()) as { id: string };
+
+      const reject = await jsonPost(server, cookie, `/api/loans/${loanId}/reject`, {});
+      expect(reject.status).toBe(200);
+
+      expect(server.db.select().from(loans).where(eq(loans.id, loanId)).get()).toBeUndefined();
+      expect(
+        server.db.select().from(loanItems).where(eq(loanItems.loanId, loanId)).all(),
+      ).toHaveLength(0);
+      // Asset is free to book again immediately.
+      const reuse = await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Nový',
+        assetCodes: [a],
+      });
+      expect(reuse.status).toBe(201);
+    });
+
+    it('forbids a member from approving or rejecting (403)', async () => {
+      const member = server.createUser({ email: 'req-forbid@example.com', role: 'member' });
+      const other = server.createUser({ email: 'req-forbid2@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const memberCookie = server.loginAs(member);
+      const req = await jsonPost(server, memberCookie, '/api/loans/request', { assetCodes: [a] });
+      const { id: loanId } = (await req.json()) as { id: string };
+
+      const otherCookie = server.loginAs(other);
+      expect((await jsonPost(server, otherCookie, `/api/loans/${loanId}/approve`, {})).status).toBe(
+        403,
+      );
+      expect((await jsonPost(server, otherCookie, `/api/loans/${loanId}/reject`, {})).status).toBe(
+        403,
+      );
+    });
+
+    it('rejects a request that conflicts with an existing reservation (409)', async () => {
+      const member = server.createUser({ email: 'req-conflict@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      // Existing reservation days 2–6.
+      await jsonPost(server, cookie, '/api/loans', {
+        borrowerName: 'Rezervace',
+        loanedAt: inDays(2),
+        expectedReturnAt: inDays(6),
+        assetCodes: [a],
+      });
+      const memberCookie = server.loginAs(member);
+      const res = await jsonPost(server, memberCookie, '/api/loans/request', {
+        assetCodes: [a],
+        loanedAt: inDays(3),
+        expectedReturnAt: inDays(5),
+      });
+      expect(res.status).toBe(409);
+    });
+
+    it('approve re-checks availability and 409s if the window was taken meanwhile', async () => {
+      const member = server.createUser({ email: 'req-race@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const assetId = server.db.select().from(assets).where(eq(assets.code, a)).get()!.id;
+      const memberCookie = server.loginAs(member);
+      const req = await jsonPost(server, memberCookie, '/api/loans/request', {
+        assetCodes: [a],
+        loanedAt: inDays(3),
+        expectedReturnAt: inDays(6),
+      });
+      const { id: loanId } = (await req.json()) as { id: string };
+
+      // Simulate a race: a conflicting reservation lands on the same asset/window
+      // after the request was created (inserted directly so it bypasses the
+      // create-time conflict guard the request already passed).
+      const clashId = crypto.randomUUID();
+      const admin = server.db.select().from(users).where(eq(users.role, 'admin')).get()!;
+      server.db
+        .insert(loans)
+        .values({
+          id: clashId,
+          borrowerName: 'Předběhl',
+          loanedAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000),
+          expectedReturnAt: new Date(Date.now() + 5 * 24 * 60 * 60 * 1000),
+          createdByUserId: admin.id,
+        })
+        .run();
+      server.db
+        .insert(loanItems)
+        .values({ id: crypto.randomUUID(), loanId: clashId, assetId })
+        .run();
+
+      const approve = await jsonPost(server, cookie, `/api/loans/${loanId}/approve`, {});
+      expect(approve.status).toBe(409);
+    });
+
+    it('does not auto-activate an unapproved request whose start moment passed', async () => {
+      const member = server.createUser({ email: 'req-noauto@example.com', role: 'member' });
+      const a = await makeAsset(server, cookie, 'A');
+      const memberCookie = server.loginAs(member);
+      const req = await jsonPost(server, memberCookie, '/api/loans/request', { assetCodes: [a] });
+      const { id: loanId } = (await req.json()) as { id: string };
+
+      // Pretend the requested start has arrived.
+      server.db
+        .update(loans)
+        .set({ loanedAt: new Date(Date.now() - 1000) })
+        .where(eq(loans.id, loanId))
+        .run();
+
+      const { activated } = activateDueLoans(server.db);
+      expect(activated).toBe(0);
+      const row = server.db.select().from(loans).where(eq(loans.id, loanId)).get()!;
+      expect(row.startedAt).toBeNull();
     });
   });
 

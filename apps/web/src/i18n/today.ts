@@ -24,6 +24,7 @@ export const today = ns({
     returnItemConfirmMessage: (code: string) => `Opravdu chceš vrátit ${code}?`,
     handedOver: 'Majetek odevzdán',
     itemReturned: 'Položka vrácena',
+    requestLoan: 'Požádat o výpůjčku',
   },
   en: {
     title: 'Today',
@@ -48,5 +49,6 @@ export const today = ns({
     returnItemConfirmMessage: (code: string) => `Really return ${code}?`,
     handedOver: 'Asset handed over',
     itemReturned: 'Item returned',
+    requestLoan: 'Request a loan',
   },
 });

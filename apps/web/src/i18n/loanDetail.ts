@@ -66,6 +66,9 @@ export const loanDetail = ns({
     noHistory: 'Zatím žádné záznamy.',
     system: 'systém',
     eventLabels: {
+      loan_requested: 'Žádost o výpůjčku',
+      loan_approved: 'Žádost schválena',
+      loan_rejected: 'Žádost zamítnuta',
       loan_planned: 'Rezervace vytvořena',
       loan_started: 'Zahájeno / vypůjčeno',
       loan_item_returned: 'Položka vrácena',
@@ -150,6 +153,9 @@ export const loanDetail = ns({
     noHistory: 'No records yet.',
     system: 'system',
     eventLabels: {
+      loan_requested: 'Loan requested',
+      loan_approved: 'Request approved',
+      loan_rejected: 'Request rejected',
       loan_planned: 'Reservation created',
       loan_started: 'Started / loaned out',
       loan_item_returned: 'Item returned',
