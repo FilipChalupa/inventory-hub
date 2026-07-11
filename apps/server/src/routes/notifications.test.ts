@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
-import { assets, damageReports, loanItems, loans } from '../db/schema.js';
+import { assets, damageReports, loanItems, loans, users } from '../db/schema.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -81,6 +81,25 @@ describe('notifications API', () => {
     // Items still present, but none newer than the just-recorded "seen" time.
     expect(after.items.length).toBeGreaterThan(0);
     expect(after.unreadCount).toBe(0);
+  });
+
+  it('counts a freshly-added asset with an already-lapsed warranty as unread', async () => {
+    // The user viewed the feed an hour ago...
+    server.db
+      .update(users)
+      .set({ lastNotificationsSeenAt: new Date(Date.now() - 60 * 60 * 1000) })
+      .run();
+    // ...then an asset is added now whose warranty lapsed two months ago. Its
+    // due date is in the past, but it only appeared after the last "seen", so
+    // it must still bump the unread badge.
+    makeAsset(server, { warrantyUntil: new Date(Date.now() - 60 * DAY) });
+
+    const body = (await (await server.authRequest('/api/notifications', { cookie })).json()) as {
+      items: { type: string }[];
+      unreadCount: number;
+    };
+    expect(body.items.some((i) => i.type === 'warranty')).toBe(true);
+    expect(body.unreadCount).toBeGreaterThanOrEqual(1);
   });
 
   it('includes open damage reports and scopes members to their own assets', async () => {

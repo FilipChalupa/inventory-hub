@@ -340,9 +340,10 @@ export type DashboardStats = {
   byLocation: { locationId: string; locationName: string; count: number }[];
   loans: { active: number; overdue: number; planned: number };
   inRepair: number;
-  totalValue: number;
-  totalCurrentValue: number;
-  valueByType: { typeId: string; typeName: string; value: number }[];
+  // Financial figures are admin/operator-only; null for members/auditors.
+  totalValue: number | null;
+  totalCurrentValue: number | null;
+  valueByType: { typeId: string; typeName: string; value: number }[] | null;
   warrantyExpiringSoon: number;
   serviceDueSoon: number;
   currency: string;

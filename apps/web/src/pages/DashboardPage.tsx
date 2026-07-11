@@ -63,16 +63,20 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
           to="/assets"
           accent="slate"
         />
-        <Tile
-          label={t.dashboard.totalValue}
-          value={formatMoney(stats.totalValue, stats.currency)}
-          accent="emerald"
-        />
-        <Tile
-          label={t.dashboard.currentValue}
-          value={formatMoney(stats.totalCurrentValue, stats.currency)}
-          accent="emerald"
-        />
+        {stats.totalValue !== null && (
+          <Tile
+            label={t.dashboard.totalValue}
+            value={formatMoney(stats.totalValue, stats.currency)}
+            accent="emerald"
+          />
+        )}
+        {stats.totalCurrentValue !== null && (
+          <Tile
+            label={t.dashboard.currentValue}
+            value={formatMoney(stats.totalCurrentValue, stats.currency)}
+            accent="emerald"
+          />
+        )}
         <Tile label={t.dashboard.onLoan} value={stats.loans.active} to="/loans" accent="amber" />
         <Tile
           label={t.dashboard.overdue}
@@ -133,8 +137,8 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
         />
       </div>
 
-      {/* Value by type — monetary breakdown */}
-      {stats.valueByType.length > 0 && (
+      {/* Value by type — monetary breakdown (admin/operator only) */}
+      {stats.valueByType && stats.valueByType.length > 0 && (
         <BarChart
           title={t.dashboard.valueByType}
           rows={stats.valueByType.map((row) => ({

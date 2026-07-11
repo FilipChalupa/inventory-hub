@@ -220,7 +220,7 @@ describe('stats API', () => {
     expect(stats.totalValue).toBe(189_999);
     expect(stats.currency).toBe('CZK');
 
-    const valueByType = stats.valueByType;
+    const valueByType = stats.valueByType!;
     // Sorted descending by value — Laptop (150000) before Phone (30000).
     expect(valueByType.map((r) => [r.typeName, r.value])).toEqual([
       ['Laptop', 150_000],
@@ -252,7 +252,22 @@ describe('stats API', () => {
     const stats = await getStats();
     expect(stats.totalValue).toBe(150_000);
     expect(stats.totalCurrentValue).toBe(depreciated + 50_000);
-    expect(stats.totalCurrentValue).toBeLessThan(stats.totalValue);
+    expect(stats.totalCurrentValue!).toBeLessThan(stats.totalValue!);
+  });
+
+  it('hides monetary figures from members and auditors', async () => {
+    addAsset({ purchasePrice: 100_000 });
+
+    for (const role of ['member', 'auditor'] as const) {
+      const c = server.loginAs(server.createUser({ role, email: `${role}@example.com` }));
+      const res = await server.authRequest('/api/stats', { cookie: c });
+      const stats = (await res.json()) as StatsResponse;
+      expect(stats.totalValue).toBeNull();
+      expect(stats.totalCurrentValue).toBeNull();
+      expect(stats.valueByType).toBeNull();
+      // Operational figures are still present.
+      expect(stats.totalActive).toBeGreaterThan(0);
+    }
   });
 
   it('counts warranties that are expired or expiring within 30 days', async () => {

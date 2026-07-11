@@ -29,6 +29,16 @@ function formatDate(d: Date): string {
 }
 
 /**
+ * The "surfaced at" timestamp for unread/ordering: the later of when the
+ * condition became due and when its record was created. This keeps a
+ * back-dated or freshly-imported record (e.g. an asset added today with an
+ * already-lapsed warranty) counted as unread even though its due date is past.
+ */
+function laterIso(a: Date, b: Date): string {
+  return (a.getTime() >= b.getTime() ? a : b).toISOString();
+}
+
+/**
  * Builds the current user's derived, read-only notification feed. Items are
  * computed on the fly from overdue loans, expiring warranties, due services
  * and open damage reports — nothing is persisted. Role scoping: members see
@@ -76,13 +86,18 @@ export const notificationRoutes = new Hono<AppContext>()
         title: 'Výpůjčka po termínu',
         message: `${loan.borrowerName} — očekáváno vrácení ${formatDate(loan.expectedReturnAt!)}.`,
         link: `/loans/${loan.id}`,
-        at: loan.expectedReturnAt!.toISOString(),
+        at: laterIso(loan.expectedReturnAt!, loan.createdAt),
       });
     }
 
     // --- Assets with an expiring / lapsed warranty ---
     const expiringWarranty = db
-      .select({ code: assets.code, name: assets.name, warrantyUntil: assets.warrantyUntil })
+      .select({
+        code: assets.code,
+        name: assets.name,
+        warrantyUntil: assets.warrantyUntil,
+        createdAt: assets.createdAt,
+      })
       .from(assets)
       .where(
         and(
@@ -102,9 +117,7 @@ export const notificationRoutes = new Hono<AppContext>()
         title: lapsed ? 'Záruka skončila' : 'Záruka brzy končí',
         message: `${a.code} ${a.name}: záruka do ${formatDate(a.warrantyUntil!)}.`,
         link: `/a/${a.code}`,
-        // `at` marks when this became active (entered the 30-day window), which
-        // is always in the past — so it sorts sensibly and "seen" can clear it.
-        at: new Date(a.warrantyUntil!.getTime() - WINDOW_MS).toISOString(),
+        at: laterIso(new Date(a.warrantyUntil!.getTime() - WINDOW_MS), a.createdAt),
       });
     }
 
@@ -138,8 +151,7 @@ export const notificationRoutes = new Hono<AppContext>()
         title: overdue ? 'Servis po termínu' : 'Blíží se servis',
         message: `${a.code} ${a.name}: servis do ${formatDate(dueAt)}.`,
         link: `/a/${a.code}`,
-        // Active since it entered the 30-day window (see warranty note above).
-        at: new Date(dueAt.getTime() - WINDOW_MS).toISOString(),
+        at: laterIso(new Date(dueAt.getTime() - WINDOW_MS), a.createdAt),
       });
     }
 

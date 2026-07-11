@@ -31,9 +31,10 @@ export type StatsResponse = {
   byLocation: { locationId: string; locationName: string; count: number }[];
   loans: { active: number; overdue: number; planned: number };
   inRepair: number;
-  totalValue: number;
-  totalCurrentValue: number;
-  valueByType: { typeId: string; typeName: string; value: number }[];
+  // Financial figures are admin/operator-only; null for members/auditors.
+  totalValue: number | null;
+  totalCurrentValue: number | null;
+  valueByType: { typeId: string; typeName: string; value: number }[] | null;
   warrantyExpiringSoon: number;
   serviceDueSoon: number;
   currency: string;
@@ -41,12 +42,14 @@ export type StatsResponse = {
 
 /**
  * Read-only inventory analytics for the dashboard. Any authenticated role may
- * read it (auditor/member included), so no role restriction beyond auth.
- * Every figure is computed with a single grouped/aggregated query — no N+1.
+ * read the operational figures; the monetary ones (inventory value) are limited
+ * to admin/operator. Every figure is a single grouped/aggregated query — no N+1.
  */
 export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) => {
   const db = c.get('db');
   const env = c.get('env');
+  const user = c.get('user')!;
+  const canSeeValue = user.role === 'admin' || user.role === 'operator';
   const now = Date.now();
 
   // Non-archived assets grouped by status. Seeded with every known status so
@@ -223,9 +226,9 @@ export const statsRoutes = new Hono<AppContext>().get('/', requireAuth(), (c) =>
     byLocation,
     loans: { active, overdue, planned },
     inRepair,
-    totalValue,
-    totalCurrentValue,
-    valueByType,
+    totalValue: canSeeValue ? totalValue : null,
+    totalCurrentValue: canSeeValue ? totalCurrentValue : null,
+    valueByType: canSeeValue ? valueByType : null,
     warrantyExpiringSoon,
     serviceDueSoon,
     currency: env.CURRENCY,
