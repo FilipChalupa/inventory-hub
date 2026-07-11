@@ -178,7 +178,9 @@ function Tile({
 }) {
   const inner = (
     <>
-      <div className={`text-3xl font-bold tabular-nums ${accentText[accent]}`}>{value}</div>
+      <div className={`text-2xl font-bold tabular-nums sm:text-3xl ${accentText[accent]}`}>
+        {value}
+      </div>
       <div className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{label}</div>
     </>
   );
