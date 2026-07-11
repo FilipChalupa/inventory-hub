@@ -18,6 +18,7 @@ import { assetEvents, assetExternalIds, assetTypes, assets, orgSettings } from '
 import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
 import { likeContains } from '../lib/search.js';
+import { emitWebhook } from '../lib/webhooks.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Db } from '../db/client.js';
 
@@ -423,6 +424,8 @@ export const assetRoutes = new Hono<AppContext>()
           payload: { status: input.status, note: input.note },
         })
         .run();
+
+      emitWebhook(db, 'asset.archived', { code: asset.code, status: input.status });
 
       return c.json({ ok: true });
     },

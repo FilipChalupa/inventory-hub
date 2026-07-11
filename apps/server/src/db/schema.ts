@@ -38,6 +38,15 @@ export const orgSettings = sqliteTable('org_settings', {
     .$type<{ compact: boolean; showName: boolean; note: string }>()
     .notNull()
     .default({ compact: false, showName: true, note: '' }),
+  // When true, an unauthenticated public page (/p/<code>) shows minimal asset
+  // info — useful for lost-and-found ("if found, contact …" via labelSettings.note).
+  publicLookupEnabled: integer('public_lookup_enabled', { mode: 'boolean' })
+    .notNull()
+    .default(false),
+  // Optional outbound webhook: events (overdue, damage, archive, …) are POSTed
+  // to this URL, signed with an HMAC-SHA256 of the body using webhookSecret.
+  webhookUrl: text('webhook_url'),
+  webhookSecret: text('webhook_secret'),
   ...timestamps,
 });
 

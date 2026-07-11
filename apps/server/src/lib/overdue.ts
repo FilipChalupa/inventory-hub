@@ -2,6 +2,7 @@ import { and, eq, gt, isNotNull, isNull, lt, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { loanItems, loans, users } from '../db/schema.js';
 import type { Email, EmailSender } from './email.js';
+import { emitWebhook } from './webhooks.js';
 
 export type OverdueRunResult = {
   found: number;
@@ -117,9 +118,14 @@ export async function runOverdueCheck(
     }
   }
 
-  // Mark notified.
+  // Mark notified + fire a webhook per newly-overdue loan.
   for (const loan of overdue) {
     db.update(loans).set({ overdueNotifiedAt: now }).where(eq(loans.id, loan.id)).run();
+    emitWebhook(db, 'loan.overdue', {
+      loanId: loan.id,
+      borrowerName: loan.borrowerName,
+      expectedReturnAt: loan.expectedReturnAt?.toISOString() ?? null,
+    });
   }
 
   return { found: overdue.length, notifiedBorrowers, notifiedAdmins };

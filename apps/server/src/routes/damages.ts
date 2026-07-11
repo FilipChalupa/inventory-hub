@@ -6,6 +6,7 @@ import { MAX_DAMAGE_PHOTOS, damageSeverities } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { assetEvents, assets, damageReports } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
+import { emitWebhook } from '../lib/webhooks.js';
 
 const createInput = z.object({
   occurredAt: z.coerce.date(),
@@ -76,6 +77,12 @@ export const damageRoutes = new Hono<AppContext>()
         payload: { damageReportId: id, severity: input.severity },
       })
       .run();
+
+    emitWebhook(db, 'damage.reported', {
+      assetCode: asset.code,
+      severity: input.severity,
+      description: input.description,
+    });
 
     return c.json({ id }, 201);
   })

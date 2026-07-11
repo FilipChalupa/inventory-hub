@@ -11,6 +11,7 @@ import { activateDueLoans } from './lib/loanActivation.js';
 import { runOverdueCheck, runStartReminders } from './lib/overdue.js';
 import { runWarrantyReminders } from './lib/warranty.js';
 import { runServiceReminders } from './lib/service-reminders.js';
+import { runWeeklyReport } from './lib/weekly-report.js';
 import { pruneRateLimits } from './lib/rate-limit.js';
 import { pruneExpiredSessions } from './lib/sessions.js';
 import { pruneExpiredOauth } from './mcp/oauth-store.js';
@@ -70,6 +71,15 @@ const runLoanNotifiers = () => {
 const initialTimer = setTimeout(runLoanNotifiers, 30_000);
 const overdueTimer = setInterval(runLoanNotifiers, OVERDUE_INTERVAL_MS);
 
+// Weekly inventory digest to admins. Interval-only (no run on boot) so frequent
+// restarts don't spam; a long-running instance sends roughly one per week.
+const WEEKLY_REPORT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+const weeklyReportTimer = setInterval(() => {
+  void runWeeklyReport(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
+    console.error('weekly report failed:', err),
+  );
+}, WEEKLY_REPORT_INTERVAL_MS);
+
 // Planned-loan activator: flips planned loans to active once their start
 // moment passes. Runs every few minutes so the delay stays small; the
 // manual "start" button covers the gap in between.
@@ -108,6 +118,7 @@ const shutdown = () => {
   console.log('Vypínám…');
   clearTimeout(initialTimer);
   clearInterval(overdueTimer);
+  clearInterval(weeklyReportTimer);
   clearInterval(activationTimer);
   // Force-exit fallback: if server.close() hangs (e.g. a stuck keep-alive
   // connection never drains), don't wait forever. `.unref()` so this timer

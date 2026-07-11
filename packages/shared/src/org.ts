@@ -32,6 +32,11 @@ export const orgSettingsSchema = z.object({
   name: z.string().trim().min(1).max(200),
   codePrefix: orgCodePrefix,
   allowedDomains: z.array(allowedDomainSchema).default([]),
+  // Lost-and-found: expose a minimal, unauthenticated public page per asset.
+  publicLookupEnabled: z.boolean().default(false),
+  // Outbound webhook (events POSTed here, HMAC-signed with the secret).
+  webhookUrl: z.string().trim().url().max(500).nullable().default(null),
+  webhookSecret: z.string().trim().max(200).nullable().default(null),
 });
 export type OrgSettings = z.infer<typeof orgSettingsSchema>;
 

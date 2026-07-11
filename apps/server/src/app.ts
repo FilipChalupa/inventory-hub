@@ -13,6 +13,7 @@ import type { UserRow } from './db/schema.js';
 import { createEmailSender, type EmailSender } from './lib/email.js';
 import { renderErrorPage } from './lib/error-page.js';
 import { healthRoutes } from './routes/health.js';
+import { publicRoutes } from './routes/public.js';
 import { orgRoutes } from './routes/org.js';
 import { assetRoutes } from './routes/assets.js';
 import { assetTypeRoutes } from './routes/asset-types.js';
@@ -150,6 +151,8 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   app.use('*', authLoader);
 
   app.route('/health', healthRoutes);
+  // Public, unauthenticated lost-and-found lookup (gated by an org setting).
+  app.route('/p', publicRoutes);
   app.route('/auth', authRoutes);
 
   // Public, machine-readable API description for integrators + a self-hosted

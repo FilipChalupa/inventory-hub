@@ -39,6 +39,11 @@ export const orgRoutes = new Hono<AppContext>()
         name: row.name,
         codePrefix: row.codePrefix,
         allowedDomains: row.allowedDomains,
+        publicLookupEnabled: row.publicLookupEnabled,
+        webhookUrl: row.webhookUrl,
+        // Never surface the secret; just whether one is set.
+        webhookSecret: null,
+        webhookSecretSet: Boolean(row.webhookSecret),
       },
       labelSettings: row.labelSettings ?? DEFAULT_LABEL_SETTINGS,
     });
@@ -57,23 +62,28 @@ export const orgRoutes = new Hono<AppContext>()
     const db = c.get('db');
     const input = c.req.valid('json');
     const now = new Date();
+    // The secret is write-only: GET never returns it, so an empty/absent value
+    // means "keep the current one"; only a non-empty value replaces it.
+    const existing = db
+      .select({ webhookSecret: orgSettings.webhookSecret })
+      .from(orgSettings)
+      .where(eq(orgSettings.id, SINGLETON_ID))
+      .get();
+    const webhookSecret = input.webhookSecret
+      ? input.webhookSecret
+      : (existing?.webhookSecret ?? null);
+    const shared = {
+      name: input.name,
+      codePrefix: input.codePrefix,
+      allowedDomains: input.allowedDomains,
+      publicLookupEnabled: input.publicLookupEnabled,
+      webhookUrl: input.webhookUrl,
+      webhookSecret,
+      updatedAt: now,
+    };
     db.insert(orgSettings)
-      .values({
-        id: SINGLETON_ID,
-        name: input.name,
-        codePrefix: input.codePrefix,
-        allowedDomains: input.allowedDomains,
-        updatedAt: now,
-      })
-      .onConflictDoUpdate({
-        target: orgSettings.id,
-        set: {
-          name: input.name,
-          codePrefix: input.codePrefix,
-          allowedDomains: input.allowedDomains,
-          updatedAt: now,
-        },
-      })
+      .values({ id: SINGLETON_ID, ...shared })
+      .onConflictDoUpdate({ target: orgSettings.id, set: shared })
       .run();
     return c.json({ ok: true });
   })
