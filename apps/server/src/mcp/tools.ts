@@ -431,6 +431,14 @@ export const MCP_TOOLS: McpTool[] = [
     }),
   ),
 
+  // ---- dashboard -----------------------------------------------------------
+  tool(
+    'get_stats',
+    'read',
+    'Inventory overview: total active assets, counts by status/type/location, loan totals (active/overdue/planned), assets in repair, warranty-expiring and service-due counts, and total & current (depreciated) inventory value in the configured currency.',
+    {},
+    () => ({ method: 'GET', path: '/api/stats' }),
+  ),
   // ---- org / users / invitations (admin-gated downstream) ------------------
   tool(
     'get_org_settings',

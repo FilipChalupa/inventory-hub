@@ -65,8 +65,9 @@ login to authenticate the human.
    client receives audience-bound access + refresh tokens.
 
 Tools mirror the REST API (assets, loans, contacts, damages, locations, asset
-types, and admin-gated org/users/invitations). Role checks are enforced exactly
-as in the web app; read-only connections are blocked from write tools.
+types, the dashboard stats overview, and admin-gated org/users/invitations).
+Role checks are enforced exactly as in the web app; read-only connections are
+blocked from write tools.
 
 ## Docker (production / self-hosting)
 

@@ -36,12 +36,14 @@ kompletní historii pohybů, poškození a výpůjček.
 
 ## 4. Mimo MVP (later)
 
+Hotové jsou mezitím: plánovaná údržba/servisní intervaly, odpisy (aktuální
+hodnota), in-app notifikace, self-service rezervace, kity (parent-child),
+REST + MCP API. Stále mimo:
+
 - Mobilní appka (nejdřív stačí responsive web + kamera pro QR).
-- Notifikace nad rámec e-mailu (webhook, Slack).
-- Náklady, odpisy, účetní napojení.
-- Plánovaná údržba / servisní intervaly.
+- Notifikace do externích systémů (webhook, Slack).
+- Účetní napojení (fakturace, DPH).
 - RFID / Bluetooth tagy.
-- API pro integrace.
 - Billing & subscription tiers.
 
 ## 5. Unikátní identifikátor assetu
