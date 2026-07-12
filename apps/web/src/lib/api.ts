@@ -40,10 +40,11 @@ async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
 }
 
 export type BulkAssetsInput = {
-  action: 'archive' | 'move' | 'assign' | 'unassign';
+  action: 'archive' | 'move' | 'assign' | 'unassign' | 'setType';
   assetCodes: string[];
   locationId?: string | null;
   userId?: string | null;
+  typeId?: string | null;
   status?: 'sold' | 'lost' | 'retired' | 'damaged';
 };
 

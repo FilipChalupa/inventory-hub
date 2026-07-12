@@ -367,6 +367,48 @@ describe('assets API', () => {
       }
     });
 
+    it('sets a new type on many assets, and can clear it', async () => {
+      const a = await makeAsset('A');
+      const b = await makeAsset('B');
+      const typeRes = await jsonPost(server, cookie, '/api/asset-types', {
+        name: 'Monitor',
+        codePrefix: 'MON',
+      });
+      const monTypeId = ((await typeRes.json()) as { id: string }).id;
+
+      const set = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'setType',
+        assetCodes: [a, b],
+        typeId: monTypeId,
+      });
+      expect(set.status).toBe(200);
+      expect((await set.json()) as { updated: number }).toEqual({ updated: 2 });
+      for (const code of [a, b]) {
+        expect(server.db.select().from(assets).where(eq(assets.code, code)).get()!.typeId).toBe(
+          monTypeId,
+        );
+      }
+
+      // Passing null clears the type.
+      const clear = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'setType',
+        assetCodes: [a, b],
+        typeId: null,
+      });
+      expect((await clear.json()) as { updated: number }).toEqual({ updated: 2 });
+      expect(server.db.select().from(assets).where(eq(assets.code, a)).get()!.typeId).toBeNull();
+    });
+
+    it('rejects setType with an unknown type (400)', async () => {
+      const a = await makeAsset('A');
+      const res = await jsonPost(server, cookie, '/api/assets/bulk', {
+        action: 'setType',
+        assetCodes: [a],
+        typeId: '00000000-0000-0000-0000-000000000000',
+      });
+      expect(res.status).toBe(400);
+    });
+
     it('unassigns only assets that are currently assigned', async () => {
       const a = await makeAsset('A');
       const b = await makeAsset('B'); // stays in_stock (never assigned)

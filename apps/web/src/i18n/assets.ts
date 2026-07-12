@@ -29,6 +29,8 @@ export const assets = ns({
     selectedCount: (n: number) => `Vybráno: ${n}`,
     bulkMove: '— přesunout do lokace —',
     bulkAssign: '— přiřadit uživateli —',
+    bulkSetType: '— nastavit typ —',
+    bulkSetTypeNone: 'Bez typu',
     bulkUnassign: 'Zrušit přiřazení',
     bulkArchiveStatus: {
       retired: 'Vyřadit',
@@ -72,6 +74,8 @@ export const assets = ns({
     selectedCount: (n: number) => `${n} selected`,
     bulkMove: '— move to location —',
     bulkAssign: '— assign to user —',
+    bulkSetType: '— set type —',
+    bulkSetTypeNone: 'No type',
     bulkUnassign: 'Unassign',
     bulkArchiveStatus: {
       retired: 'Retire',

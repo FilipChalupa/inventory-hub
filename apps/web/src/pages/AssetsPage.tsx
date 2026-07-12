@@ -241,6 +241,27 @@ export function AssetsPage() {
                   </option>
                 ))}
             </Select>
+            <Select
+              className="w-48"
+              value=""
+              disabled={bulk.isPending}
+              onChange={(e) => {
+                if (!e.target.value) return;
+                bulk.mutate({
+                  action: 'setType',
+                  assetCodes: selectedCodes,
+                  typeId: e.target.value === '__none__' ? null : e.target.value,
+                });
+              }}
+            >
+              <option value="">{t.assets.bulkSetType}</option>
+              <option value="__none__">{t.assets.bulkSetTypeNone}</option>
+              {types.data?.items.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </Select>
             <Button
               variant="secondary"
               disabled={bulk.isPending}

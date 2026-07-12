@@ -74,10 +74,11 @@ const archiveInput = z.object({
 });
 
 const bulkInput = z.object({
-  action: z.enum(['archive', 'move', 'assign', 'unassign']),
+  action: z.enum(['archive', 'move', 'assign', 'unassign', 'setType']),
   assetCodes: z.array(z.string()).min(1).max(500),
   locationId: z.string().uuid().nullable().optional(),
   userId: z.string().uuid().nullable().optional(),
+  typeId: z.string().uuid().nullable().optional(),
   status: z.enum(TERMINAL_ASSET_STATUSES).optional(),
 });
 
@@ -266,6 +267,12 @@ export const assetRoutes = new Hono<AppContext>()
     if (input.action === 'assign' && !input.userId) {
       return c.json({ error: { message: 'Přiřazení vyžaduje uživatele' } }, 400);
     }
+    // A non-null target type must exist (null clears the type). Checked once
+    // up front so the whole batch fails cleanly rather than mid-transaction.
+    if (input.action === 'setType' && input.typeId != null) {
+      const type = db.select().from(assetTypes).where(eq(assetTypes.id, input.typeId)).get();
+      if (!type) return c.json({ error: { message: 'Typ nenalezen' } }, 400);
+    }
 
     const codes = input.assetCodes.map((x) => x.toUpperCase());
 
@@ -299,6 +306,14 @@ export const assetRoutes = new Hono<AppContext>()
               type: 'assigned',
               payload: { userId: input.userId },
             })
+            .run();
+          updated += 1;
+        } else if (input.action === 'setType') {
+          const typeId = input.typeId ?? null;
+          if (asset.typeId === typeId) continue;
+          tx.update(assets).set({ typeId, updatedAt: now }).where(eq(assets.id, asset.id)).run();
+          tx.insert(assetEvents)
+            .values({ assetId: asset.id, actorUserId, type: 'updated', payload: { typeId } })
             .run();
           updated += 1;
         } else if (input.action === 'unassign') {
