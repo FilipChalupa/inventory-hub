@@ -350,6 +350,12 @@ export type DashboardStats = {
   currency: string;
 };
 
+export type UtilizationReport = {
+  mostLoaned: { code: string; name: string; loanCount: number; daysOnLoan: number }[];
+  idle: { code: string; name: string; createdAt: string }[];
+  idleTotal: number;
+};
+
 export type NotificationSeverity = 'info' | 'warning' | 'danger';
 
 export type NotificationItem = {
@@ -707,6 +713,7 @@ export const apiClient = {
 
   stats: {
     get: () => api<DashboardStats>('/api/stats'),
+    utilization: () => api<UtilizationReport>('/api/stats/utilization'),
   },
 
   notifications: {

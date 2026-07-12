@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { apiClient, type DashboardStats } from '../lib/api.js';
 import { errorMessage } from '../lib/errors.js';
 import { Card, SkeletonList } from '../components/ui.js';
+import { useCurrentUser } from '../auth/AuthContext.js';
 import { useT, getLocale } from '../i18n/index.js';
 import { localeTag } from '../i18n/util.js';
 
@@ -150,6 +151,102 @@ function DashboardContent({ stats }: { stats: DashboardStats }) {
           format={(v) => formatMoney(v, stats.currency)}
         />
       )}
+
+      <UtilizationSection />
+    </div>
+  );
+}
+
+/**
+ * Loan-utilization report (admin/operator only): the most-borrowed assets and
+ * the live assets that have never been loaned. Self-contained — fetches lazily
+ * and renders nothing for other roles or when there's no signal yet.
+ */
+function UtilizationSection() {
+  const t = useT();
+  const user = useCurrentUser();
+  const isManager = user?.role === 'admin' || user?.role === 'operator';
+  const { data } = useQuery({
+    queryKey: ['stats', 'utilization'],
+    queryFn: () => apiClient.stats.utilization(),
+    enabled: isManager,
+  });
+
+  if (!isManager || !data) return null;
+  if (data.mostLoaned.length === 0 && data.idle.length === 0) return null;
+
+  const fmtDate = (iso: string) => new Date(iso).toLocaleDateString(localeTag(getLocale()));
+
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <h2 className="mb-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {t.dashboard.mostLoaned}
+        </h2>
+        {data.mostLoaned.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500">
+            {t.dashboard.mostLoanedEmpty}
+          </p>
+        ) : (
+          <ul className="space-y-1">
+            {data.mostLoaned.map((a) => (
+              <li key={a.code}>
+                <Link
+                  to={`/a/${a.code}`}
+                  className="flex items-baseline gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                >
+                  <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                    {a.code}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                  <span className="shrink-0 font-medium tabular-nums">
+                    {t.dashboard.loanCount(a.loanCount)}
+                  </span>
+                  <span className="shrink-0 text-xs text-slate-400 tabular-nums dark:text-slate-500">
+                    {t.dashboard.daysOnLoan(a.daysOnLoan)}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 text-sm font-semibold text-slate-700 dark:text-slate-200">
+          {t.dashboard.idle}
+        </h2>
+        <p className="mb-3 text-xs text-slate-400 dark:text-slate-500">{t.dashboard.idleHint}</p>
+        {data.idle.length === 0 ? (
+          <p className="text-sm text-slate-400 dark:text-slate-500">{t.dashboard.idleNone}</p>
+        ) : (
+          <>
+            <ul className="space-y-1">
+              {data.idle.map((a) => (
+                <li key={a.code}>
+                  <Link
+                    to={`/a/${a.code}`}
+                    className="flex items-baseline gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                  >
+                    <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
+                      {a.code}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate">{a.name}</span>
+                    <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">
+                      {fmtDate(a.createdAt)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            {data.idleTotal > data.idle.length && (
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                {t.dashboard.idleMore(data.idleTotal - data.idle.length)}
+              </p>
+            )}
+          </>
+        )}
+      </Card>
     </div>
   );
 }

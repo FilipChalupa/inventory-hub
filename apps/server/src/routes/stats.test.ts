@@ -1,8 +1,9 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
+import { eq } from 'drizzle-orm';
 import { currentAssetValue } from '@inventory-hub/shared';
 import { assets, assetTypes, loanItems, loans, locations } from '../db/schema.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
-import type { StatsResponse } from './stats.js';
+import type { StatsResponse, UtilizationResponse } from './stats.js';
 import type { UserRow } from '../db/schema.js';
 
 type AssetStatus =
@@ -317,5 +318,54 @@ describe('stats API', () => {
     expect(stats.warrantyExpiringSoon).toBe(0);
     expect(stats.serviceDueSoon).toBe(0);
     expect(stats.currency).toBe('CZK');
+  });
+
+  describe('GET /api/stats/utilization', () => {
+    async function getUtilization(c = cookie): Promise<UtilizationResponse> {
+      const res = await server.authRequest('/api/stats/utilization', { cookie: c });
+      expect(res.status).toBe(200);
+      return (await res.json()) as UtilizationResponse;
+    }
+
+    it('ranks assets by loan count and lists the never-loaned live ones', async () => {
+      const hot = addAsset({}); // loaned twice
+      const warm = addAsset({}); // loaned once
+      const idleA = addAsset({}); // never on a started loan
+      const archivedIdle = addAsset({ archived: true }); // idle but archived → excluded
+      const day = 24 * 3600 * 1000;
+
+      addLoan({
+        startedAt: new Date(Date.now() - 5 * day),
+        assetIds: [hot],
+        returnedAssetIds: [hot],
+      });
+      addLoan({ startedAt: new Date(Date.now() - 2 * day), assetIds: [hot, warm] });
+      // A not-yet-started reservation on idleA must not count as usage.
+      addLoan({ startedAt: null, assetIds: [idleA] });
+
+      const u = await getUtilization();
+
+      expect(u.mostLoaned.map((a) => a.loanCount)).toEqual([2, 1]);
+      const hotRow = u.mostLoaned.find((a) => a.loanCount === 2)!;
+      expect(hotRow.daysOnLoan).toBeGreaterThanOrEqual(1);
+
+      const idleCodes = u.idle.map((a) => a.code);
+      expect(idleCodes).toContain(
+        server.db.select().from(assets).where(eq(assets.id, idleA)).get()!.code,
+      );
+      const hotCode = server.db.select().from(assets).where(eq(assets.id, hot)).get()!.code;
+      const archivedCode = server.db.select().from(assets).where(eq(assets.id, archivedIdle)).get()!
+        .code;
+      expect(idleCodes).not.toContain(hotCode);
+      expect(idleCodes).not.toContain(archivedCode);
+    });
+
+    it('is forbidden for members (403)', async () => {
+      const memberCookie = server.loginAs(
+        server.createUser({ role: 'member', email: 'u-m@example.com' }),
+      );
+      const res = await server.authRequest('/api/stats/utilization', { cookie: memberCookie });
+      expect(res.status).toBe(403);
+    });
   });
 });
