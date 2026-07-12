@@ -73,6 +73,21 @@ describe('emailCopy', () => {
     expect(en.text).toMatch(/- Jan: due 2026-01-01 \(id abcd1234\)/);
   });
 
+  it('renders the asset-assigned notice in both locales', () => {
+    const p = {
+      name: 'A',
+      assetCode: 'LAP-1',
+      assetName: 'ThinkPad',
+      detailUrl: 'http://x/a/LAP-1',
+    };
+    const cs = emailCopy('cs').assetAssigned(p);
+    expect(cs.subject).toMatch(/přiřazen/);
+    expect(cs.text).toMatch(/LAP-1 ThinkPad/);
+    const en = emailCopy('en').assetAssigned(p);
+    expect(en.subject).toMatch(/assigned/);
+    expect(en.text).toMatch(/LAP-1 ThinkPad has been assigned/);
+  });
+
   it('falls back to Czech for an undefined locale', () => {
     expect(
       emailCopy(undefined).reservationApproved({ name: 'A', itemCount: 1, period: 'p' }).subject,

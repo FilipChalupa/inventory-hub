@@ -80,6 +80,12 @@ export type WeeklyReportParams = {
   overdueLoans: number;
   dashboardUrl?: string;
 };
+export type AssetAssignedParams = {
+  name: string;
+  assetCode: string;
+  assetName: string;
+  detailUrl?: string;
+};
 
 export type EmailCopy = {
   invitation(p: InvitationParams): Email & { to: string };
@@ -92,6 +98,7 @@ export type EmailCopy = {
   serviceDigest(p: ServiceDigestParams): Pick<Email, 'subject' | 'text'>;
   warrantyDigest(p: WarrantyDigestParams): Pick<Email, 'subject' | 'text'>;
   weeklyReport(p: WeeklyReportParams): Pick<Email, 'subject' | 'text'>;
+  assetAssigned(p: AssetAssignedParams): Pick<Email, 'subject' | 'text'>;
 };
 
 const ROLE_CS: Record<Role, string> = {
@@ -232,6 +239,16 @@ const cs: EmailCopy = {
       p.dashboardUrl && `Dashboard: ${p.dashboardUrl}`,
     ]),
   }),
+  assetAssigned: (p) => ({
+    subject: 'Inventory Hub: byl ti přiřazen majetek',
+    text: body([
+      `Ahoj ${p.name},`,
+      '',
+      `byl ti přiřazen majetek ${p.assetCode} ${p.assetName}.`,
+      '',
+      p.detailUrl && `Detail: ${p.detailUrl}`,
+    ]),
+  }),
 };
 
 const en: EmailCopy = {
@@ -357,6 +374,16 @@ const en: EmailCopy = {
       `Active loans: ${p.openLoans} (overdue: ${p.overdueLoans})`,
       '',
       p.dashboardUrl && `Dashboard: ${p.dashboardUrl}`,
+    ]),
+  }),
+  assetAssigned: (p) => ({
+    subject: 'Inventory Hub: an asset was assigned to you',
+    text: body([
+      `Hi ${p.name},`,
+      '',
+      `the asset ${p.assetCode} ${p.assetName} has been assigned to you.`,
+      '',
+      p.detailUrl && `Details: ${p.detailUrl}`,
     ]),
   }),
 };

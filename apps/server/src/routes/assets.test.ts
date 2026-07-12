@@ -277,6 +277,40 @@ describe('assets API', () => {
       expect(res.status).toBe(409);
     });
 
+    it('emails the assignee when an asset is assigned to them', async () => {
+      const member = server.createUser({ email: 'assignee2@example.com', role: 'member' });
+      const r = await jsonPost(server, cookie, '/api/assets', {
+        name: 'Keyboard',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+
+      const res = await jsonPost(server, cookie, `/api/assets/${code}/assign`, {
+        userId: member.id,
+      });
+      expect(res.status).toBe(200);
+      const mail = server.sentEmails.find((m) => m.to === 'assignee2@example.com');
+      expect(mail).toBeDefined();
+      expect(mail!.subject).toMatch(/přiřazen/);
+      expect(mail!.text).toContain(code);
+    });
+
+    it('does not email on self-assignment', async () => {
+      const self = server.createUser({ email: 'self-assign@example.com', role: 'operator' });
+      const selfCookie = server.loginAs(self);
+      const r = await jsonPost(server, selfCookie, '/api/assets', {
+        name: 'Own laptop',
+        typeId: server.laptopTypeId,
+      });
+      const { code } = (await r.json()) as { code: string };
+
+      const res = await jsonPost(server, selfCookie, `/api/assets/${code}/assign`, {
+        userId: self.id,
+      });
+      expect(res.status).toBe(200);
+      expect(server.sentEmails.some((m) => m.to === 'self-assign@example.com')).toBe(false);
+    });
+
     it('lets a member unassign an asset assigned to them (self-service)', async () => {
       const member = server.createUser({ email: 'owner@example.com', role: 'member' });
       const r = await jsonPost(server, cookie, '/api/assets', {

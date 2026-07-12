@@ -14,7 +14,15 @@ import {
   type CustomFieldsSchema,
 } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
-import { assetEvents, assetExternalIds, assetTypes, assets, orgSettings } from '../db/schema.js';
+import {
+  assetEvents,
+  assetExternalIds,
+  assetTypes,
+  assets,
+  orgSettings,
+  users,
+} from '../db/schema.js';
+import { emailCopy } from '../lib/email-copy.js';
 import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
 import { likeContains } from '../lib/search.js';
@@ -617,7 +625,7 @@ export const assetRoutes = new Hono<AppContext>()
     '/:code/assign',
     requireAuth('admin', 'operator'),
     zValidator('json', z.object({ userId: z.string().uuid() })),
-    (c) => {
+    async (c) => {
       const db = c.get('db');
       const code = c.req.param('code').toUpperCase();
       const { userId } = c.req.valid('json');
@@ -629,6 +637,7 @@ export const assetRoutes = new Hono<AppContext>()
       if (asset.status === 'on_loan') {
         return c.json({ error: { message: 'Vypůjčený asset nelze přiřadit interně' } }, 409);
       }
+      const actorUserId = c.get('user')?.id ?? null;
       db.update(assets)
         .set({
           assignedToUserId: userId,
@@ -640,11 +649,34 @@ export const assetRoutes = new Hono<AppContext>()
       db.insert(assetEvents)
         .values({
           assetId: asset.id,
-          actorUserId: c.get('user')?.id ?? null,
+          actorUserId,
           type: 'assigned',
           payload: { userId },
         })
         .run();
+      // Let the assignee know by email (skip self-assignment). Non-fatal: the
+      // assignment already committed, so a failed send is logged, not surfaced.
+      if (userId !== actorUserId) {
+        const env = c.get('env');
+        const assignee = db.select().from(users).where(eq(users.id, userId)).get();
+        if (assignee && !assignee.disabledAt) {
+          const built = emailCopy(env.EMAIL_LOCALE).assetAssigned({
+            name: assignee.name,
+            assetCode: asset.code,
+            assetName: asset.name,
+            detailUrl: env.PUBLIC_APP_URL ? `${env.PUBLIC_APP_URL}/a/${asset.code}` : undefined,
+          });
+          try {
+            await c.get('emailSender').send({
+              to: assignee.email,
+              subject: built.subject,
+              text: built.text,
+            });
+          } catch (err) {
+            console.error(`Assignment notify failed for ${asset.code}:`, err);
+          }
+        }
+      }
       return c.json({ ok: true });
     },
   )
