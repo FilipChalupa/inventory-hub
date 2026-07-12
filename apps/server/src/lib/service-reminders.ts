@@ -3,6 +3,7 @@ import { nextServiceDue } from '@inventory-hub/shared';
 import type { Db } from '../db/client.js';
 import { assets, users } from '../db/schema.js';
 import type { EmailSender } from './email.js';
+import { emailCopy, type EmailLocale } from './email-copy.js';
 
 export type ServiceRunResult = { found: number; notifiedAdmins: number };
 
@@ -18,7 +19,7 @@ export const SERVICE_WINDOW_DAYS = 30;
 export async function runServiceReminders(
   db: Db,
   emailSender: EmailSender,
-  options: { now?: Date; publicAppUrl: string } = { publicAppUrl: '' },
+  options: { now?: Date; publicAppUrl: string; locale?: EmailLocale } = { publicAppUrl: '' },
 ): Promise<ServiceRunResult> {
   const now = options.now ?? new Date();
   const soon = new Date(now.getTime() + SERVICE_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -60,24 +61,17 @@ export async function runServiceReminders(
 
   let notifiedAdmins = 0;
   if (admins.length > 0) {
-    const lines = due.map((a) => `- ${a.code} ${a.name}: servis do ${formatDate(a.dueAt)}`);
+    const copy = emailCopy(options.locale);
+    const items = due.map((a) => ({ code: a.code, name: a.name, due: formatDate(a.dueAt) }));
     for (const admin of admins) {
       try {
-        await emailSender.send({
-          to: admin.email,
-          subject: `Inventory Hub: ${due.length} assetů čeká na servis`,
-          text: [
-            `Ahoj ${admin.name},`,
-            '',
-            `U ${due.length} assetů je do ${SERVICE_WINDOW_DAYS} dnů naplánovaný servis (nebo už je po termínu):`,
-            '',
-            ...lines,
-            '',
-            options.publicAppUrl ? `Přehled assetů: ${options.publicAppUrl}/assets` : '',
-          ]
-            .filter((l) => l !== '')
-            .join('\n'),
+        const built = copy.serviceDigest({
+          adminName: admin.name,
+          windowDays: SERVICE_WINDOW_DAYS,
+          items,
+          assetsUrl: options.publicAppUrl ? `${options.publicAppUrl}/assets` : undefined,
         });
+        await emailSender.send({ to: admin.email, subject: built.subject, text: built.text });
         notifiedAdmins += 1;
       } catch (err) {
         console.error(`Service admin digest failed for ${admin.email}:`, err);

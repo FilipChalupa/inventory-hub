@@ -2,6 +2,7 @@ import { and, eq, gt, isNotNull, isNull, lt, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { loanItems, loans, users } from '../db/schema.js';
 import type { Email, EmailSender } from './email.js';
+import { emailCopy, type EmailLocale } from './email-copy.js';
 import { emitWebhook } from './webhooks.js';
 
 export type OverdueRunResult = {
@@ -19,7 +20,7 @@ export type OverdueRunResult = {
 export async function runOverdueCheck(
   db: Db,
   emailSender: EmailSender,
-  options: { now?: Date; publicAppUrl: string } = { publicAppUrl: '' },
+  options: { now?: Date; publicAppUrl: string; locale?: EmailLocale } = { publicAppUrl: '' },
 ): Promise<OverdueRunResult> {
   const now = options.now ?? new Date();
 
@@ -57,25 +58,17 @@ export async function runOverdueCheck(
 
   if (overdue.length === 0) return { found: 0, notifiedBorrowers: 0, notifiedAdmins: 0 };
 
+  const copy = emailCopy(options.locale);
   let notifiedBorrowers = 0;
   for (const loan of overdue) {
     if (!loan.borrowerContact) continue;
-    const email: Email = {
-      to: loan.borrowerContact,
-      subject: `Připomenutí: vrácení vypůjčených předmětů`,
-      text: [
-        `Ahoj ${loan.borrowerName},`,
-        '',
-        `výpůjčka s očekávaným vrácením ${formatDate(loan.expectedReturnAt!)} je již po termínu.`,
-        loan.purpose ? `Účel: ${loan.purpose}` : '',
-        '',
-        options.publicAppUrl ? `Detail výpůjčky: ${options.publicAppUrl}/loans/${loan.id}` : '',
-        '',
-        'Děkujeme za vrácení co nejdříve.',
-      ]
-        .filter((l) => l !== '')
-        .join('\n'),
-    };
+    const built = copy.overdueBorrower({
+      borrowerName: loan.borrowerName,
+      dueDate: formatDate(loan.expectedReturnAt!),
+      purpose: loan.purpose,
+      detailUrl: options.publicAppUrl ? `${options.publicAppUrl}/loans/${loan.id}` : undefined,
+    });
+    const email: Email = { to: loan.borrowerContact, subject: built.subject, text: built.text };
     try {
       await emailSender.send(email);
       notifiedBorrowers += 1;
@@ -93,27 +86,19 @@ export async function runOverdueCheck(
   let notifiedAdmins = 0;
   const adminTargets = admins.filter((a) => !a.disabledAt);
   if (adminTargets.length > 0) {
-    const lines = overdue.map(
-      (l) =>
-        `- ${l.borrowerName}: očekáváno ${formatDate(l.expectedReturnAt!)} (id ${l.id.slice(0, 8)})`,
-    );
+    const items = overdue.map((l) => ({
+      borrowerName: l.borrowerName,
+      expected: formatDate(l.expectedReturnAt!),
+      idShort: l.id.slice(0, 8),
+    }));
     for (const admin of adminTargets) {
       try {
-        await emailSender.send({
-          to: admin.email,
-          subject: `Inventory Hub: ${overdue.length} výpůjček po termínu`,
-          text: [
-            `Ahoj ${admin.name},`,
-            '',
-            `Aktuálně je ${overdue.length} výpůjček po termínu vrácení:`,
-            '',
-            ...lines,
-            '',
-            options.publicAppUrl ? `Přehled výpůjček: ${options.publicAppUrl}/loans` : '',
-          ]
-            .filter((l) => l !== '')
-            .join('\n'),
+        const built = copy.overdueDigest({
+          adminName: admin.name,
+          items,
+          loansUrl: options.publicAppUrl ? `${options.publicAppUrl}/loans` : undefined,
         });
+        await emailSender.send({ to: admin.email, subject: built.subject, text: built.text });
         notifiedAdmins += 1;
       } catch (err) {
         console.error(`Overdue admin digest failed for ${admin.email}:`, err);
@@ -142,7 +127,7 @@ export async function runOverdueCheck(
 export async function runStartReminders(
   db: Db,
   emailSender: EmailSender,
-  options: { now?: Date; publicAppUrl: string } = { publicAppUrl: '' },
+  options: { now?: Date; publicAppUrl: string; locale?: EmailLocale } = { publicAppUrl: '' },
 ): Promise<OverdueRunResult> {
   const now = options.now ?? new Date();
   const soon = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -177,24 +162,18 @@ export async function runStartReminders(
     countByLoan.set(loan.id, items.length);
   }
 
+  const copy = emailCopy(options.locale);
   let notifiedBorrowers = 0;
   for (const loan of upcoming) {
     if (!loan.borrowerContact) continue;
-    const email: Email = {
-      to: loan.borrowerContact,
-      subject: 'Připomenutí: vaše výpůjčka brzy začíná',
-      text: [
-        `Ahoj ${loan.borrowerName},`,
-        '',
-        `připomínáme rezervaci se začátkem ${formatDate(loan.loanedAt)}.`,
-        loan.purpose ? `Účel: ${loan.purpose}` : '',
-        `Počet položek: ${countByLoan.get(loan.id) ?? 0}`,
-        '',
-        options.publicAppUrl ? `Detail výpůjčky: ${options.publicAppUrl}/loans/${loan.id}` : '',
-      ]
-        .filter((l) => l !== '')
-        .join('\n'),
-    };
+    const built = copy.startBorrower({
+      borrowerName: loan.borrowerName,
+      startDate: formatDate(loan.loanedAt),
+      purpose: loan.purpose,
+      itemCount: countByLoan.get(loan.id) ?? 0,
+      detailUrl: options.publicAppUrl ? `${options.publicAppUrl}/loans/${loan.id}` : undefined,
+    });
+    const email: Email = { to: loan.borrowerContact, subject: built.subject, text: built.text };
     try {
       await emailSender.send(email);
       notifiedBorrowers += 1;
@@ -211,27 +190,19 @@ export async function runStartReminders(
   const adminTargets = admins.filter((a) => !a.disabledAt);
   let notifiedAdmins = 0;
   if (adminTargets.length > 0) {
-    const lines = upcoming.map(
-      (l) =>
-        `- ${l.borrowerName}: začátek ${formatDate(l.loanedAt)}, ${countByLoan.get(l.id) ?? 0} ks`,
-    );
+    const items = upcoming.map((l) => ({
+      borrowerName: l.borrowerName,
+      start: formatDate(l.loanedAt),
+      itemCount: countByLoan.get(l.id) ?? 0,
+    }));
     for (const admin of adminTargets) {
       try {
-        await emailSender.send({
-          to: admin.email,
-          subject: `Inventory Hub: ${upcoming.length} výpůjček brzy začíná`,
-          text: [
-            `Ahoj ${admin.name},`,
-            '',
-            `Do 24 hodin začíná ${upcoming.length} naplánovaných výpůjček — připrav položky:`,
-            '',
-            ...lines,
-            '',
-            options.publicAppUrl ? `Přehled výpůjček: ${options.publicAppUrl}/loans` : '',
-          ]
-            .filter((l) => l !== '')
-            .join('\n'),
+        const built = copy.startDigest({
+          adminName: admin.name,
+          items,
+          loansUrl: options.publicAppUrl ? `${options.publicAppUrl}/loans` : undefined,
         });
+        await emailSender.send({ to: admin.email, subject: built.subject, text: built.text });
         notifiedAdmins += 1;
       } catch (err) {
         console.error(`Start reminder admin digest failed for ${admin.email}:`, err);

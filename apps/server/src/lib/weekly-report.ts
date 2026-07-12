@@ -2,6 +2,7 @@ import { eq, isNull, isNotNull, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { assets, loanItems, loans, users } from '../db/schema.js';
 import type { EmailSender } from './email.js';
+import { emailCopy, type EmailLocale } from './email-copy.js';
 
 export type WeeklyReportResult = { notifiedAdmins: number };
 
@@ -13,7 +14,7 @@ export type WeeklyReportResult = { notifiedAdmins: number };
 export async function runWeeklyReport(
   db: Db,
   emailSender: EmailSender,
-  options: { now?: Date; publicAppUrl: string } = { publicAppUrl: '' },
+  options: { now?: Date; publicAppUrl: string; locale?: EmailLocale } = { publicAppUrl: '' },
 ): Promise<WeeklyReportResult> {
   const now = options.now ?? new Date();
 
@@ -57,30 +58,20 @@ export async function runWeeklyReport(
   ).length;
 
   const money = (minor: number) => (minor / 100).toFixed(2);
-  const lines = [
-    `Aktivních assetů: ${totalActive}`,
-    `Pořizovací hodnota inventáře: ${money(totalValue)}`,
-    `Aktivní výpůjčky: ${openLoans} (z toho po termínu: ${overdueLoans})`,
-  ];
+  const copy = emailCopy(options.locale);
 
   let notifiedAdmins = 0;
   for (const admin of admins) {
     try {
-      await emailSender.send({
-        to: admin.email,
-        subject: 'Inventory Hub: týdenní přehled inventáře',
-        text: [
-          `Ahoj ${admin.name},`,
-          '',
-          'týdenní přehled stavu inventáře:',
-          '',
-          ...lines,
-          '',
-          options.publicAppUrl ? `Dashboard: ${options.publicAppUrl}/dashboard` : '',
-        ]
-          .filter((l) => l !== '')
-          .join('\n'),
+      const built = copy.weeklyReport({
+        adminName: admin.name,
+        totalActive,
+        totalValue: money(totalValue),
+        openLoans,
+        overdueLoans,
+        dashboardUrl: options.publicAppUrl ? `${options.publicAppUrl}/dashboard` : undefined,
       });
+      await emailSender.send({ to: admin.email, subject: built.subject, text: built.text });
       notifiedAdmins += 1;
     } catch (err) {
       console.error(`Weekly report failed for ${admin.email}:`, err);

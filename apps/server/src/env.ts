@@ -26,6 +26,9 @@ const envSchema = z.object({
     .regex(/^[A-Za-z]{3}$/)
     .transform((v) => v.toUpperCase())
     .default('CZK'),
+  // Language for outbound emails (invitations, reminders, digests). Org-wide —
+  // external recipients (borrowers, invitees) have no per-user preference.
+  EMAIL_LOCALE: z.enum(['cs', 'en']).default('cs'),
   // GDPR retention: when set, audit-log (asset event) history older than this
   // many days is periodically deleted. Unset = keep indefinitely.
   AUDIT_RETENTION_DAYS: z.coerce.number().int().positive().optional(),

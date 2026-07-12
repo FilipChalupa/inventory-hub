@@ -36,6 +36,24 @@ describe('invitations API', () => {
     expect(mail.text).toMatch(/accept-invite\?token=/);
   });
 
+  it('sends the invitation in English when EMAIL_LOCALE=en', async () => {
+    const enServer = setupTestServer({ EMAIL_LOCALE: 'en' });
+    try {
+      const cookie = enServer.loginAs(
+        enServer.createUser({ role: 'admin', email: 'a2@example.com' }),
+      );
+      const res = await jsonPost(enServer, cookie, '/api/invitations', {
+        email: 'new@example.com',
+        role: 'member',
+      });
+      expect(res.status).toBe(201);
+      expect(enServer.sentEmails[0]!.subject).toMatch(/Invitation/);
+      expect(enServer.sentEmails[0]!.text).toMatch(/invites you/);
+    } finally {
+      enServer.close();
+    }
+  });
+
   it('non-admin cannot create invitations', async () => {
     const memberCookie = server.loginAs(
       server.createUser({ role: 'member', email: 'm@example.com' }),

@@ -2,6 +2,7 @@ import { and, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { assets, users } from '../db/schema.js';
 import type { EmailSender } from './email.js';
+import { emailCopy, type EmailLocale } from './email-copy.js';
 
 export type WarrantyRunResult = { found: number; notifiedAdmins: number };
 
@@ -17,7 +18,7 @@ export const WARRANTY_WINDOW_DAYS = 30;
 export async function runWarrantyReminders(
   db: Db,
   emailSender: EmailSender,
-  options: { now?: Date; publicAppUrl: string } = { publicAppUrl: '' },
+  options: { now?: Date; publicAppUrl: string; locale?: EmailLocale } = { publicAppUrl: '' },
 ): Promise<WarrantyRunResult> {
   const now = options.now ?? new Date();
   const soon = new Date(now.getTime() + WARRANTY_WINDOW_DAYS * 24 * 60 * 60 * 1000);
@@ -50,26 +51,21 @@ export async function runWarrantyReminders(
 
   let notifiedAdmins = 0;
   if (admins.length > 0) {
-    const lines = expiring.map(
-      (a) => `- ${a.code} ${a.name}: záruka do ${formatDate(a.warrantyUntil!)}`,
-    );
+    const copy = emailCopy(options.locale);
+    const items = expiring.map((a) => ({
+      code: a.code,
+      name: a.name,
+      until: formatDate(a.warrantyUntil!),
+    }));
     for (const admin of admins) {
       try {
-        await emailSender.send({
-          to: admin.email,
-          subject: `Inventory Hub: ${expiring.length} assetů s končící zárukou`,
-          text: [
-            `Ahoj ${admin.name},`,
-            '',
-            `U ${expiring.length} assetů končí záruka do ${WARRANTY_WINDOW_DAYS} dnů (nebo už skončila):`,
-            '',
-            ...lines,
-            '',
-            options.publicAppUrl ? `Přehled assetů: ${options.publicAppUrl}/assets` : '',
-          ]
-            .filter((l) => l !== '')
-            .join('\n'),
+        const built = copy.warrantyDigest({
+          adminName: admin.name,
+          windowDays: WARRANTY_WINDOW_DAYS,
+          items,
+          assetsUrl: options.publicAppUrl ? `${options.publicAppUrl}/assets` : undefined,
         });
+        await emailSender.send({ to: admin.email, subject: built.subject, text: built.text });
         notifiedAdmins += 1;
       } catch (err) {
         console.error(`Warranty admin digest failed for ${admin.email}:`, err);

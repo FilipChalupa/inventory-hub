@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { USER_ROLES } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { invitations, users } from '../db/schema.js';
+import { emailCopy } from '../lib/email-copy.js';
 import { requireAuth } from '../middleware/auth.js';
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 
@@ -61,20 +62,13 @@ export const invitationRoutes = new Hono<AppContext>()
 
     const acceptUrl = `${env.PUBLIC_APP_URL}/accept-invite?token=${encodeURIComponent(token)}`;
     const emailSender = c.get('emailSender');
-    await emailSender.send({
-      to: email,
-      subject: `Pozvánka do Inventory Hub`,
-      text: [
-        `Ahoj!`,
-        ``,
-        `${me.name} (${me.email}) tě zve do Inventory Hub jako role ${input.role}.`,
-        ``,
-        `Pro přijetí klikni na následující odkaz (platí 7 dní):`,
-        acceptUrl,
-        ``,
-        `Pokud jsi tuto pozvánku nečekal/a, můžeš e-mail ignorovat.`,
-      ].join('\n'),
+    const copy = emailCopy(env.EMAIL_LOCALE).invitation({
+      inviterName: me.name,
+      inviterEmail: me.email,
+      role: input.role,
+      acceptUrl,
     });
+    await emailSender.send({ to: email, subject: copy.subject, text: copy.text });
 
     return c.json({ id, email, role: input.role, acceptUrl }, 201);
   })

@@ -24,6 +24,7 @@ import {
 } from '../db/schema.js';
 import type { Db } from '../db/client.js';
 import { type Email, type EmailSender } from '../lib/email.js';
+import { emailCopy, type EmailLocale } from '../lib/email-copy.js';
 import { findLoanWindowConflicts } from '../lib/loan.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
@@ -96,6 +97,7 @@ async function notifyReservationDecision(
   itemCount: number,
   decision: 'approved' | 'rejected',
   publicAppUrl: string,
+  locale: EmailLocale,
 ): Promise<void> {
   if (!loan.requestedByUserId) return;
   const requester = db.select().from(users).where(eq(users.id, loan.requestedByUserId)).get();
@@ -104,37 +106,21 @@ async function notifyReservationDecision(
   const period = loan.expectedReturnAt
     ? `${fmtDay(loan.loanedAt)} – ${fmtDay(loan.expectedReturnAt)}`
     : fmtDay(loan.loanedAt);
-  const email: Email =
+  const copy = emailCopy(locale);
+  const built =
     decision === 'approved'
-      ? {
-          to: requester.email,
-          subject: 'Inventory Hub: rezervace schválena',
-          text: [
-            `Ahoj ${requester.name},`,
-            '',
-            `tvoje žádost o výpůjčku (${itemCount} ks) byla schválena.`,
-            `Termín: ${period}`,
-            '',
-            publicAppUrl ? `Detail: ${publicAppUrl}/loans/${loan.id}` : '',
-            '',
-            'Až si věci vyzvedneš, obsluha výpůjčku zahájí.',
-          ]
-            .filter((l) => l !== '')
-            .join('\n'),
-        }
-      : {
-          to: requester.email,
-          subject: 'Inventory Hub: rezervace zamítnuta',
-          text: [
-            `Ahoj ${requester.name},`,
-            '',
-            `tvoje žádost o výpůjčku (${itemCount} ks) byla bohužel zamítnuta.`,
-            '',
-            publicAppUrl ? `Podat novou žádost: ${publicAppUrl}/today` : '',
-          ]
-            .filter((l) => l !== '')
-            .join('\n'),
-        };
+      ? copy.reservationApproved({
+          name: requester.name,
+          itemCount,
+          period,
+          detailUrl: publicAppUrl ? `${publicAppUrl}/loans/${loan.id}` : undefined,
+        })
+      : copy.reservationRejected({
+          name: requester.name,
+          itemCount,
+          newRequestUrl: publicAppUrl ? `${publicAppUrl}/today` : undefined,
+        });
+  const email: Email = { to: requester.email, subject: built.subject, text: built.text };
   try {
     await emailSender.send(email);
   } catch (err) {
@@ -1191,6 +1177,7 @@ export const loanRoutes = new Hono<AppContext>()
       assetIds.length,
       'approved',
       c.get('env').PUBLIC_APP_URL,
+      c.get('env').EMAIL_LOCALE,
     );
     return c.json({ ok: true });
   })
@@ -1228,6 +1215,7 @@ export const loanRoutes = new Hono<AppContext>()
       items.length,
       'rejected',
       c.get('env').PUBLIC_APP_URL,
+      c.get('env').EMAIL_LOCALE,
     );
     return c.json({ ok: true });
   })
@@ -1313,7 +1301,10 @@ export const loanRoutes = new Hono<AppContext>()
     const db = c.get('db');
     const env = c.get('env');
     const emailSender = c.get('emailSender');
-    const result = await runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL });
+    const result = await runOverdueCheck(db, emailSender, {
+      publicAppUrl: env.PUBLIC_APP_URL,
+      locale: env.EMAIL_LOCALE,
+    });
     return c.json(result);
   })
   // Per-item return — same self-service rule as return-all: managers may

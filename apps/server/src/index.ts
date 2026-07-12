@@ -56,18 +56,22 @@ const server = serve(
 // `overdue_notified_at` column.
 const OVERDUE_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const runLoanNotifiers = () => {
-  void runOverdueCheck(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
-    console.error('overdue check failed:', err),
-  );
-  void runStartReminders(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
-    console.error('start reminder failed:', err),
-  );
-  void runWarrantyReminders(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
-    console.error('warranty reminder failed:', err),
-  );
-  void runServiceReminders(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
-    console.error('service reminder failed:', err),
-  );
+  void runOverdueCheck(db, emailSender, {
+    publicAppUrl: env.PUBLIC_APP_URL,
+    locale: env.EMAIL_LOCALE,
+  }).catch((err) => console.error('overdue check failed:', err));
+  void runStartReminders(db, emailSender, {
+    publicAppUrl: env.PUBLIC_APP_URL,
+    locale: env.EMAIL_LOCALE,
+  }).catch((err) => console.error('start reminder failed:', err));
+  void runWarrantyReminders(db, emailSender, {
+    publicAppUrl: env.PUBLIC_APP_URL,
+    locale: env.EMAIL_LOCALE,
+  }).catch((err) => console.error('warranty reminder failed:', err));
+  void runServiceReminders(db, emailSender, {
+    publicAppUrl: env.PUBLIC_APP_URL,
+    locale: env.EMAIL_LOCALE,
+  }).catch((err) => console.error('service reminder failed:', err));
 };
 const initialTimer = setTimeout(runLoanNotifiers, 30_000);
 const overdueTimer = setInterval(runLoanNotifiers, OVERDUE_INTERVAL_MS);
@@ -76,9 +80,10 @@ const overdueTimer = setInterval(runLoanNotifiers, OVERDUE_INTERVAL_MS);
 // restarts don't spam; a long-running instance sends roughly one per week.
 const WEEKLY_REPORT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const weeklyReportTimer = setInterval(() => {
-  void runWeeklyReport(db, emailSender, { publicAppUrl: env.PUBLIC_APP_URL }).catch((err) =>
-    console.error('weekly report failed:', err),
-  );
+  void runWeeklyReport(db, emailSender, {
+    publicAppUrl: env.PUBLIC_APP_URL,
+    locale: env.EMAIL_LOCALE,
+  }).catch((err) => console.error('weekly report failed:', err));
 }, WEEKLY_REPORT_INTERVAL_MS);
 
 // Planned-loan activator: flips planned loans to active once their start
