@@ -76,7 +76,7 @@ test('language switcher flips the UI live', async ({ page }) => {
   // Open the user menu (top-right) — the language switcher lives in its
   // dropdown — and switch to English.
   await page.getByRole('button').filter({ hasText: 'E2E Admin' }).click();
-  await page.locator('header select[aria-label="Language"]').selectOption('en');
+  await page.locator('header').getByRole('combobox', { name: 'Jazyk' }).selectOption('en');
   await expect(page.getByRole('link', { name: 'Assets', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Assety', exact: true })).toHaveCount(0);
 });
