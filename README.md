@@ -73,7 +73,15 @@ OAuth configured.
 The same page lists every live connection (OAuth clients and personal tokens)
 with its last use, and lets the user disconnect it; admins also see and can
 revoke connections across the whole organization. Disconnecting takes effect on
-the agent's next request.
+the agent's next request. The page also lists the available tools, lets you
+test a fresh token against `/mcp`, and keeps a history of connects, new tokens
+and revocations.
+
+Users get an email whenever an agent is connected to their account or a
+personal token is created, and a reminder a week before a personal token
+expires. Actions an agent performs show up in the audit log and asset/loan
+histories with a "via AI" badge naming the connection. The consent screen
+preselects read-only and follows the user's app language.
 
 Tools mirror the REST API (assets, loans, contacts, damages, locations, asset
 types, the dashboard stats overview, and admin-gated org/users/invitations).
