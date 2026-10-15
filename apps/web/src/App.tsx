@@ -11,7 +11,7 @@ import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import clsx from 'clsx';
 import { OfflineBanner } from './components/OfflineBanner.js';
 import { NotificationBell } from './components/NotificationBell.js';
-import { mainNav, catalogNav, adminNav } from './nav.js';
+import { mainNav, catalogNav, adminNav, userNav } from './nav.js';
 import { CommandPalette, openCommandPalette } from './components/CommandPalette.js';
 import { ErrorBoundary } from './components/ErrorBoundary.js';
 import { SkeletonList } from './components/ui.js';
@@ -50,6 +50,7 @@ const InventorySessionPage = page(
   'InventorySessionPage',
 );
 const SettingsPage = page(() => import('./pages/SettingsPage.js'), 'SettingsPage');
+const AgentsPage = page(() => import('./pages/AgentsPage.js'), 'AgentsPage');
 const LoginPage = page(() => import('./pages/LoginPage.js'), 'LoginPage');
 const AcceptInvitePage = page(() => import('./pages/AcceptInvitePage.js'), 'AcceptInvitePage');
 const UsersPage = page(() => import('./pages/UsersPage.js'), 'UsersPage');
@@ -194,6 +195,7 @@ function Shell() {
                 <Route path="/users" element={<UsersPage />} />
                 <Route path="/contacts" element={<ContactsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/agents" element={<AgentsPage />} />
                 <Route path="/login" element={<Navigate to="/" replace />} />
               </Routes>
             </Suspense>
@@ -307,7 +309,7 @@ function UserMenu() {
   const t = useT();
   if (!state?.authenticated) return null;
   const u = state.user;
-  const adminItems = u.role === 'admin' ? adminNav : [];
+  const menuItems = [...userNav, ...(u.role === 'admin' ? adminNav : [])];
   return (
     <Dropdown
       align="right"
@@ -330,14 +332,12 @@ function UserMenu() {
         </>
       }
     >
-      {adminItems.map((item) => (
+      {menuItems.map((item) => (
         <DropdownLink key={item.to} to={item.to}>
           {t.nav[item.key]}
         </DropdownLink>
       ))}
-      {adminItems.length > 0 && (
-        <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
-      )}
+      <div className="my-1 border-t border-slate-200 dark:border-slate-700" />
       <div className="hidden px-3 py-2 sm:block" onClick={(e) => e.stopPropagation()}>
         <LanguageSwitcher className="w-full" />
       </div>

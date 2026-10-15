@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { errorMessage } from '../lib/errors.js';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
 import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
 import { confirm } from '../components/ConfirmDialog.js';
@@ -221,7 +222,7 @@ export function SettingsPage() {
 
       <ApiKeysSection />
 
-      <McpConnectionSection />
+      <McpLinkSection />
     </section>
   );
 }
@@ -549,85 +550,16 @@ function ApiKeysSection() {
   );
 }
 
-function McpConnectionSection() {
+function McpLinkSection() {
   const t = useT();
-  const info = useQuery({ queryKey: ['mcp-info'], queryFn: () => apiClient.org.mcpInfo() });
-  const url = info.data?.url ?? '';
-  const command = `claude mcp add --transport http inventory-hub ${url}`;
-  const googleConfigured = info.data?.googleConfigured ?? false;
-
   return (
     <Card>
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="font-semibold">{t.settings.mcpTitle}</h2>
-        <a
-          href="/docs"
-          target="_blank"
-          rel="noreferrer"
-          className="text-xs text-blue-600 hover:underline"
-        >
-          {t.settings.apiDocsLink}
-        </a>
-      </div>
-      <p className="text-xs text-slate-500 mb-3">{t.settings.mcpIntro}</p>
-
-      {info.isLoading && <p className="text-sm text-slate-500">{t.common.loading}</p>}
-
-      {!info.isLoading && !googleConfigured && (
-        <p className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-200">
-          {t.settings.mcpGoogleWarn1}
-          <span className="font-mono">GOOGLE_CLIENT_ID</span> /{' '}
-          <span className="font-mono">SECRET</span> /{' '}
-          <span className="font-mono">REDIRECT_URL</span>
-          {t.settings.mcpGoogleWarn2}
-        </p>
-      )}
-
-      {!info.isLoading && (
-        <div className="space-y-3">
-          <CopyField label={t.settings.mcpConnectorUrlLabel} text={url} />
-          <CopyField label={t.settings.mcpCommandLabel} text={command} />
-        </div>
-      )}
-
-      <p className="text-xs text-slate-500 mt-3">
-        {t.settings.mcpFooter1}
-        <strong>{t.settings.mcpFooterReadWrite}</strong>
-        {t.settings.mcpFooter2}
-        <strong>{t.settings.mcpFooterReadOnly}</strong>
-        {t.settings.mcpFooter3}
-      </p>
+      <h2 className="font-semibold mb-2">{t.settings.mcpTitle}</h2>
+      <p className="text-xs text-slate-500 mb-3">{t.settings.mcpMovedNote}</p>
+      <Link to="/agents" className="text-sm text-blue-600 hover:underline">
+        {t.settings.mcpMovedLink}
+      </Link>
     </Card>
-  );
-}
-
-function CopyField({ label, text }: { label: string; text: string }) {
-  const t = useT();
-  const [copied, setCopied] = useState(false);
-  return (
-    <div>
-      <div className="text-xs text-slate-500 mb-1">{label}</div>
-      <div className="flex items-stretch gap-2">
-        <code className="flex-1 break-all rounded border border-slate-200 bg-white p-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
-          {text}
-        </code>
-        <Button
-          type="button"
-          variant="secondary"
-          onClick={() => {
-            navigator.clipboard
-              ?.writeText(text)
-              .then(() => {
-                setCopied(true);
-                setTimeout(() => setCopied(false), 1500);
-              })
-              .catch(() => undefined);
-          }}
-        >
-          {copied ? t.common.copied : t.common.copy}
-        </Button>
-      </div>
-    </div>
   );
 }
 

@@ -10,7 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
-import { mainNav, catalogNav, adminNav, type NavItem } from '../nav.js';
+import { mainNav, catalogNav, adminNav, userNav, type NavItem } from '../nav.js';
 import { apiClient } from '../lib/api.js';
 import { useCurrentUser } from '../auth/AuthContext.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
@@ -88,7 +88,12 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
 
   // Navigation targets, filtered by a case-insensitive substring on the label.
   const navItems = useMemo<NavItem[]>(() => {
-    const all = [...mainNav, ...catalogNav, ...(user?.role === 'admin' ? adminNav : [])];
+    const all = [
+      ...mainNav,
+      ...catalogNav,
+      ...userNav,
+      ...(user?.role === 'admin' ? adminNav : []),
+    ];
     const needle = q.toLowerCase();
     if (!needle) return all;
     return all.filter((item) => t.nav[item.key].toLowerCase().includes(needle));

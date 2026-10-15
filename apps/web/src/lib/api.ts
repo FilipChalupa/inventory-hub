@@ -16,6 +16,8 @@ import type {
   InventorySessionStatus,
   ScanResultKind,
   ApiKeyScope,
+  CreateMcpTokenInput,
+  McpAccess,
 } from '@inventory-hub/shared';
 
 type ApiOptions = {
@@ -130,6 +132,18 @@ export type ApiKeyRow = {
   lastUsedAt: string | null;
   expiresAt: string | null;
   createdAt: string;
+};
+
+export type McpConnectionRow = {
+  id: string;
+  kind: 'oauth' | 'personal';
+  name: string;
+  access: McpAccess;
+  tokenPrefix: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  user: { id: string; name: string; email: string };
 };
 
 export type LoanEventRow = {
@@ -729,5 +743,21 @@ export const apiClient = {
         { method: 'POST', body: input },
       ),
     remove: (id: string) => api<{ ok: true }>(`/api/api-keys/${id}`, { method: 'DELETE' }),
+  },
+  mcpConnections: {
+    list: (opts: { all?: boolean } = {}) =>
+      api<{ items: McpConnectionRow[] }>(`/api/mcp-connections${opts.all ? '?all=1' : ''}`),
+    createToken: (input: Partial<CreateMcpTokenInput> & { name: string }) =>
+      api<McpConnectionRow & { token: string }>('/api/mcp-connections/tokens', {
+        method: 'POST',
+        body: input,
+      }),
+    revoke: (c: Pick<McpConnectionRow, 'id' | 'kind' | 'user'>) =>
+      api<{ ok: true }>(
+        c.kind === 'personal'
+          ? `/api/mcp-connections/tokens/${encodeURIComponent(c.id)}`
+          : `/api/mcp-connections/oauth/${encodeURIComponent(c.id)}?userId=${encodeURIComponent(c.user.id)}`,
+        { method: 'DELETE' },
+      ),
   },
 };

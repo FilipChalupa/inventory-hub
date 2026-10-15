@@ -81,18 +81,9 @@ export const settings = ns({
 
     // MCP connection
     mcpTitle: 'Připojení AI asistenta (MCP)',
-    mcpIntro:
-      'Inventory Hub umí svá data zpřístupnit AI asistentům (Claude Desktop/Code, claude.ai) přes Model Context Protocol. Připojení se nastavuje v MCP klientovi, ne tady — níže je hotový příkaz k vložení.',
-    mcpGoogleWarn1: '⚠ Přihlášení k MCP jede přes Google OAuth, který teď není nakonfigurovaný (',
-    mcpGoogleWarn2: '). Konektor zatím nepůjde autorizovat — viz README → „Remote MCP server".',
-    mcpConnectorUrlLabel: 'URL konektoru',
-    mcpCommandLabel: 'Příkaz pro Claude Code',
-    mcpFooter1: 'Při prvním použití klient otevře prohlížeč k přihlášení. Pak zvolíš ',
-    mcpFooterReadWrite: 'read-write',
-    mcpFooter2: ' (zdědí tvoji roli a oprávnění) nebo ',
-    mcpFooterReadOnly: 'read-only',
-    mcpFooter3:
-      ' (jen čtení). Nástroje kopírují REST API — assety, výpůjčky, kontakty, poškození, lokace, typy a (pro adminy) správu organizace.',
+    mcpMovedNote:
+      'Připojení AI asistentů a správa tokenů má teď vlastní stránku, dostupnou všem uživatelům (menu vpravo nahoře).',
+    mcpMovedLink: 'Přejít na AI asistenty →',
 
     // Invitations
     invitationsTitle: 'Pozvánky uživatelů',
@@ -210,18 +201,9 @@ export const settings = ns({
 
     // MCP connection
     mcpTitle: 'AI assistant connection (MCP)',
-    mcpIntro:
-      'Inventory Hub can expose its data to AI assistants (Claude Desktop/Code, claude.ai) over the Model Context Protocol. The connection is set up in the MCP client, not here — below is a ready-to-paste command.',
-    mcpGoogleWarn1: '⚠ MCP sign-in uses Google OAuth, which is not configured right now (',
-    mcpGoogleWarn2: '). The connector cannot be authorized yet — see README → "Remote MCP server".',
-    mcpConnectorUrlLabel: 'Connector URL',
-    mcpCommandLabel: 'Command for Claude Code',
-    mcpFooter1: 'On first use the client opens a browser to sign in. Then you choose ',
-    mcpFooterReadWrite: 'read-write',
-    mcpFooter2: ' (inherits your role and permissions) or ',
-    mcpFooterReadOnly: 'read-only',
-    mcpFooter3:
-      ' (read only). The tools mirror the REST API — assets, loans, contacts, damages, locations, types and (for admins) organization management.',
+    mcpMovedNote:
+      'Connecting AI assistants and managing tokens now has its own page, available to every user (top-right menu).',
+    mcpMovedLink: 'Go to AI assistants →',
 
     // Invitations
     invitationsTitle: 'User invitations',

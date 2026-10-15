@@ -21,6 +21,9 @@ export const catalogNav: NavItem[] = [
   { to: '/contacts', key: 'contacts' },
 ];
 
+// Personal — in the user menu for every role.
+export const userNav: NavItem[] = [{ to: '/agents', key: 'agents' }];
+
 // Admin-only — grouped under the user menu (top right).
 export const adminNav: NavItem[] = [
   { to: '/audit', key: 'audit' },
