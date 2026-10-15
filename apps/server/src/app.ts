@@ -33,7 +33,7 @@ import { mcpConnectionRoutes } from './routes/mcp-connections.js';
 import { statsRoutes } from './routes/stats.js';
 import { notificationRoutes } from './routes/notifications.js';
 import { authRoutes } from './routes/auth.js';
-import { authLoader, requireAuth } from './middleware/auth.js';
+import { auditorReadOnly, authLoader, requireAuth } from './middleware/auth.js';
 import { isMcpCsrfExempt, mountMcp } from './mcp/http.js';
 import {
   openApiDocument,
@@ -209,18 +209,8 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
   // GET stays open to any authenticated role; mutations carry an explicit
   // `requireAuth('admin', ...)` / `requireAuth('admin', 'operator')` guard.
 
-  // `auditor` is a read-only role: reject any state-changing request across the
-  // whole API in one place, rather than role-guarding every mutation route.
-  app.use('/api/*', async (c, next) => {
-    const method = c.req.method;
-    if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
-      const user = c.get('user') as UserRow | undefined;
-      if (user?.role === 'auditor') {
-        return c.json({ error: { message: 'Auditor má jen čtecí přístup' } }, 403);
-      }
-    }
-    return next();
-  });
+  // `auditor` is a read-only role (see auditorReadOnly).
+  app.use('/api/*', auditorReadOnly);
 
   app.route('/api/org', orgRoutes);
   app.route('/api/assets', assetRoutes);

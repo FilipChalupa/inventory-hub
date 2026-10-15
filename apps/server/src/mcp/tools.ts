@@ -16,7 +16,9 @@ import {
   addLoanItemsInput,
   createAssetInput,
   createDamageReportInput,
+  createInventorySessionInput,
   createLoanInput,
+  markMissingLostInput,
   orgSettingsSchema,
   requestLoanInput,
   returnLoanItemInput,
@@ -485,6 +487,80 @@ export const MCP_TOOLS: McpTool[] = [
     {},
     () => ({ method: 'GET', path: '/api/stats' }),
   ),
+  tool(
+    'get_utilization',
+    'read',
+    'Loan-utilization report (admin/operator only): most-borrowed assets and live assets that have never been loaned.',
+    {},
+    () => ({ method: 'GET', path: '/api/stats/utilization' }),
+  ),
+  tool(
+    'get_notifications',
+    'read',
+    "The current user's to-do feed: overdue loans, expiring warranties, due services and open damage reports (members see only their own).",
+    {},
+    () => ({ method: 'GET', path: '/api/notifications' }),
+  ),
+
+  // ---- inventory (stock-take) sessions -------------------------------------
+  tool(
+    'list_inventories',
+    'read',
+    'List inventory (stock-take) sessions, newest first, with their scan counts.',
+    {},
+    () => ({ method: 'GET', path: '/api/inventory' }),
+  ),
+  tool(
+    'get_inventory',
+    'read',
+    'Get an inventory session with its live report: expected, found, missing and unexpected assets.',
+    { id: z.string() },
+    (a) => ({ method: 'GET', path: `/api/inventory/${encodeURIComponent(a.id)}` }),
+  ),
+  tool(
+    'create_inventory',
+    'write',
+    'Start an inventory session (admin/operator). Scope by locationId and/or typeIds, or list exact assetCodes; omit all to cover the whole organization.',
+    createInventorySessionInput.shape,
+    (a) => ({ method: 'POST', path: '/api/inventory', body: a }),
+  ),
+  tool(
+    'scan_inventory_item',
+    'write',
+    'Record an asset as found in an open inventory session (admin/operator). Idempotent.',
+    { id: z.string(), code: z.string() },
+    ({ id, code }) => ({
+      method: 'POST',
+      path: `/api/inventory/${encodeURIComponent(id)}/scan`,
+      body: { code },
+    }),
+  ),
+  tool(
+    'close_inventory',
+    'write',
+    'Close an inventory session (admin/operator).',
+    { id: z.string() },
+    (a) => ({ method: 'POST', path: `/api/inventory/${encodeURIComponent(a.id)}/close` }),
+  ),
+  tool(
+    'reopen_inventory',
+    'write',
+    'Reopen a closed inventory session (admin/operator).',
+    { id: z.string() },
+    (a) => ({ method: 'POST', path: `/api/inventory/${encodeURIComponent(a.id)}/reopen` }),
+  ),
+  tool(
+    'mark_inventory_missing_lost',
+    'write',
+    'Mark assets that an inventory session did not find as lost (admin/operator).',
+    { id: z.string(), ...markMissingLostInput.shape },
+    ({ id, ...body }) => ({
+      method: 'POST',
+      path: `/api/inventory/${encodeURIComponent(id)}/mark-lost`,
+      body,
+    }),
+  ),
+
   // ---- org / users / invitations (admin-gated downstream) ------------------
   tool(
     'get_org_settings',

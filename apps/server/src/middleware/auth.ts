@@ -70,3 +70,19 @@ export function requireAuth(...allowed: Role[]) {
     await next();
   });
 }
+
+/**
+ * `auditor` is a read-only role: rejects any state-changing request in one
+ * place, rather than role-guarding every mutation route. Mounted on `/api/*`
+ * of both the public app and the MCP dispatch app.
+ */
+export const auditorReadOnly = createMiddleware<AppContext>(async (c, next) => {
+  const method = c.req.method;
+  if (method !== 'GET' && method !== 'HEAD' && method !== 'OPTIONS') {
+    const user = c.get('user') as UserRow | undefined;
+    if (user?.role === 'auditor') {
+      return c.json({ error: { message: 'Auditor má jen čtecí přístup' } }, 403);
+    }
+  }
+  return next();
+});

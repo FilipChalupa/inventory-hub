@@ -13,7 +13,7 @@ import type { Db } from './../db/client.js';
 import type { Env } from './../env.js';
 import type { EmailSender } from './../lib/email.js';
 import type { AppContext } from '../app.js';
-import { requireAuth } from '../middleware/auth.js';
+import { auditorReadOnly, requireAuth } from '../middleware/auth.js';
 import { orgRoutes } from '../routes/org.js';
 import { assetRoutes } from '../routes/assets.js';
 import { assetTypeRoutes } from '../routes/asset-types.js';
@@ -25,9 +25,30 @@ import { exportRoutes } from '../routes/export.js';
 import { invitationRoutes } from '../routes/invitations.js';
 import { userRoutes } from '../routes/users.js';
 import { contactRoutes } from '../routes/contacts.js';
+import { inventoryRoutes } from '../routes/inventory.js';
+import { statsRoutes } from '../routes/stats.js';
+import { notificationRoutes } from '../routes/notifications.js';
 import { currentPrincipal } from './principal.js';
 
 export type McpDispatchApp = Hono<AppContext>;
+
+/** API routers reachable from MCP tools (every tool path must fall under one). */
+export const MCP_DISPATCH_ROUTES: Record<string, Hono<AppContext>> = {
+  '/api/org': orgRoutes,
+  '/api/assets': assetRoutes,
+  '/api/asset-types': assetTypeRoutes,
+  '/api/locations': locationRoutes,
+  '/api/damages': damageRoutes,
+  '/api/loans': loanRoutes,
+  '/api/inventory': inventoryRoutes,
+  '/api/uploads': uploadRoutes,
+  '/api/export': exportRoutes,
+  '/api/invitations': invitationRoutes,
+  '/api/users': userRoutes,
+  '/api/contacts': contactRoutes,
+  '/api/stats': statsRoutes,
+  '/api/notifications': notificationRoutes,
+};
 
 export function createMcpDispatchApp(deps: {
   db: Db;
@@ -46,17 +67,8 @@ export function createMcpDispatchApp(deps: {
   });
 
   app.use('/api/*', requireAuth());
-  app.route('/api/org', orgRoutes);
-  app.route('/api/assets', assetRoutes);
-  app.route('/api/asset-types', assetTypeRoutes);
-  app.route('/api/locations', locationRoutes);
-  app.route('/api/damages', damageRoutes);
-  app.route('/api/loans', loanRoutes);
-  app.route('/api/uploads', uploadRoutes);
-  app.route('/api/export', exportRoutes);
-  app.route('/api/invitations', invitationRoutes);
-  app.route('/api/users', userRoutes);
-  app.route('/api/contacts', contactRoutes);
+  app.use('/api/*', auditorReadOnly);
+  for (const [prefix, routes] of Object.entries(MCP_DISPATCH_ROUTES)) app.route(prefix, routes);
 
   app.onError((err, c) => {
     const status = err instanceof HTTPException ? err.status : 500;
