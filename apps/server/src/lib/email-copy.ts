@@ -87,6 +87,19 @@ export type AssetAssignedParams = {
   detailUrl?: string;
 };
 
+export type AgentConnectedParams = {
+  name: string;
+  agentName: string;
+  kind: 'oauth' | 'personal';
+  readWrite: boolean;
+  manageUrl?: string;
+};
+export type McpTokensExpiringParams = {
+  name: string;
+  items: { name: string; expires: string }[];
+  manageUrl?: string;
+};
+
 export type EmailCopy = {
   invitation(p: InvitationParams): Email & { to: string };
   reservationApproved(p: ReservationApprovedParams): Pick<Email, 'subject' | 'text'>;
@@ -99,6 +112,8 @@ export type EmailCopy = {
   warrantyDigest(p: WarrantyDigestParams): Pick<Email, 'subject' | 'text'>;
   weeklyReport(p: WeeklyReportParams): Pick<Email, 'subject' | 'text'>;
   assetAssigned(p: AssetAssignedParams): Pick<Email, 'subject' | 'text'>;
+  agentConnected(p: AgentConnectedParams): Pick<Email, 'subject' | 'text'>;
+  mcpTokensExpiring(p: McpTokensExpiringParams): Pick<Email, 'subject' | 'text'>;
 };
 
 const ROLE_CS: Record<Role, string> = {
@@ -249,6 +264,32 @@ const cs: EmailCopy = {
       p.detailUrl && `Detail: ${p.detailUrl}`,
     ]),
   }),
+  agentConnected: (p) => ({
+    subject: `Inventory Hub: připojen AI asistent „${p.agentName}"`,
+    text: body([
+      `Ahoj ${p.name},`,
+      '',
+      p.kind === 'oauth'
+        ? `k tvému účtu se právě připojil AI asistent „${p.agentName}" (${p.readWrite ? 'čtení i zápis' : 'jen čtení'}).`
+        : `pro tvůj účet byl vytvořen osobní MCP token „${p.agentName}" (${p.readWrite ? 'čtení i zápis' : 'jen čtení'}).`,
+      'Asistent může pracovat s inventářem tvým jménem.',
+      '',
+      'Pokud jsi to nebyl(a) ty, připojení hned odpoj:',
+      p.manageUrl && p.manageUrl,
+    ]),
+  }),
+  mcpTokensExpiring: (p) => ({
+    subject: 'Inventory Hub: brzy vyprší MCP token',
+    text: body([
+      `Ahoj ${p.name},`,
+      '',
+      'tyto osobní MCP tokeny brzy vyprší a asistenti, kteří je používají, ztratí přístup:',
+      ...p.items.map((i) => `  • ${i.name} — platí do ${i.expires}`),
+      '',
+      'Nový token vytvoříš na stránce AI asistentů:',
+      p.manageUrl && p.manageUrl,
+    ]),
+  }),
 };
 
 const en: EmailCopy = {
@@ -384,6 +425,32 @@ const en: EmailCopy = {
       `the asset ${p.assetCode} ${p.assetName} has been assigned to you.`,
       '',
       p.detailUrl && `Details: ${p.detailUrl}`,
+    ]),
+  }),
+  agentConnected: (p) => ({
+    subject: `Inventory Hub: AI assistant "${p.agentName}" connected`,
+    text: body([
+      `Hi ${p.name},`,
+      '',
+      p.kind === 'oauth'
+        ? `the AI assistant "${p.agentName}" was just connected to your account (${p.readWrite ? 'read & write' : 'read only'}).`
+        : `a personal MCP token "${p.agentName}" was created for your account (${p.readWrite ? 'read & write' : 'read only'}).`,
+      'The assistant can work with the inventory on your behalf.',
+      '',
+      "If this wasn't you, disconnect it right away:",
+      p.manageUrl && p.manageUrl,
+    ]),
+  }),
+  mcpTokensExpiring: (p) => ({
+    subject: 'Inventory Hub: an MCP token expires soon',
+    text: body([
+      `Hi ${p.name},`,
+      '',
+      'these personal MCP tokens expire soon and the assistants using them will lose access:',
+      ...p.items.map((i) => `  • ${i.name} — valid until ${i.expires}`),
+      '',
+      'Create a new token on the AI assistants page:',
+      p.manageUrl && p.manageUrl,
     ]),
   }),
 };

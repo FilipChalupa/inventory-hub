@@ -1,6 +1,7 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { loans, users } from '../db/schema.js';
+import { loans, mcpEvents, oauthTokens, users } from '../db/schema.js';
+import { createPersonalToken } from '../mcp/connections.js';
 import { pruneOldAuditEvents } from './retention.js';
 import { assetEvents } from '../db/schema.js';
 import { setupTestServer, type TestServer } from './test-server.js';
@@ -53,14 +54,26 @@ describe('GDPR compliance', () => {
     });
     expect(forbidden.status).toBe(403);
 
+    createPersonalToken(server.db, {
+      user: member,
+      name: 'Agent',
+      access: 'read',
+      expiresInDays: 30,
+    });
+
     const res = await server.authRequest(`/api/users/${member.id}/export`, { cookie });
     expect(res.status).toBe(200);
     const body = (await res.json()) as {
       user: { email: string };
       loansAsBorrower: unknown[];
+      mcpConnections: { name: string }[];
+      mcpHistory: unknown[];
     };
     expect(body.user.email).toBe('subject@example.com');
     expect(body.loansAsBorrower).toHaveLength(1);
+    expect(body.mcpConnections.map((c) => c.name)).toEqual(['Agent']);
+    expect(body.mcpHistory).toHaveLength(1);
+    expect(JSON.stringify(body)).not.toMatch(/accessTokenHash|refreshTokenHash/);
   });
 
   it('anonymizes a user in place and revokes access', async () => {
@@ -69,8 +82,21 @@ describe('GDPR compliance', () => {
       server.db.select().from(users).where(eq(users.id, member.id)).get()!,
     );
 
+    createPersonalToken(server.db, {
+      user: member,
+      name: 'Agent',
+      access: 'read',
+      expiresInDays: 30,
+    });
+
     const res = await jsonPost(server, cookie, `/api/users/${member.id}/anonymize`, {});
     expect(res.status).toBe(200);
+    expect(
+      server.db.select().from(oauthTokens).where(eq(oauthTokens.userId, member.id)).all(),
+    ).toHaveLength(0);
+    expect(
+      server.db.select().from(mcpEvents).where(eq(mcpEvents.userId, member.id)).all(),
+    ).toHaveLength(0);
 
     const row = server.db.select().from(users).where(eq(users.id, member.id)).get()!;
     expect(row.name).toBe('Anonymizovaný uživatel');

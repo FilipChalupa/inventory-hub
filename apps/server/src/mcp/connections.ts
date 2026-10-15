@@ -8,14 +8,18 @@
  * row, is what the user recognises and revokes. Revoking deletes the rows, so
  * the bearer stops working on its very next /mcp request.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, desc, eq, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { oauthClients, oauthTokens, users } from '../db/schema.js';
-import { hashToken, randomToken, scopeAllowsWrite, scopeStringFor } from './oauth-store.js';
+import { mcpEvents, oauthClients, oauthTokens, users } from '../db/schema.js';
+import type { McpEventRow } from '../db/schema.js';
+import {
+  PERSONAL_CLIENT_ID,
+  hashToken,
+  randomToken,
+  scopeAllowsWrite,
+  scopeStringFor,
+} from './oauth-store.js';
 import type { GrantedScope } from './oauth-store.js';
-
-/** Built-in client every personal token hangs off (the FK requires one). */
-export const PERSONAL_CLIENT_ID = 'personal-token';
 
 /** Recognisable prefix so leaked personal MCP tokens are greppable. */
 export const PERSONAL_TOKEN_PREFIX = 'ihm_';
@@ -93,6 +97,14 @@ export function createPersonalToken(
     })
     .run();
   const row = db.select().from(oauthTokens).where(eq(oauthTokens.id, id)).get()!;
+  recordMcpEvent(db, {
+    userId: input.user.id,
+    actorUserId: input.user.id,
+    type: 'token_created',
+    kind: 'personal',
+    connectionName: input.name,
+    access: input.access,
+  });
   return {
     token,
     connection: {
@@ -169,7 +181,7 @@ export function listConnections(db: Db, opts: { userId?: string } = {}): McpConn
         name: r.clientName ?? t.clientId,
         access: 'read',
         tokenPrefix: null,
-        createdAt: t.createdAt,
+        createdAt: t.connectedAt ?? t.createdAt,
         lastUsedAt: null,
         expiresAt: null,
         user,
@@ -178,7 +190,8 @@ export function listConnections(db: Db, opts: { userId?: string } = {}): McpConn
       };
       oauthPairs.set(key, pair);
     }
-    if (t.createdAt < pair.createdAt) pair.createdAt = t.createdAt;
+    const connectedAt = t.connectedAt ?? t.createdAt;
+    if (connectedAt < pair.createdAt) pair.createdAt = connectedAt;
     pair.lastUsedAt = maxDate(pair.lastUsedAt, t.lastUsedAt);
     // Scope + expiry come from the newest live row (the one the client holds).
     if (live && t.createdAt >= pair.latest) {
@@ -198,18 +211,33 @@ export function listConnections(db: Db, opts: { userId?: string } = {}): McpConn
 }
 
 /** Disconnects an OAuth client for one user. Returns false if nothing matched. */
-export function revokeOauthConnection(db: Db, clientId: string, userId: string): boolean {
-  const res = db
-    .delete(oauthTokens)
-    .where(
-      and(
-        eq(oauthTokens.clientId, clientId),
-        eq(oauthTokens.userId, userId),
-        eq(oauthTokens.kind, 'oauth'),
-      ),
-    )
-    .run();
-  return res.changes > 0;
+export function revokeOauthConnection(
+  db: Db,
+  clientId: string,
+  userId: string,
+  actorUserId: string,
+): boolean {
+  const where = and(
+    eq(oauthTokens.clientId, clientId),
+    eq(oauthTokens.userId, userId),
+    eq(oauthTokens.kind, 'oauth'),
+  );
+  const client = db
+    .select({ name: oauthClients.clientName })
+    .from(oauthClients)
+    .where(eq(oauthClients.id, clientId))
+    .get();
+  const res = db.delete(oauthTokens).where(where).run();
+  if (res.changes === 0) return false;
+  recordMcpEvent(db, {
+    userId,
+    actorUserId,
+    type: 'revoked',
+    kind: 'oauth',
+    connectionName: client?.name ?? clientId,
+    access: null,
+  });
+  return true;
 }
 
 /** Looks up a personal token's owner (for authorization before revoking). */
@@ -222,8 +250,63 @@ export function getPersonalTokenOwner(db: Db, id: string): string | null {
   return row?.userId ?? null;
 }
 
-export function revokePersonalToken(db: Db, id: string): void {
-  db.delete(oauthTokens)
+export function revokePersonalToken(db: Db, id: string, actorUserId: string): void {
+  const row = db
+    .select()
+    .from(oauthTokens)
     .where(and(eq(oauthTokens.id, id), eq(oauthTokens.kind, 'personal')))
+    .get();
+  if (!row) return;
+  db.delete(oauthTokens).where(eq(oauthTokens.id, id)).run();
+  recordMcpEvent(db, {
+    userId: row.userId,
+    actorUserId,
+    type: 'revoked',
+    kind: 'personal',
+    connectionName: row.name ?? '',
+    access: null,
+  });
+}
+
+// ---- history ----------------------------------------------------------------
+
+export function recordMcpEvent(
+  db: Db,
+  e: Omit<McpEventRow, 'id' | 'occurredAt'> & { occurredAt?: Date },
+): void {
+  db.insert(mcpEvents)
+    .values({ ...e, occurredAt: e.occurredAt ?? new Date() })
     .run();
+}
+
+export type McpEventView = Omit<McpEventRow, 'actorUserId'> & {
+  user: McpConnectionUser;
+  actor: McpConnectionUser | null;
+};
+
+/** Newest-first MCP history for one user, or (userId omitted) the whole org. */
+export function listMcpEvents(
+  db: Db,
+  opts: { userId?: string; limit?: number } = {},
+): McpEventView[] {
+  const rows = db
+    .select()
+    .from(mcpEvents)
+    .where(opts.userId ? eq(mcpEvents.userId, opts.userId) : undefined)
+    // rowid breaks ties between events recorded in the same millisecond.
+    .orderBy(desc(mcpEvents.occurredAt), desc(sql`rowid`))
+    .limit(opts.limit ?? 50)
+    .all();
+  const people = new Map(
+    db
+      .select({ id: users.id, name: users.name, email: users.email })
+      .from(users)
+      .all()
+      .map((u) => [u.id, u]),
+  );
+  return rows.map(({ actorUserId, ...e }) => ({
+    ...e,
+    user: people.get(e.userId) ?? { id: e.userId, name: '?', email: '' },
+    actor: actorUserId ? (people.get(actorUserId) ?? null) : null,
+  }));
 }

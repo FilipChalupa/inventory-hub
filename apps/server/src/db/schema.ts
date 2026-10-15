@@ -7,6 +7,7 @@ import {
   uniqueIndex,
   type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core';
+import { currentPrincipal } from '../mcp/principal.js';
 
 const id = () =>
   text('id')
@@ -280,6 +281,10 @@ export const assetEvents = sqliteTable(
       .$type<Record<string, unknown>>()
       .notNull()
       .default({}),
+    // Name of the AI agent (MCP connection) that performed the action on the
+    // actor's behalf; null for actions done directly in the app/API. Filled
+    // automatically from the MCP request context, so insert sites needn't care.
+    via: text('via').$defaultFn(() => currentPrincipal()?.agentName ?? sql`NULL`),
     occurredAt: integer('occurred_at', { mode: 'timestamp_ms' })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
@@ -563,6 +568,11 @@ export const oauthTokens = sqliteTable(
     tokenPrefix: text('token_prefix'),
     // Throttled stamp of the last authenticated /mcp request.
     lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
+    // When the connection was first authorized — carried across refresh
+    // rotations so pruning old rotated rows doesn't lose it.
+    connectedAt: integer('connected_at', { mode: 'timestamp_ms' }),
+    // Personal tokens: set once the "expires soon" email went out.
+    expiryNotifiedAt: integer('expiry_notified_at', { mode: 'timestamp_ms' }),
     accessExpiresAt: integer('access_expires_at', { mode: 'timestamp_ms' }).notNull(),
     refreshExpiresAt: integer('refresh_expires_at', { mode: 'timestamp_ms' }),
     // Set when this token was created by rotating a refresh token, so the
@@ -577,6 +587,34 @@ export const oauthTokens = sqliteTable(
   }),
 );
 
+/**
+ * MCP access history: connections authorized, personal tokens created, and
+ * revocations — shown on the AI assistants page. `userId` is the account the
+ * connection belongs to; `actorUserId` who did it (differs when an admin
+ * revokes someone else's connection).
+ */
+export const mcpEvents = sqliteTable(
+  'mcp_events',
+  {
+    id: id(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
+    type: text('type', { enum: ['connected', 'token_created', 'revoked'] }).notNull(),
+    kind: text('kind', { enum: ['oauth', 'personal'] }).notNull(),
+    connectionName: text('connection_name').notNull(),
+    access: text('access', { enum: ['read', 'read-write'] }),
+    occurredAt: integer('occurred_at', { mode: 'timestamp_ms' })
+      .notNull()
+      .default(sql`(unixepoch() * 1000)`),
+  },
+  (t) => ({
+    userIdx: index('mcp_events_user_idx').on(t.userId),
+    occurredIdx: index('mcp_events_occurred_idx').on(t.occurredAt),
+  }),
+);
+
 export type OrgSettingsRow = typeof orgSettings.$inferSelect;
 export type UserRow = typeof users.$inferSelect;
 export type AssetRow = typeof assets.$inferSelect;
@@ -588,3 +626,4 @@ export type InventoryScanRow = typeof inventoryScans.$inferSelect;
 export type OauthClientRow = typeof oauthClients.$inferSelect;
 export type OauthAuthCodeRow = typeof oauthAuthCodes.$inferSelect;
 export type OauthTokenRow = typeof oauthTokens.$inferSelect;
+export type McpEventRow = typeof mcpEvents.$inferSelect;

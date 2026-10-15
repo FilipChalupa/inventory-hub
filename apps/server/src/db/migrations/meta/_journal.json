@@ -141,6 +141,13 @@
       "when": 1792067746169,
       "tag": "0019_material_wong",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "6",
+      "when": 1792069990346,
+      "tag": "0020_magical_daredevil",
+      "breakpoints": true
     }
   ]
 }

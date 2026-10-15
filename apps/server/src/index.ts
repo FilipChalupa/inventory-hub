@@ -16,6 +16,7 @@ import { pruneRateLimits } from './lib/rate-limit.js';
 import { pruneOldAuditEvents } from './lib/retention.js';
 import { pruneExpiredSessions } from './lib/sessions.js';
 import { pruneExpiredOauth } from './mcp/oauth-store.js';
+import { runMcpTokenExpiryReminders } from './mcp/notify.js';
 
 const env = loadEnv();
 const { db, sqlite } = createDb(env.DATABASE_URL);
@@ -72,6 +73,10 @@ const runLoanNotifiers = () => {
     publicAppUrl: env.PUBLIC_APP_URL,
     locale: env.EMAIL_LOCALE,
   }).catch((err) => console.error('service reminder failed:', err));
+  void runMcpTokenExpiryReminders(db, emailSender, {
+    publicAppUrl: env.PUBLIC_APP_URL,
+    locale: env.EMAIL_LOCALE,
+  }).catch((err) => console.error('MCP token expiry reminder failed:', err));
 };
 const initialTimer = setTimeout(runLoanNotifiers, 30_000);
 const overdueTimer = setInterval(runLoanNotifiers, OVERDUE_INTERVAL_MS);
@@ -97,8 +102,8 @@ const runActivation = () => {
   } catch (err) {
     console.error('loan activation failed:', err);
   }
-  // Drop expired MCP authorization codes (expired tokens are rejected lazily
-  // at verify time, but codes accumulate otherwise).
+  // Drop expired MCP authorization codes, dead/rotated-away tokens and
+  // registered clients that never got (or no longer have) a token.
   try {
     pruneExpiredOauth(db);
   } catch (err) {

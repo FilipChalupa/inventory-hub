@@ -14,6 +14,8 @@ export type McpPrincipal = {
   user: UserRow;
   /** Space-separated granted scope string, e.g. "mcp:read mcp:write". */
   scope: string;
+  /** Human label of the connection (OAuth client name / personal token name). */
+  agentName: string;
 };
 
 const storage = new AsyncLocalStorage<McpPrincipal>();

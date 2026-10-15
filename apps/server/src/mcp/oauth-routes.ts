@@ -31,10 +31,13 @@ import {
   issueTokens,
   registerClient,
   rotateRefreshToken,
+  scopeAllowsWrite,
   scopeStringFor,
   verifyClientSecret,
   verifyPkce,
 } from './oauth-store.js';
+import { recordMcpEvent } from './connections.js';
+import { notifyAgentConnected } from './notify.js';
 
 // Cookie capturing a pending /authorize request across the Google login
 // round-trip. The auth callback in routes/auth.ts honours it. Keep this string
@@ -374,6 +377,24 @@ export function createOauthRoutes() {
         audience: record.resource ?? getMcpResourceUrl(env),
         accessTtlSeconds: env.MCP_ACCESS_TOKEN_TTL,
         refreshTtlSeconds: env.MCP_REFRESH_TOKEN_TTL,
+      });
+      const agentName = client.clientName ?? clientId;
+      const readWrite = scopeAllowsWrite(record.scope);
+      recordMcpEvent(db, {
+        userId: record.userId,
+        actorUserId: record.userId,
+        type: 'connected',
+        kind: 'oauth',
+        connectionName: agentName,
+        access: readWrite ? 'read-write' : 'read',
+      });
+      await notifyAgentConnected(db, c.get('emailSender'), {
+        userId: record.userId,
+        agentName,
+        kind: 'oauth',
+        readWrite,
+        publicAppUrl: env.PUBLIC_APP_URL,
+        locale: env.EMAIL_LOCALE,
       });
       return c.json({
         access_token: tokens.accessToken,

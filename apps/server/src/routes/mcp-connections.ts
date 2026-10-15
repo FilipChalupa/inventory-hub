@@ -7,9 +7,11 @@ import {
   createPersonalToken,
   getPersonalTokenOwner,
   listConnections,
+  listMcpEvents,
   revokeOauthConnection,
   revokePersonalToken,
 } from '../mcp/connections.js';
+import { notifyAgentConnected } from '../mcp/notify.js';
 
 // Every user manages their own MCP access (OAuth connections + personal
 // tokens); admins can additionally list and revoke anyone's via `?all=1` /
@@ -25,7 +27,16 @@ export const mcpConnectionRoutes = new Hono<AppContext>()
     const items = listConnections(c.get('db'), all ? {} : { userId: user.id });
     return c.json({ items });
   })
-  .post('/tokens', zValidator('json', createMcpTokenInput), (c) => {
+  .get('/events', (c) => {
+    const user = c.get('user')!;
+    const all = c.req.query('all') === '1';
+    if (all && user.role !== 'admin') {
+      return c.json({ error: { message: 'Nedostatečná oprávnění' } }, 403);
+    }
+    const items = listMcpEvents(c.get('db'), all ? {} : { userId: user.id });
+    return c.json({ items });
+  })
+  .post('/tokens', zValidator('json', createMcpTokenInput), async (c) => {
     const user = c.get('user')!;
     const input = c.req.valid('json');
     const created = createPersonalToken(c.get('db'), {
@@ -33,6 +44,15 @@ export const mcpConnectionRoutes = new Hono<AppContext>()
       name: input.name,
       access: input.access,
       expiresInDays: input.expiresInDays,
+    });
+    const env = c.get('env');
+    await notifyAgentConnected(c.get('db'), c.get('emailSender'), {
+      userId: user.id,
+      agentName: input.name,
+      kind: 'personal',
+      readWrite: input.access === 'read-write',
+      publicAppUrl: env.PUBLIC_APP_URL,
+      locale: env.EMAIL_LOCALE,
     });
     // The raw token is returned exactly once — only its hash is stored.
     return c.json({ ...created.connection, token: created.token }, 201);
@@ -45,7 +65,7 @@ export const mcpConnectionRoutes = new Hono<AppContext>()
     if (!owner || (owner !== user.id && user.role !== 'admin')) {
       return c.json({ error: { message: 'Token nenalezen' } }, 404);
     }
-    revokePersonalToken(db, id);
+    revokePersonalToken(db, id, user.id);
     return c.json({ ok: true });
   })
   .delete('/oauth/:clientId', (c) => {
@@ -54,7 +74,7 @@ export const mcpConnectionRoutes = new Hono<AppContext>()
     if (targetUserId !== user.id && user.role !== 'admin') {
       return c.json({ error: { message: 'Nedostatečná oprávnění' } }, 403);
     }
-    const ok = revokeOauthConnection(c.get('db'), c.req.param('clientId'), targetUserId);
+    const ok = revokeOauthConnection(c.get('db'), c.req.param('clientId'), targetUserId, user.id);
     if (!ok) return c.json({ error: { message: 'Připojení nenalezeno' } }, 404);
     return c.json({ ok: true });
   });

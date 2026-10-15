@@ -12,7 +12,7 @@ import { getMcpIssuer, getMcpResourceUrl } from '../env.js';
 import type { EmailSender } from '../lib/email.js';
 import { users } from '../db/schema.js';
 import { createOauthRoutes } from './oauth-routes.js';
-import { touchToken, verifyAccessToken } from './oauth-store.js';
+import { getClient, touchToken, verifyAccessToken } from './oauth-store.js';
 import { createMcpRuntime } from './server.js';
 import type { McpPrincipal } from './principal.js';
 
@@ -60,7 +60,11 @@ export function mountMcp(
     if (!user || user.disabledAt) return unauthorized('User no longer active.');
     touchToken(db, verified.id);
 
-    const principal: McpPrincipal = { user, scope: verified.scope };
+    const agentName =
+      verified.kind === 'personal'
+        ? (verified.name ?? 'MCP token')
+        : (getClient(db, verified.clientId)?.clientName ?? 'MCP client');
+    const principal: McpPrincipal = { user, scope: verified.scope, agentName };
     const authInfo: AuthInfo = {
       token,
       clientId: verified.clientId,

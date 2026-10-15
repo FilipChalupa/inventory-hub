@@ -7,9 +7,12 @@ import {
   damageReports,
   loanItems,
   loans,
+  mcpEvents,
+  oauthTokens,
   sessions,
   users,
 } from '../db/schema.js';
+import { listConnections } from '../mcp/connections.js';
 
 /**
  * Assembles everything the system holds about a single user (GDPR data-export /
@@ -66,6 +69,14 @@ export function exportUserData(db: Db, userId: string): Record<string, unknown> 
     .where(eq(sessions.userId, userId))
     .all();
 
+  const mcpConnections = listConnections(db, { userId }).map(({ user: _u, ...c }) => c);
+  const mcpHistory = db
+    .select()
+    .from(mcpEvents)
+    .where(eq(mcpEvents.userId, userId))
+    .orderBy(desc(mcpEvents.occurredAt))
+    .all();
+
   return {
     exportedAt: new Date().toISOString(),
     user: {
@@ -83,6 +94,8 @@ export function exportUserData(db: Db, userId: string): Record<string, unknown> 
     activity,
     apiKeys: apiKeyMeta,
     sessions: sessionMeta,
+    mcpConnections,
+    mcpHistory,
   };
 }
 
@@ -119,9 +132,12 @@ export function anonymizeUser(db: Db, userId: string): boolean {
       .where(eq(loans.borrowerUserId, userId))
       .run();
 
-    // Revoke access: drop sessions and API keys.
+    // Revoke access: drop sessions, API keys and MCP connections/tokens
+    // (plus the MCP history, which names this user's agents).
     tx.delete(sessions).where(eq(sessions.userId, userId)).run();
     tx.delete(apiKeys).where(eq(apiKeys.userId, userId)).run();
+    tx.delete(oauthTokens).where(eq(oauthTokens.userId, userId)).run();
+    tx.delete(mcpEvents).where(eq(mcpEvents.userId, userId)).run();
   });
 
   return true;

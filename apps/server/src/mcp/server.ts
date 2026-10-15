@@ -80,30 +80,71 @@ export type McpRuntime = {
 type Session = {
   transport: WebStandardStreamableHTTPServerTransport;
   server: McpServer;
+  lastSeen: number;
+};
+
+export type McpRuntimeOptions = {
+  /** Drop a session after this long without a request (default 30 min). */
+  idleTtlMs?: number;
+  /** Hard cap on concurrent sessions; the least recently used go first. */
+  maxSessions?: number;
+  now?: () => number;
 };
 
 /**
  * Builds the MCP runtime. Streamable HTTP is stateful: a transport+server pair
  * is created on the `initialize` request, keyed by the generated session id
  * (returned in the `mcp-session-id` response header), and reused for that
- * session's subsequent requests. Sessions are dropped on DELETE / close.
+ * session's subsequent requests.
+ *
+ * Clients are supposed to DELETE their session when done, but most just
+ * vanish, so sessions also expire after `idleTtlMs` of silence and the map is
+ * capped at `maxSessions`. An expired client gets a 404 on its next request,
+ * which per the spec makes it re-initialize transparently.
  */
-export function createMcpRuntime(deps: { db: Db; env: Env; emailSender: EmailSender }): McpRuntime {
+export function createMcpRuntime(
+  deps: { db: Db; env: Env; emailSender: EmailSender },
+  opts: McpRuntimeOptions = {},
+): McpRuntime & { sessionCount: () => number } {
+  const idleTtlMs = opts.idleTtlMs ?? 30 * 60 * 1000;
+  const maxSessions = opts.maxSessions ?? 500;
+  const now = opts.now ?? Date.now;
   const dispatchApp = createMcpDispatchApp(deps);
   const appUrl = deps.env.PUBLIC_APP_URL.replace(/\/$/, '');
+  // Map iteration order = insertion order; re-inserting on every hit keeps the
+  // least recently used session first, which makes eviction O(evicted).
   const sessions = new Map<string, Session>();
 
+  const drop = (id: string, s: Session) => {
+    sessions.delete(id);
+    void s.transport.close().catch(() => undefined);
+    void s.server.close().catch(() => undefined);
+  };
+
+  const sweep = () => {
+    const cutoff = now() - idleTtlMs;
+    for (const [id, s] of sessions) {
+      if (s.lastSeen >= cutoff && sessions.size < maxSessions) break;
+      drop(id, s);
+    }
+  };
+
   return {
+    sessionCount: () => sessions.size,
     handle: async (req, authInfo) => {
+      sweep();
       const sid = req.headers.get('mcp-session-id') ?? undefined;
       const existing = sid ? sessions.get(sid) : undefined;
-      if (existing) {
+      if (sid && existing) {
+        existing.lastSeen = now();
+        sessions.delete(sid);
+        sessions.set(sid, existing);
         return existing.transport.handleRequest(req, { authInfo });
       }
 
       // New session: create a fresh transport + server (the transport rejects
       // non-initialize requests that lack a known session id).
-      const session: Session = {} as Session;
+      const session = { lastSeen: now() } as Session;
       const transport = new WebStandardStreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         enableJsonResponse: true,

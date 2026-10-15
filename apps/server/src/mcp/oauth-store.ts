@@ -8,10 +8,13 @@
  * to the client.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { and, eq, isNull, lt, or } from 'drizzle-orm';
+import { and, eq, isNull, lt, ne, notExists, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { oauthAuthCodes, oauthClients, oauthTokens } from '../db/schema.js';
 import type { OauthClientRow } from '../db/schema.js';
+
+/** Built-in client every personal token hangs off (the FK requires one). */
+export const PERSONAL_CLIENT_ID = 'personal-token';
 
 // MCP scopes. Read is always granted; write is added when the user picks the
 // read-write mode on the consent screen.
@@ -166,6 +169,9 @@ export type IssueTokensInput = {
   audience: string | null;
   accessTtlSeconds: number;
   refreshTtlSeconds: number;
+  /** Carried over on refresh rotation; defaults to now for a new connection. */
+  connectedAt?: Date | null;
+  lastUsedAt?: Date | null;
 };
 
 export type IssuedTokens = {
@@ -189,7 +195,14 @@ export function issueTokens(db: Db, input: IssueTokensInput): IssuedTokens {
       audience: input.audience,
       accessExpiresAt: new Date(now + input.accessTtlSeconds * 1000),
       refreshExpiresAt: new Date(now + input.refreshTtlSeconds * 1000),
+      connectedAt: input.connectedAt ?? new Date(now),
+      lastUsedAt: input.lastUsedAt ?? null,
     })
+    .run();
+  // Keeps clients with live tokens clear of the unused-client prune.
+  db.update(oauthClients)
+    .set({ updatedAt: new Date(now) })
+    .where(eq(oauthClients.id, input.clientId))
     .run();
   return {
     accessToken,
@@ -201,6 +214,9 @@ export function issueTokens(db: Db, input: IssueTokensInput): IssuedTokens {
 
 export type VerifiedToken = {
   id: string;
+  kind: 'oauth' | 'personal';
+  /** Personal token label (null for OAuth tokens). */
+  name: string | null;
   userId: string;
   clientId: string;
   scope: string;
@@ -219,6 +235,8 @@ export function verifyAccessToken(db: Db, token: string): VerifiedToken | null {
   if (row.accessExpiresAt.getTime() < Date.now()) return null;
   return {
     id: row.id,
+    kind: row.kind,
+    name: row.name,
     userId: row.userId,
     clientId: row.clientId,
     scope: row.scope,
@@ -254,6 +272,8 @@ export function rotateRefreshToken(
       audience: row.audience,
       accessTtlSeconds: opts.accessTtlSeconds,
       refreshTtlSeconds: opts.refreshTtlSeconds,
+      connectedAt: row.connectedAt ?? row.createdAt,
+      lastUsedAt: row.lastUsedAt,
     });
     return { ...issued, clientId: row.clientId, userId: row.userId, audience: row.audience };
   });
@@ -291,8 +311,60 @@ export function revokeToken(db: Db, token: string): void {
     .run();
 }
 
-/** Housekeeping: drop expired authorization codes and access tokens. */
-export function pruneExpiredOauth(db: Db): void {
-  const now = new Date();
-  db.delete(oauthAuthCodes).where(lt(oauthAuthCodes.expiresAt, now)).run();
+// Rotated-away rows are kept briefly so a client racing two refreshes gets a
+// clean invalid_grant instead of an unknown token, then dropped.
+const REVOKED_GRACE_MS = 24 * 60 * 60 * 1000;
+// A registered client with no tokens (never finished pairing, or everything
+// was revoked) is dropped after this long. A client that comes back later
+// simply re-registers.
+const UNUSED_CLIENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export type PruneResult = { codes: number; tokens: number; clients: number };
+
+/**
+ * Housekeeping: drop expired authorization codes, dead token rows (rotated
+ * away, or past their last expiry) and registered clients left without any
+ * token or pending code. Dynamic client registration is open, so without the
+ * last step anyone could grow `oauth_clients` indefinitely.
+ */
+export function pruneExpiredOauth(db: Db, now: Date = new Date()): PruneResult {
+  const codes = db.delete(oauthAuthCodes).where(lt(oauthAuthCodes.expiresAt, now)).run().changes;
+
+  const tokens = db
+    .delete(oauthTokens)
+    .where(
+      or(
+        lt(oauthTokens.revokedAt, new Date(now.getTime() - REVOKED_GRACE_MS)),
+        // Dead once both the access token and (if any) the refresh token expired.
+        and(
+          lt(oauthTokens.accessExpiresAt, now),
+          or(isNull(oauthTokens.refreshExpiresAt), lt(oauthTokens.refreshExpiresAt, now)),
+        ),
+      ),
+    )
+    .run().changes;
+
+  const clients = db
+    .delete(oauthClients)
+    .where(
+      and(
+        ne(oauthClients.id, PERSONAL_CLIENT_ID),
+        lt(oauthClients.updatedAt, new Date(now.getTime() - UNUSED_CLIENT_TTL_MS)),
+        notExists(
+          db
+            .select({ x: sql`1` })
+            .from(oauthTokens)
+            .where(eq(oauthTokens.clientId, oauthClients.id)),
+        ),
+        notExists(
+          db
+            .select({ x: sql`1` })
+            .from(oauthAuthCodes)
+            .where(eq(oauthAuthCodes.clientId, oauthClients.id)),
+        ),
+      ),
+    )
+    .run().changes;
+
+  return { codes, tokens, clients };
 }
