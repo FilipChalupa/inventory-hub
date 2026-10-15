@@ -64,6 +64,17 @@ login to authenticate the human.
    login you pick **read-write** (inherits your role) or **read-only**, and the
    client receives audience-bound access + refresh tokens.
 
+Agents that can't run OAuth (custom scripts, n8n, …) can use a **personal
+token** instead: any user mints one on the **AI assistants (MCP)** page (user
+menu, top right), picks read-only or read-write and an expiry, and sends it as
+`Authorization: Bearer ihm_…` to `/mcp`. Personal tokens work without Google
+OAuth configured.
+
+The same page lists every live connection (OAuth clients and personal tokens)
+with its last use, and lets the user disconnect it; admins also see and can
+revoke connections across the whole organization. Disconnecting takes effect on
+the agent's next request.
+
 Tools mirror the REST API (assets, loans, contacts, damages, locations, asset
 types, the dashboard stats overview, and admin-gated org/users/invitations).
 Role checks are enforced exactly as in the web app; read-only connections are
