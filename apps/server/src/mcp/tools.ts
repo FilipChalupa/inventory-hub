@@ -42,6 +42,12 @@ export type McpTool = {
    * fields (the app's public base URL isn't known to the routers themselves).
    */
   enrich?: (body: unknown, appUrl: string) => unknown;
+  /**
+   * Optional final reshaping of a successful response (after `enrich`): trims
+   * list rows to the essentials and adds paging hints, so a list call doesn't
+   * flood the model's context window.
+   */
+  shape?: (body: any, args: Record<string, any>) => unknown;
 };
 
 /**
@@ -72,9 +78,98 @@ function tool(
   inputShape: z.ZodRawShape,
   build: (args: Record<string, any>) => ToolRequest,
   enrich?: (body: unknown, appUrl: string) => unknown,
+  shape?: McpTool['shape'],
 ): McpTool {
-  return { name, access, description, inputShape, build, enrich };
+  return { name, access, description, inputShape, build, enrich, shape };
 }
+
+// ---- response size control -------------------------------------------------
+
+/** Paging inputs shared by list tools. */
+const paging = (defaultLimit: number) => ({
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .optional()
+    .describe(`Max rows to return (default ${defaultLimit}, max 100).`),
+  offset: z.number().int().min(0).optional().describe('Rows to skip, for paging.'),
+});
+
+/**
+ * Trims `{ items, total? }` to compact rows plus paging hints. `slice` pages
+ * locally for routes that have no limit/offset of their own.
+ */
+function paged<T>(project: (row: any) => T, defaultLimit: number, opts: { slice?: boolean } = {}) {
+  return (body: any, args: Record<string, any>) => {
+    const all: any[] = Array.isArray(body?.items) ? body.items : [];
+    const limit = args.limit ?? defaultLimit;
+    const offset = args.offset ?? 0;
+    const rows = opts.slice ? all.slice(offset, offset + limit) : all;
+    const total: number = typeof body?.total === 'number' ? body.total : all.length;
+    const nextOffset = offset + rows.length < total ? offset + rows.length : null;
+    return { total, offset, returned: rows.length, nextOffset, items: rows.map(project) };
+  };
+}
+
+const compactAsset = (a: any) => ({
+  code: a.code,
+  name: a.name,
+  status: a.status,
+  typeId: a.typeId,
+  locationId: a.locationId,
+  assignedToUserId: a.assignedToUserId,
+  ...(a.parentAssetId ? { parentAssetId: a.parentAssetId } : {}),
+  ...(a.archivedAt ? { archived: true } : {}),
+  url: a.url,
+});
+
+const compactLoan = (l: any) => ({
+  id: l.id,
+  borrowerName: l.borrowerName,
+  status: l.status,
+  purpose: l.purpose ?? undefined,
+  startedAt: l.startedAt ?? undefined,
+  expectedReturnAt: l.expectedReturnAt ?? undefined,
+  itemCount: Array.isArray(l.items) ? l.items.length : undefined,
+  openItemCount: Array.isArray(l.items)
+    ? l.items.filter((i: any) => !i.returnedAt).length
+    : undefined,
+  url: l.url,
+});
+
+/**
+ * Behaviour hints for clients (MCP tool annotations): destructive tools make
+ * a careful client ask before running them; idempotent ones are safe to retry.
+ */
+export const DESTRUCTIVE_TOOLS = new Set([
+  'archive_asset',
+  'bulk_update_assets',
+  'cancel_loan',
+  'reject_reservation',
+  'delete_contact',
+  'mark_inventory_missing_lost',
+  'update_org_settings',
+  'update_user',
+  'revoke_invitation',
+]);
+export const IDEMPOTENT_TOOLS = new Set([
+  'update_asset',
+  'archive_asset',
+  'unarchive_asset',
+  'assign_asset',
+  'unassign_asset',
+  'update_loan',
+  'update_contact',
+  'update_asset_type',
+  'update_location',
+  'scan_inventory_item',
+  'close_inventory',
+  'reopen_inventory',
+  'update_org_settings',
+  'update_user',
+]);
 
 const stripSlash = (u: string) => u.replace(/\/$/, '');
 const assetUrl = (appUrl: string, code: string) => `${stripSlash(appUrl)}/a/${code}`;
@@ -115,16 +210,18 @@ export const MCP_TOOLS: McpTool[] = [
   tool(
     'list_assets',
     'read',
-    'List/search assets. Filter by free text, status, type, location.',
+    'List/search assets. Filter by free text, status, type, location. Returns compact rows (code, name, status, ids, url) with paging info; use get_asset for full details.',
     {
       q: z.string().optional(),
       status: z.enum(ASSET_STATUSES).optional(),
       typeId: z.string().uuid().optional(),
       locationId: z.string().uuid().optional(),
       includeArchived: z.boolean().optional(),
+      ...paging(25),
     },
-    (a) => ({ method: 'GET', path: `/api/assets${qs(a)}` }),
+    (a) => ({ method: 'GET', path: `/api/assets${qs({ ...a, limit: a.limit ?? 25 })}` }),
     enrichAssets,
+    paged(compactAsset, 25),
   ),
   tool(
     'get_asset',
@@ -137,9 +234,11 @@ export const MCP_TOOLS: McpTool[] = [
   tool(
     'get_asset_events',
     'read',
-    'Get the event timeline for an asset (created/updated/assigned/loan/damage…).',
-    { code: z.string() },
+    'Get the event timeline for an asset (created/updated/assigned/loan/damage…), newest first. `via` names the AI agent when one performed the action.',
+    { code: z.string(), ...paging(30) },
     (a) => ({ method: 'GET', path: `/api/assets/${encodeURIComponent(a.code)}/events` }),
+    undefined,
+    paged((e) => e, 30, { slice: true }),
   ),
   tool(
     'create_asset',
@@ -227,14 +326,14 @@ export const MCP_TOOLS: McpTool[] = [
   tool(
     'list_loans',
     'read',
-    'List/search loans by borrower name. Each loan includes a `url` deep link.',
+    'List/search loans by borrower name, newest first. Returns compact rows (borrower, status, dates, item counts, url) with paging info; use get_loan for items.',
     {
       q: z.string().optional(),
-      limit: z.number().int().positive().optional(),
-      offset: z.number().int().nonnegative().optional(),
+      ...paging(20),
     },
-    (a) => ({ method: 'GET', path: `/api/loans${qs(a)}` }),
+    (a) => ({ method: 'GET', path: `/api/loans${qs({ ...a, limit: a.limit ?? 20 })}` }),
     enrichLoans,
+    paged(compactLoan, 20),
   ),
   tool(
     'get_loan',
@@ -507,15 +606,47 @@ export const MCP_TOOLS: McpTool[] = [
     'list_inventories',
     'read',
     'List inventory (stock-take) sessions, newest first, with their scan counts.',
-    {},
+    { ...paging(20) },
     () => ({ method: 'GET', path: '/api/inventory' }),
+    undefined,
+    paged(
+      (s) => ({
+        id: s.id,
+        name: s.name,
+        status: s.status,
+        locationId: s.locationId,
+        scanCount: s.scanCount,
+        createdAt: s.createdAt,
+        closedAt: s.closedAt ?? undefined,
+      }),
+      20,
+      { slice: true },
+    ),
   ),
   tool(
     'get_inventory',
     'read',
-    'Get an inventory session with its live report: expected, found, missing and unexpected assets.',
-    { id: z.string() },
+    'Get an inventory session with its live report: counts plus found, missing and unexpected assets (each list capped at maxPerList; `omitted` says how many were cut).',
+    {
+      id: z.string(),
+      maxPerList: z.number().int().min(0).max(1000).optional().describe('Default 100.'),
+    },
     (a) => ({ method: 'GET', path: `/api/inventory/${encodeURIComponent(a.id)}` }),
+    undefined,
+    (body, args) => {
+      const max = args.maxPerList ?? 100;
+      const report = body?.report;
+      if (!report) return body;
+      const omitted: Record<string, number> = {};
+      for (const key of ['found', 'missing', 'unexpected'] as const) {
+        const list = report[key];
+        if (Array.isArray(list) && list.length > max) {
+          omitted[key] = list.length - max;
+          report[key] = list.slice(0, max);
+        }
+      }
+      return Object.keys(omitted).length ? { ...body, omitted } : body;
+    },
   ),
   tool(
     'create_inventory',

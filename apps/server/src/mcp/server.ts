@@ -14,18 +14,36 @@ import type { EmailSender } from '../lib/email.js';
 import { callApi, createMcpDispatchApp, type McpDispatchApp } from './dispatch.js';
 import { runWithPrincipal, type McpPrincipal } from './principal.js';
 import { scopeAllowsWrite } from './oauth-store.js';
-import { MCP_TOOLS, type McpTool } from './tools.js';
+import { DESTRUCTIVE_TOOLS, IDEMPOTENT_TOOLS, MCP_TOOLS, type McpTool } from './tools.js';
 
 const SERVER_INFO = { name: 'inventory-hub', version: '0.1.0' } as const;
 
 type ToolResult = {
   content: { type: 'text'; text: string }[];
+  structuredContent?: Record<string, unknown>;
   isError?: boolean;
 };
 
+/**
+ * Compact JSON (no indentation — it's for a model, and whitespace is tokens).
+ * Object results are also returned as `structuredContent` for clients that
+ * consume it; the text copy keeps older clients working (per the MCP spec).
+ */
 function textResult(value: unknown, isError = false): ToolResult {
-  const text = typeof value === 'string' ? value : JSON.stringify(value, null, 2);
-  return { content: [{ type: 'text', text }], isError };
+  const text = typeof value === 'string' ? value : JSON.stringify(value);
+  const result: ToolResult = { content: [{ type: 'text', text }], isError };
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    result.structuredContent = value as Record<string, unknown>;
+  }
+  return result;
+}
+
+/** Router errors come back as `{ error: { message } }`; flatten for the model. */
+function errorResult(status: number, body: unknown): ToolResult {
+  const b = body as { error?: { message?: string; fields?: unknown } | string } | undefined;
+  const message = typeof b?.error === 'string' ? b.error : (b?.error?.message ?? `Request failed`);
+  const fields = typeof b?.error === 'object' ? b.error?.fields : undefined;
+  return textResult({ error: message, status, ...(fields ? { fields } : {}) }, true);
 }
 
 async function runTool(
@@ -52,8 +70,10 @@ async function runTool(
   const result = await runWithPrincipal(principal, () =>
     callApi(app, spec.method, spec.path, spec.body),
   );
-  const body = result.ok && t.enrich ? t.enrich(result.body, appUrl) : result.body;
-  return textResult(body, !result.ok);
+  if (!result.ok) return errorResult(result.status, result.body);
+  let body = t.enrich ? t.enrich(result.body, appUrl) : result.body;
+  if (t.shape) body = t.shape(body, args ?? {});
+  return textResult(body);
 }
 
 function buildServer(app: McpDispatchApp, appUrl: string): McpServer {
@@ -64,7 +84,17 @@ function buildServer(app: McpDispatchApp, appUrl: string): McpServer {
       {
         description: t.description,
         inputSchema: t.inputShape,
-        annotations: { readOnlyHint: t.access === 'read' },
+        annotations: {
+          readOnlyHint: t.access === 'read',
+          ...(t.access === 'write'
+            ? {
+                destructiveHint: DESTRUCTIVE_TOOLS.has(t.name),
+                idempotentHint: IDEMPOTENT_TOOLS.has(t.name),
+              }
+            : {}),
+          // Everything stays inside this inventory; no external side effects.
+          openWorldHint: false,
+        },
       },
       async (args: Record<string, unknown>, extra: { authInfo?: AuthInfo }) =>
         runTool(app, t, args, extra?.authInfo, appUrl),
