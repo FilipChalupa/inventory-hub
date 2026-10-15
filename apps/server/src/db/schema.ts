@@ -571,6 +571,9 @@ export const oauthTokens = sqliteTable(
     // When the connection was first authorized — carried across refresh
     // rotations so pruning old rotated rows doesn't lose it.
     connectedAt: integer('connected_at', { mode: 'timestamp_ms' }),
+    // Refresh-rotation lineage: every row issued from one authorization
+    // shares it. Replaying a rotated-away refresh token revokes the family.
+    familyId: text('family_id'),
     // Personal tokens: set once the "expires soon" email went out.
     expiryNotifiedAt: integer('expiry_notified_at', { mode: 'timestamp_ms' }),
     accessExpiresAt: integer('access_expires_at', { mode: 'timestamp_ms' }).notNull(),
@@ -601,7 +604,9 @@ export const mcpEvents = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     actorUserId: text('actor_user_id').references(() => users.id, { onDelete: 'set null' }),
-    type: text('type', { enum: ['connected', 'token_created', 'revoked'] }).notNull(),
+    type: text('type', {
+      enum: ['connected', 'token_created', 'revoked', 'reuse_revoked'],
+    }).notNull(),
     kind: text('kind', { enum: ['oauth', 'personal'] }).notNull(),
     connectionName: text('connection_name').notNull(),
     access: text('access', { enum: ['read', 'read-write'] }),

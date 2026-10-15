@@ -44,6 +44,26 @@ export async function notifyAgentConnected(
   }
 }
 
+/** Security notice: a replayed refresh token got the connection revoked. */
+export async function notifyAgentRevokedForReuse(
+  db: Db,
+  emailSender: EmailSender,
+  input: { userId: string; agentName: string; publicAppUrl: string; locale?: EmailLocale },
+): Promise<void> {
+  const user = db.select().from(users).where(eq(users.id, input.userId)).get();
+  if (!user || user.disabledAt) return;
+  const built = emailCopy(input.locale).agentReuseRevoked({
+    name: user.name,
+    agentName: input.agentName,
+    manageUrl: manageUrl(input.publicAppUrl),
+  });
+  try {
+    await emailSender.send({ to: user.email, subject: built.subject, text: built.text });
+  } catch (err) {
+    console.error(`Agent reuse-revoked email failed for ${user.email}:`, err);
+  }
+}
+
 /**
  * One email per user listing their personal tokens that expire within
  * {@link TOKEN_EXPIRY_WINDOW_DAYS}. Idempotent via `expiry_notified_at`.

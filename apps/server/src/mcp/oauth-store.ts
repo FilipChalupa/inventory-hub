@@ -172,6 +172,8 @@ export type IssueTokensInput = {
   /** Carried over on refresh rotation; defaults to now for a new connection. */
   connectedAt?: Date | null;
   lastUsedAt?: Date | null;
+  /** Carried over on refresh rotation; a new authorization starts a family. */
+  familyId?: string | null;
 };
 
 export type IssuedTokens = {
@@ -197,6 +199,7 @@ export function issueTokens(db: Db, input: IssueTokensInput): IssuedTokens {
       refreshExpiresAt: new Date(now + input.refreshTtlSeconds * 1000),
       connectedAt: input.connectedAt ?? new Date(now),
       lastUsedAt: input.lastUsedAt ?? null,
+      familyId: input.familyId ?? randomToken(12),
     })
     .run();
   // Keeps clients with live tokens clear of the unused-client prune.
@@ -250,17 +253,48 @@ export function verifyAccessToken(db: Db, token: string): VerifiedToken | null {
  * fresh access+refresh pair (RFC: refresh token rotation for public clients).
  * Returns null if the refresh token is invalid/expired/revoked.
  */
+export type ReusedRefreshToken = { clientId: string; userId: string; revokedRows: number };
+
+/**
+ * Rotates a refresh token: validates it, revokes the old row, and issues a
+ * fresh access+refresh pair (RFC: refresh token rotation for public clients).
+ * Returns null if the refresh token is invalid/expired/revoked.
+ *
+ * Presenting a refresh token that was already rotated away means two parties
+ * hold it — the legitimate client and whoever stole it (OAuth 2.1 §4.3.1).
+ * The whole family is then revoked, so both must re-authorize, and `onReuse`
+ * lets the caller tell the user.
+ */
 export function rotateRefreshToken(
   db: Db,
   refreshToken: string,
-  opts: { accessTtlSeconds: number; refreshTtlSeconds: number },
+  opts: {
+    accessTtlSeconds: number;
+    refreshTtlSeconds: number;
+    /** When set, a token issued to a different client is rejected untouched. */
+    clientId?: string;
+    onReuse?: (info: ReusedRefreshToken) => void;
+  },
 ): (IssuedTokens & { clientId: string; userId: string; audience: string | null }) | null {
   const row = db
     .select()
     .from(oauthTokens)
     .where(eq(oauthTokens.refreshTokenHash, hashToken(refreshToken)))
     .get();
-  if (!row || row.revokedAt) return null;
+  if (!row) return null;
+  if (opts.clientId && row.clientId !== opts.clientId) return null;
+  if (row.revokedAt) {
+    const revokedRows = db
+      .delete(oauthTokens)
+      .where(
+        row.familyId
+          ? eq(oauthTokens.familyId, row.familyId)
+          : and(eq(oauthTokens.clientId, row.clientId), eq(oauthTokens.userId, row.userId)),
+      )
+      .run().changes;
+    opts.onReuse?.({ clientId: row.clientId, userId: row.userId, revokedRows });
+    return null;
+  }
   if (row.refreshExpiresAt && row.refreshExpiresAt.getTime() < Date.now()) return null;
 
   return db.transaction((tx) => {
@@ -274,6 +308,7 @@ export function rotateRefreshToken(
       refreshTtlSeconds: opts.refreshTtlSeconds,
       connectedAt: row.connectedAt ?? row.createdAt,
       lastUsedAt: row.lastUsedAt,
+      familyId: row.familyId ?? row.id,
     });
     return { ...issued, clientId: row.clientId, userId: row.userId, audience: row.audience };
   });
@@ -311,9 +346,6 @@ export function revokeToken(db: Db, token: string): void {
     .run();
 }
 
-// Rotated-away rows are kept briefly so a client racing two refreshes gets a
-// clean invalid_grant instead of an unknown token, then dropped.
-const REVOKED_GRACE_MS = 24 * 60 * 60 * 1000;
 // A registered client with no tokens (never finished pairing, or everything
 // was revoked) is dropped after this long. A client that comes back later
 // simply re-registers.
@@ -322,8 +354,8 @@ const UNUSED_CLIENT_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 export type PruneResult = { codes: number; tokens: number; clients: number };
 
 /**
- * Housekeeping: drop expired authorization codes, dead token rows (rotated
- * away, or past their last expiry) and registered clients left without any
+ * Housekeeping: drop expired authorization codes, token rows past their last
+ * expiry, and registered clients left without any
  * token or pending code. Dynamic client registration is open, so without the
  * last step anyone could grow `oauth_clients` indefinitely.
  */
@@ -333,13 +365,12 @@ export function pruneExpiredOauth(db: Db, now: Date = new Date()): PruneResult {
   const tokens = db
     .delete(oauthTokens)
     .where(
-      or(
-        lt(oauthTokens.revokedAt, new Date(now.getTime() - REVOKED_GRACE_MS)),
-        // Dead once both the access token and (if any) the refresh token expired.
-        and(
-          lt(oauthTokens.accessExpiresAt, now),
-          or(isNull(oauthTokens.refreshExpiresAt), lt(oauthTokens.refreshExpiresAt, now)),
-        ),
+      // Dead once both the access token and (if any) the refresh token expired.
+      // Rotated-away rows stay until then on purpose: they are what lets a
+      // replayed refresh token be recognised (see rotateRefreshToken).
+      and(
+        lt(oauthTokens.accessExpiresAt, now),
+        or(isNull(oauthTokens.refreshExpiresAt), lt(oauthTokens.refreshExpiresAt, now)),
       ),
     )
     .run().changes;

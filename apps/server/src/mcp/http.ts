@@ -12,9 +12,12 @@ import { getMcpIssuer, getMcpResourceUrl } from '../env.js';
 import type { EmailSender } from '../lib/email.js';
 import { users } from '../db/schema.js';
 import { createOauthRoutes } from './oauth-routes.js';
+import { clientIp, hitRateLimit } from '../lib/rate-limit.js';
 import { getClient, touchToken, verifyAccessToken } from './oauth-store.js';
 import { createMcpRuntime } from './server.js';
 import type { McpPrincipal } from './principal.js';
+
+const MCP_IP_LIMIT = { bucket: 'mcp-ip', windowMs: 60_000, max: 1200 };
 
 /** Paths whose POST/PUT/DELETE requests must bypass CSRF (called by OAuth/MCP clients, not browsers). */
 export const MCP_CSRF_EXEMPT_PREFIXES = ['/mcp', '/token', '/register', '/authorize/consent'];
@@ -38,10 +41,24 @@ export function mountMcp(
     const resourceUrl = getMcpResourceUrl(env);
     const prmUrl = `${getMcpIssuer(env)}/.well-known/oauth-protected-resource`;
     const wwwAuth = `Bearer resource_metadata="${prmUrl}"`;
+    const tooMany = (retryAfter: number) =>
+      c.json(
+        {
+          error: 'rate_limited',
+          error_description: `Too many requests; retry in ${retryAfter}s.`,
+        },
+        429,
+        { 'Retry-After': String(retryAfter) },
+      );
     const unauthorized = (description: string) =>
       c.json({ error: 'invalid_token', error_description: description }, 401, {
         'WWW-Authenticate': `${wwwAuth}, error="invalid_token", error_description="${description}"`,
       });
+
+    // Per-IP backstop before any token lookup (tokens are 256-bit, so this is
+    // about load, not guessing).
+    const ipLimited = hitRateLimit(MCP_IP_LIMIT, clientIp(c.req.raw.headers));
+    if (ipLimited) return tooMany(ipLimited.retryAfter);
 
     const header = c.req.header('authorization');
     if (!header?.startsWith('Bearer ')) {
@@ -58,6 +75,13 @@ export function mountMcp(
 
     const user = db.select().from(users).where(eq(users.id, verified.userId)).get();
     if (!user || user.disabledAt) return unauthorized('User no longer active.');
+
+    // Per-connection budget: a looping agent is throttled on its own.
+    const limited = hitRateLimit(
+      { bucket: 'mcp-token', windowMs: 60_000, max: env.MCP_RATE_LIMIT_PER_MIN },
+      verified.id,
+    );
+    if (limited) return tooMany(limited.retryAfter);
     touchToken(db, verified.id);
 
     const agentName =

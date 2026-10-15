@@ -16,37 +16,49 @@ export type RateLimitOptions = {
   bucket: string;
 };
 
-function clientIp(headers: Headers): string {
+export function clientIp(headers: Headers): string {
   const xff = headers.get('x-forwarded-for');
   if (xff) return xff.split(',')[0]!.trim();
   return headers.get('x-real-ip') ?? 'unknown';
 }
 
+/**
+ * Counts one hit for `key` in `bucket`. Returns how long to wait when the
+ * limit is exceeded, or null when the request may proceed. Usable outside
+ * middleware, e.g. to key on an authenticated token instead of the IP.
+ */
+export function hitRateLimit(
+  options: RateLimitOptions,
+  key: string,
+): { retryAfter: number } | null {
+  let map = buckets.get(options.bucket);
+  if (!map) {
+    map = new Map();
+    buckets.set(options.bucket, map);
+  }
+  const now = Date.now();
+  let entry = map.get(key);
+  if (!entry || entry.resetAt < now) {
+    entry = { count: 0, resetAt: now + options.windowMs };
+    map.set(key, entry);
+  }
+  entry.count += 1;
+  if (entry.count > options.max) return { retryAfter: Math.ceil((entry.resetAt - now) / 1000) };
+  return null;
+}
+
 export function rateLimit(options: RateLimitOptions) {
   return createMiddleware<AppContext>(async (c, next) => {
-    const ip = clientIp(c.req.raw.headers);
-    let map = buckets.get(options.bucket);
-    if (!map) {
-      map = new Map();
-      buckets.set(options.bucket, map);
-    }
-    const now = Date.now();
-    let entry = map.get(ip);
-    if (!entry || entry.resetAt < now) {
-      entry = { count: 0, resetAt: now + options.windowMs };
-      map.set(ip, entry);
-    }
-    entry.count += 1;
-    if (entry.count > options.max) {
-      const retryAfter = Math.ceil((entry.resetAt - now) / 1000);
+    const limited = hitRateLimit(options, clientIp(c.req.raw.headers));
+    if (limited) {
       return c.json(
         {
           error: {
-            message: `Příliš mnoho požadavků, zkus to za ${retryAfter}s.`,
+            message: `Příliš mnoho požadavků, zkus to za ${limited.retryAfter}s.`,
           },
         },
         429,
-        { 'Retry-After': String(retryAfter) },
+        { 'Retry-After': String(limited.retryAfter) },
       );
     }
     await next();

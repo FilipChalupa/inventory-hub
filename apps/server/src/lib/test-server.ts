@@ -7,6 +7,7 @@ import type { Env } from '../env.js';
 import type { Email, EmailSender } from './email.js';
 import { SESSION_COOKIE, createSession } from './sessions.js';
 import { createTestDb } from './test-db.js';
+import { _resetRateLimits } from './rate-limit.js';
 
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -23,6 +24,7 @@ const TEST_ENV_BASE: Env = {
   EMAIL_LOCALE: 'cs',
   MCP_ACCESS_TOKEN_TTL: 3600,
   MCP_REFRESH_TOKEN_TTL: 60 * 60 * 24 * 30,
+  MCP_RATE_LIMIT_PER_MIN: 120,
   BACKUPS_CONFIGURED: false,
 };
 
@@ -61,6 +63,9 @@ export type TestServer = {
  * authenticated requests via `app.request`.
  */
 export function setupTestServer(envOverrides: Partial<Env> = {}): TestServer {
+  // Rate-limit buckets are process-global; start every test server clean so
+  // request-heavy suites can't trip each other's limits.
+  _resetRateLimits();
   const { db, sqlite } = createTestDb();
   const emailSender = new MemoryEmailSender();
   const env = { ...freshTestEnv(), ...envOverrides };

@@ -1,0 +1,1 @@
+ALTER TABLE `oauth_tokens` ADD `family_id` text;

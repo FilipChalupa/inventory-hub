@@ -94,6 +94,7 @@ export type AgentConnectedParams = {
   readWrite: boolean;
   manageUrl?: string;
 };
+export type AgentReuseRevokedParams = { name: string; agentName: string; manageUrl?: string };
 export type McpTokensExpiringParams = {
   name: string;
   items: { name: string; expires: string }[];
@@ -114,6 +115,7 @@ export type EmailCopy = {
   assetAssigned(p: AssetAssignedParams): Pick<Email, 'subject' | 'text'>;
   agentConnected(p: AgentConnectedParams): Pick<Email, 'subject' | 'text'>;
   mcpTokensExpiring(p: McpTokensExpiringParams): Pick<Email, 'subject' | 'text'>;
+  agentReuseRevoked(p: AgentReuseRevokedParams): Pick<Email, 'subject' | 'text'>;
 };
 
 const ROLE_CS: Record<Role, string> = {
@@ -290,6 +292,17 @@ const cs: EmailCopy = {
       p.manageUrl && p.manageUrl,
     ]),
   }),
+  agentReuseRevoked: (p) => ({
+    subject: `Inventory Hub: připojení „${p.agentName}" bylo z bezpečnostních důvodů zrušeno`,
+    text: body([
+      `Ahoj ${p.name},`,
+      '',
+      `připojení AI asistenta „${p.agentName}" k tvému účtu jsme zrušili: jeho přístupový token použil ještě někdo jiný, což může znamenat, že unikl.`,
+      'Pokud asistenta dál používáš, stačí ho znovu připojit. Zvaž také, kde všude byl přihlášený.',
+      '',
+      p.manageUrl && `Přehled připojení: ${p.manageUrl}`,
+    ]),
+  }),
 };
 
 const en: EmailCopy = {
@@ -451,6 +464,17 @@ const en: EmailCopy = {
       '',
       'Create a new token on the AI assistants page:',
       p.manageUrl && p.manageUrl,
+    ]),
+  }),
+  agentReuseRevoked: (p) => ({
+    subject: `Inventory Hub: connection "${p.agentName}" was revoked for security`,
+    text: body([
+      `Hi ${p.name},`,
+      '',
+      `we revoked the AI assistant "${p.agentName}" connected to your account: its access token was used by someone else too, which may mean it leaked.`,
+      'If you still use the assistant, just connect it again. Also consider where it was signed in.',
+      '',
+      p.manageUrl && `Your connections: ${p.manageUrl}`,
     ]),
   }),
 };

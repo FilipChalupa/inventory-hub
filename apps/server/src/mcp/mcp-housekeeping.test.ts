@@ -20,6 +20,17 @@ afterEach(() => server.close());
 
 const DAY = 24 * 60 * 60 * 1000;
 
+const initRequestBody = {
+  jsonrpc: '2.0',
+  id: 1,
+  method: 'initialize',
+  params: {
+    protocolVersion: '2025-06-18',
+    capabilities: {},
+    clientInfo: { name: 't', version: '1' },
+  },
+};
+
 function initRequest() {
   return new Request('http://localhost:5173/mcp', {
     method: 'POST',
@@ -212,5 +223,104 @@ describe('MCP emails, history and attribution', () => {
     expect(
       await runMcpTokenExpiryReminders(server.db, { send: async () => undefined }, opts),
     ).toEqual({ notifiedUsers: 0 });
+  });
+});
+
+describe('refresh token reuse', () => {
+  async function refresh(clientId: string, refreshToken: string) {
+    return server.app.request('http://localhost:5173/token', {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: refreshToken,
+        client_id: clientId,
+      }).toString(),
+    });
+  }
+
+  it('replaying a rotated refresh token revokes the whole family and tells the user', async () => {
+    const user = server.createUser();
+    const { client } = registerClient(server.db, {
+      redirectUris: ['http://x/cb'],
+      clientName: 'Leaky',
+    });
+    const first = issueTokens(server.db, {
+      clientId: client.id,
+      userId: user.id,
+      scope: 'mcp:read',
+      audience: null,
+      accessTtlSeconds: 3600,
+      refreshTtlSeconds: 3600,
+    });
+    // A second, independent authorization of the same client survives.
+    issueTokens(server.db, {
+      clientId: client.id,
+      userId: user.id,
+      scope: 'mcp:read',
+      audience: null,
+      accessTtlSeconds: 3600,
+      refreshTtlSeconds: 3600,
+    });
+
+    const ok = await refresh(client.id, first.refreshToken);
+    expect(ok.status).toBe(200);
+    const fresh = (await ok.json()) as { refresh_token: string };
+
+    // The old refresh token shows up again → theft assumed.
+    expect((await refresh(client.id, first.refreshToken)).status).toBe(400);
+    // …and the legitimately rotated one is dead too.
+    expect((await refresh(client.id, fresh.refresh_token)).status).toBe(400);
+    expect(server.db.select().from(oauthTokens).all()).toHaveLength(1);
+
+    expect(server.sentEmails.at(-1)).toMatchObject({ to: user.email });
+    expect(server.sentEmails.at(-1)!.subject).toContain('Leaky');
+  });
+
+  it('a refresh token presented by another client is rejected without rotating', async () => {
+    const user = server.createUser();
+    const a = registerClient(server.db, { redirectUris: ['http://x/cb'] }).client;
+    const b = registerClient(server.db, { redirectUris: ['http://x/cb'] }).client;
+    const t = issueTokens(server.db, {
+      clientId: a.id,
+      userId: user.id,
+      scope: 'mcp:read',
+      audience: null,
+      accessTtlSeconds: 3600,
+      refreshTtlSeconds: 3600,
+    });
+    expect((await refresh(b.id, t.refreshToken)).status).toBe(400);
+    expect((await refresh(a.id, t.refreshToken)).status).toBe(200);
+  });
+});
+
+describe('MCP rate limit', () => {
+  it('throttles one token without affecting another', async () => {
+    const limited = setupTestServer({ MCP_RATE_LIMIT_PER_MIN: 2 });
+    try {
+      const user = limited.createUser();
+      const mk = () =>
+        createPersonalToken(limited.db, { user, name: 'x', access: 'read', expiresInDays: 30 })
+          .token;
+      const [busy, calm] = [mk(), mk()];
+      const ping = (token: string) =>
+        limited.app.request('http://localhost:5173/mcp', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            accept: 'application/json, text/event-stream',
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(initRequestBody),
+        });
+      expect((await ping(busy)).status).toBe(200);
+      expect((await ping(busy)).status).toBe(200);
+      const third = await ping(busy);
+      expect(third.status).toBe(429);
+      expect(third.headers.get('retry-after')).toBeTruthy();
+      expect((await ping(calm)).status).toBe(200);
+    } finally {
+      limited.close();
+    }
   });
 });

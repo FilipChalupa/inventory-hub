@@ -49,6 +49,9 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(60 * 60 * 24 * 30),
+  // Max /mcp requests per minute for one token (connection). A looping agent
+  // gets 429s instead of starving everyone else.
+  MCP_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(120),
 });
 
 export type Env = z.infer<typeof envSchema>;

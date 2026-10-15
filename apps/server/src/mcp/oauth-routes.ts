@@ -36,9 +36,10 @@ import {
   scopeStringFor,
   verifyClientSecret,
   verifyPkce,
+  type ReusedRefreshToken,
 } from './oauth-store.js';
 import { recordMcpEvent } from './connections.js';
-import { notifyAgentConnected } from './notify.js';
+import { notifyAgentConnected, notifyAgentRevokedForReuse } from './notify.js';
 
 // Cookie capturing a pending /authorize request across the Google login
 // round-trip. The auth callback in routes/auth.ts honours it. Keep this string
@@ -461,10 +462,33 @@ export function createOauthRoutes() {
     if (grantType === 'refresh_token') {
       const refreshToken = get('refresh_token');
       if (!refreshToken) return c.json({ error: 'invalid_request' }, 400);
+      let reused: ReusedRefreshToken | null = null;
       const rotated = rotateRefreshToken(db, refreshToken, {
         accessTtlSeconds: env.MCP_ACCESS_TOKEN_TTL,
         refreshTtlSeconds: env.MCP_REFRESH_TOKEN_TTL,
+        clientId,
+        onReuse: (info) => {
+          reused = info;
+        },
       });
+      if (reused) {
+        const { userId } = reused as ReusedRefreshToken;
+        const agentName = client.clientName ?? clientId;
+        recordMcpEvent(db, {
+          userId,
+          actorUserId: null,
+          type: 'reuse_revoked',
+          kind: 'oauth',
+          connectionName: agentName,
+          access: null,
+        });
+        await notifyAgentRevokedForReuse(db, c.get('emailSender'), {
+          userId,
+          agentName,
+          publicAppUrl: env.PUBLIC_APP_URL,
+          locale: env.EMAIL_LOCALE,
+        });
+      }
       if (!rotated || rotated.clientId !== clientId) {
         return c.json(
           { error: 'invalid_grant', error_description: 'Bad or expired refresh token.' },
