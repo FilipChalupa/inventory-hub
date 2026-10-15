@@ -80,7 +80,11 @@ and revocations.
 Users get an email whenever an agent is connected to their account or a
 personal token is created, and a reminder a week before a personal token
 expires. Actions an agent performs show up in the audit log and asset/loan
-histories with a "via AI" badge naming the connection. The consent screen
+histories with a "via AI" badge naming the connection. Replaying a refresh
+token that was already rotated away (a sign it leaked) revokes the whole
+connection and emails the user. Each connection is rate-limited
+(`MCP_RATE_LIMIT_PER_MIN`, default 120/min). List tools return compact, paged
+rows to keep the agent's context small. The consent screen
 preselects read-only and follows the user's app language.
 
 Tools mirror the REST API (assets, loans, contacts, damages, locations, asset

@@ -151,7 +151,7 @@ export type McpConnectionRow = {
 export type McpEventRow = {
   id: string;
   userId: string;
-  type: 'connected' | 'token_created' | 'revoked';
+  type: 'connected' | 'token_created' | 'revoked' | 'reuse_revoked';
   kind: 'oauth' | 'personal';
   connectionName: string;
   access: McpAccess | null;

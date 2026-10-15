@@ -341,12 +341,13 @@ function HistorySection({ all }: { all: boolean }) {
     queryFn: () => apiClient.mcpConnections.events({ all }),
   });
   const items = events.data?.items ?? [];
-  const label = (e: McpEventRow) =>
-    e.type === 'connected'
-      ? t.agents.eventConnected
-      : e.type === 'token_created'
-        ? t.agents.eventTokenCreated
-        : t.agents.eventRevoked;
+  const labels: Record<McpEventRow['type'], string> = {
+    connected: t.agents.eventConnected,
+    token_created: t.agents.eventTokenCreated,
+    revoked: t.agents.eventRevoked,
+    reuse_revoked: t.agents.eventReuseRevoked,
+  };
+  const label = (e: McpEventRow) => labels[e.type];
   return (
     <Card>
       <h2 className="font-semibold mb-2">
@@ -361,7 +362,9 @@ function HistorySection({ all }: { all: boolean }) {
           {items.map((e) => (
             <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-1.5">
               <span>
-                <span className="text-slate-500">{label(e)}</span>{' '}
+                <span className={e.type === 'reuse_revoked' ? 'text-red-600' : 'text-slate-500'}>
+                  {label(e)}
+                </span>{' '}
                 <span className="font-medium break-all">{e.connectionName}</span>
                 {e.access && (
                   <span className="text-xs text-slate-500">

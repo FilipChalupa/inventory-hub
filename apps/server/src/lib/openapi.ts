@@ -18,6 +18,7 @@ import {
   addLoanItemsInput,
   returnLoanItemInput,
   createApiKeyInput,
+  createMcpTokenInput,
   createInventorySessionInput,
   updateInventorySessionInput,
   importPayloadSchema,
@@ -69,6 +70,28 @@ export function openApiDocument() {
         Error: {
           type: 'object',
           properties: { error: { type: 'object', properties: { message: { type: 'string' } } } },
+        },
+        CreateMcpToken: j(createMcpTokenInput),
+        McpConnection: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'OAuth client id or personal token id' },
+            kind: { type: 'string', enum: ['oauth', 'personal'] },
+            name: { type: 'string' },
+            access: { type: 'string', enum: ['read', 'read-write'] },
+            tokenPrefix: { type: 'string', nullable: true },
+            createdAt: { type: 'string', format: 'date-time' },
+            lastUsedAt: { type: 'string', format: 'date-time', nullable: true },
+            expiresAt: { type: 'string', format: 'date-time', nullable: true },
+            user: {
+              type: 'object',
+              properties: {
+                id: { type: 'string' },
+                name: { type: 'string' },
+                email: { type: 'string' },
+              },
+            },
+          },
         },
         Asset: j(assetSchema),
         CreateAsset: j(createAssetInput),
@@ -637,6 +660,90 @@ export function openApiDocument() {
               },
             }),
           },
+        },
+      },
+      '/api/mcp-connections': {
+        get: {
+          summary: 'List live MCP connections (OAuth clients + personal tokens)',
+          description:
+            "The caller's own AI-agent connections. Every role may call it; `all=1` is admin-only.",
+          parameters: [
+            {
+              name: 'all',
+              in: 'query',
+              schema: { type: 'string', enum: ['1'] },
+              description: 'Admins: the whole organization instead of just the caller.',
+            },
+          ],
+          responses: {
+            200: ok('Connections', {
+              type: 'object',
+              properties: { items: { type: 'array', items: ref('McpConnection') } },
+            }),
+            403: ok('all=1 by a non-admin', ref('Error')),
+          },
+        },
+      },
+      '/api/mcp-connections/tokens': {
+        post: {
+          summary: 'Create a personal MCP token — token returned once',
+          description:
+            'For agents that cannot run the OAuth flow. Send it to `/mcp` as `Authorization: Bearer ihm_…`. The owner is emailed.',
+          requestBody: jsonBody(ref('CreateMcpToken')),
+          responses: {
+            201: ok('Created', {
+              allOf: [
+                ref('McpConnection'),
+                { type: 'object', properties: { token: { type: 'string' } } },
+              ],
+            }),
+          },
+        },
+      },
+      '/api/mcp-connections/tokens/{id}': {
+        delete: {
+          summary: 'Revoke a personal MCP token (own, or any as admin)',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('Revoked'), 404: ok('Not found', ref('Error')) },
+        },
+      },
+      '/api/mcp-connections/oauth/{clientId}': {
+        delete: {
+          summary: 'Disconnect an OAuth MCP client',
+          parameters: [
+            { name: 'clientId', in: 'path', required: true, schema: { type: 'string' } },
+            {
+              name: 'userId',
+              in: 'query',
+              schema: { type: 'string' },
+              description: 'Admins: whose connection (defaults to the caller).',
+            },
+          ],
+          responses: {
+            200: ok('Disconnected'),
+            403: ok("Someone else's connection, caller not admin", ref('Error')),
+            404: ok('No such connection', ref('Error')),
+          },
+        },
+      },
+      '/api/mcp-connections/events': {
+        get: {
+          summary: 'MCP access history (connects, new tokens, revocations)',
+          parameters: [
+            {
+              name: 'all',
+              in: 'query',
+              schema: { type: 'string', enum: ['1'] },
+              description: 'Admins: the whole organization instead of just the caller.',
+            },
+          ],
+          responses: { 200: ok('Newest first, up to 50') },
+        },
+      },
+      '/api/mcp-connections/tools': {
+        get: {
+          summary: 'Catalogue of MCP tools with their read/write access',
+          responses: { 200: ok('Tools') },
         },
       },
       '/api/api-keys/{id}': {

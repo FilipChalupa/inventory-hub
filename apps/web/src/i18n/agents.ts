@@ -75,6 +75,7 @@ export const agents = ns({
     eventConnected: 'připojen asistent',
     eventTokenCreated: 'vytvořen token',
     eventRevoked: 'odpojeno',
+    eventReuseRevoked: 'odpojeno automaticky — token zřejmě unikl',
     eventBy: (name: string) => `provedl(a) ${name}`,
   },
   en: {
@@ -144,6 +145,7 @@ export const agents = ns({
     eventConnected: 'assistant connected',
     eventTokenCreated: 'token created',
     eventRevoked: 'disconnected',
+    eventReuseRevoked: 'disconnected automatically — token likely leaked',
     eventBy: (name: string) => `by ${name}`,
   },
 });

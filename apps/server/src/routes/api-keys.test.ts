@@ -179,6 +179,18 @@ describe('OpenAPI', () => {
     expect(createLoan).toBeDefined();
     expect(createLoan!.properties).toHaveProperty('assetCodes');
     expect(createLoan!.properties).toHaveProperty('borrowerName');
+    // MCP connection management is documented too.
+    for (const path of [
+      '/api/mcp-connections',
+      '/api/mcp-connections/tokens',
+      '/api/mcp-connections/tokens/{id}',
+      '/api/mcp-connections/oauth/{clientId}',
+      '/api/mcp-connections/events',
+      '/api/mcp-connections/tools',
+    ]) {
+      expect(body.paths[path], path).toBeTruthy();
+    }
+    expect(body.components.schemas.CreateMcpToken!.properties).toHaveProperty('access');
   });
 
   it('serves a self-hosted docs page and its assets (no CDN)', async () => {
