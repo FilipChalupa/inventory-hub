@@ -1,3 +1,15 @@
+const STATUS_TITLES_EN: Record<number, string> = {
+  400: 'Bad request',
+  401: 'Not signed in',
+  403: 'Access denied',
+  404: 'Page not found',
+  409: 'Conflict',
+  410: 'No longer valid',
+  429: 'Too many requests',
+  500: 'Server error',
+  503: 'Service unavailable',
+};
+
 const STATUS_TITLES: Record<number, string> = {
   400: 'Neplatný požadavek',
   401: 'Nepřihlášeno',
@@ -23,12 +35,13 @@ function escapeHtml(value: string): string {
 export function renderErrorPage(
   status: number,
   message: string,
-  opts: { homeUrl?: string } = {},
+  opts: { homeUrl?: string; locale?: 'cs' | 'en' } = {},
 ): string {
-  const title = STATUS_TITLES[status] ?? 'Chyba';
+  const en = opts.locale === 'en';
+  const title = (en ? STATUS_TITLES_EN[status] : STATUS_TITLES[status]) ?? (en ? 'Error' : 'Chyba');
   const homeUrl = opts.homeUrl ?? '/';
   return `<!DOCTYPE html>
-<html lang="cs">
+<html lang="${en ? 'en' : 'cs'}">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -80,7 +93,7 @@ export function renderErrorPage(
       <div class="status">${status}</div>
       <h1>${escapeHtml(title)}</h1>
       <p>${escapeHtml(message)}</p>
-      <a class="home" href="${escapeHtml(homeUrl)}">Zpět do aplikace</a>
+      <a class="home" href="${escapeHtml(homeUrl)}">${en ? 'Back to the app' : 'Zpět do aplikace'}</a>
     </main>
   </body>
 </html>

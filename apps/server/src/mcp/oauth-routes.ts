@@ -20,6 +20,7 @@ import type { AppContext } from '../app.js';
 import { getMcpIssuer, getMcpResourceUrl } from '../env.js';
 import type { Env } from '../env.js';
 import { renderErrorPage } from '../lib/error-page.js';
+import { requestLocale, type UiLocale } from '../lib/request-locale.js';
 import { rateLimit } from '../lib/rate-limit.js';
 import { SESSION_COOKIE, loadSession } from '../lib/sessions.js';
 import {
@@ -75,38 +76,84 @@ const consentPageCss = `
   label.opt:has(input:checked){border-color:#2563eb;background:#eff4ff}
   .opt strong{display:block}
   .opt span{color:#666;font-size:.9rem}
+  .hint{font-size:.85rem;color:#777}
   .actions{display:flex;gap:.75rem;margin-top:1.5rem}
   button{flex:1;padding:.7rem 1rem;border-radius:8px;border:0;font-size:1rem;cursor:pointer}
   .approve{background:#2563eb;color:#fff}
   .deny{background:#e8eaed;color:#333}
 `;
 
+const CONSENT_COPY = {
+  cs: {
+    connect: (app: string) => `Připojit ${app}`,
+    unknownApp: 'Neznámá aplikace',
+    asks: (app: string, email: string) =>
+      `Aplikace <strong>${app}</strong> žádá o přístup k Inventory Hubu jako <strong>${email}</strong>.`,
+    readWrite: 'Čtení i zápis',
+    readWriteHint: 'Plný přístup v rozsahu tvé role (vytváření výpůjček, úpravy…).',
+    read: 'Jen čtení',
+    readHint: 'Aplikace může jen číst data, nic neměnit.',
+    manageHint: 'Připojení můžeš kdykoli odpojit na stránce AI asistenti v aplikaci.',
+    deny: 'Odmítnout',
+    approve: 'Povolit',
+    badRequest: 'Neplatný autorizační požadavek.',
+    unknownClient: 'Neznámý klient (client_id).',
+    redirectMismatch: 'redirect_uri neodpovídá registrovanému klientovi.',
+    incomplete: 'Neúplný požadavek.',
+    badClient: 'Neplatný klient nebo redirect_uri.',
+    sessionExpired: 'Přihlášení vypršelo. Zkus to prosím znovu.',
+  },
+  en: {
+    connect: (app: string) => `Connect ${app}`,
+    unknownApp: 'Unknown application',
+    asks: (app: string, email: string) =>
+      `<strong>${app}</strong> is requesting access to Inventory Hub as <strong>${email}</strong>.`,
+    readWrite: 'Read & write',
+    readWriteHint: 'Full access within your role (creating loans, editing…).',
+    read: 'Read only',
+    readHint: 'The application can only read data, never change it.',
+    manageHint: 'You can disconnect it at any time on the AI assistants page in the app.',
+    deny: 'Deny',
+    approve: 'Allow',
+    badRequest: 'Invalid authorization request.',
+    unknownClient: 'Unknown client (client_id).',
+    redirectMismatch: 'redirect_uri does not match the registered client.',
+    incomplete: 'Incomplete request.',
+    badClient: 'Invalid client or redirect_uri.',
+    sessionExpired: 'Your sign-in expired. Please try again.',
+  },
+} satisfies Record<UiLocale, unknown>;
+
 function renderConsent(opts: {
+  locale: UiLocale;
   clientName: string;
   userEmail: string;
   hidden: Record<string, string>;
 }): string {
+  const t = CONSENT_COPY[opts.locale];
+  const app = escapeHtml(opts.clientName);
   const hiddenInputs = Object.entries(opts.hidden)
     .map(([k, v]) => `<input type="hidden" name="${escapeHtml(k)}" value="${escapeHtml(v)}">`)
     .join('');
-  return `<!doctype html><html lang="cs"><head><meta charset="utf-8">
+  // Read-only is preselected: least privilege unless the user opts into writes.
+  return `<!doctype html><html lang="${opts.locale}"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Připojit ${escapeHtml(opts.clientName)}</title><style>${consentPageCss}</style></head>
+<title>${t.connect(app)}</title><style>${consentPageCss}</style></head>
 <body><div class="card">
-<h1>Připojit ${escapeHtml(opts.clientName)}</h1>
-<p>Aplikace <strong>${escapeHtml(opts.clientName)}</strong> žádá o přístup k inventory-hubu
-jako <strong>${escapeHtml(opts.userEmail)}</strong>.</p>
+<h1>${t.connect(app)}</h1>
+<p>${t.asks(app, escapeHtml(opts.userEmail))}</p>
 <form method="post" action="/authorize/consent">
 ${hiddenInputs}
 <div class="scopes">
-  <label class="opt"><input type="radio" name="grant" value="read-write" checked>
-    <span><strong>Čtení i zápis</strong><span>Plný přístup v rozsahu tvé role (vytváření výpůjček, úpravy…).</span></span></label>
-  <label class="opt"><input type="radio" name="grant" value="read">
-    <span><strong>Jen čtení</strong><span>Aplikace může jen číst data, nic neměnit.</span></span></label>
+  <label class="opt"><input type="radio" name="grant" value="read" checked>
+    <span><strong>${t.read}</strong><span>${t.readHint}</span></span></label>
+  <label class="opt"><input type="radio" name="grant" value="read-write">
+    <span><strong>${t.readWrite}</strong><span>${t.readWriteHint}</span></span></label>
 </div>
+<p class="hint">${t.manageHint}</p>
 <div class="actions">
-  <button class="deny" type="submit" name="decision" value="deny">Odmítnout</button>
-  <button class="approve" type="submit" name="decision" value="approve">Povolit</button>
+  <button class="deny" type="submit" name="decision" value="deny">${t.deny}</button>
+  <button class="approve" type="submit" name="decision" value="approve">${t.approve}</button>
 </div>
 </form>
 </div></body></html>`;
@@ -226,18 +273,20 @@ export function createOauthRoutes() {
     (c) => {
       const env = c.get('env');
       const db = c.get('db');
+      const locale = requestLocale(c, env.EMAIL_LOCALE);
+      const t = CONSENT_COPY[locale];
       const fail = (status: 400, message: string) =>
-        c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL }), status);
+        c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL, locale }), status);
 
       const parsed = authorizeQuery.safeParse(c.req.query());
-      if (!parsed.success) return fail(400, 'Neplatný autorizační požadavek.');
+      if (!parsed.success) return fail(400, t.badRequest);
       const q = parsed.data;
 
       // Validate client + redirect_uri BEFORE trusting the redirect target.
       const client = getClient(db, q.client_id);
-      if (!client) return fail(400, 'Neznámý klient (client_id).');
+      if (!client) return fail(400, t.unknownClient);
       if (!client.redirectUris.includes(q.redirect_uri)) {
-        return fail(400, 'redirect_uri neodpovídá registrovanému klientovi.');
+        return fail(400, t.redirectMismatch);
       }
       if (q.response_type !== 'code') {
         return c.redirect(
@@ -272,7 +321,8 @@ export function createOauthRoutes() {
 
       return c.html(
         renderConsent({
-          clientName: client.clientName || 'Neznámá aplikace',
+          locale,
+          clientName: client.clientName || t.unknownApp,
           userEmail: session.user.email,
           hidden: {
             client_id: q.client_id,
@@ -291,8 +341,10 @@ export function createOauthRoutes() {
   app.post('/authorize/consent', async (c) => {
     const env = c.get('env');
     const db = c.get('db');
+    const locale = requestLocale(c, env.EMAIL_LOCALE);
+    const t = CONSENT_COPY[locale];
     const fail = (status: 400, message: string) =>
-      c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL }), status);
+      c.html(renderErrorPage(status, message, { homeUrl: env.PUBLIC_APP_URL, locale }), status);
 
     const form = await c.req.formData();
     const get = (k: string) => (form.get(k) as string | null) ?? undefined;
@@ -301,16 +353,17 @@ export function createOauthRoutes() {
     const codeChallenge = get('code_challenge');
     const state = get('state') || undefined;
     const resource = get('resource') || undefined;
-    const grant = get('grant') === 'read' ? 'read' : 'read-write';
+    // Anything but an explicit read-write choice falls back to least privilege.
+    const grant = get('grant') === 'read-write' ? 'read-write' : 'read';
     const decision = get('decision');
 
-    if (!clientId || !redirectUri || !codeChallenge) return fail(400, 'Neúplný požadavek.');
+    if (!clientId || !redirectUri || !codeChallenge) return fail(400, t.incomplete);
     const client = getClient(db, clientId);
     if (!client || !client.redirectUris.includes(redirectUri)) {
-      return fail(400, 'Neplatný klient nebo redirect_uri.');
+      return fail(400, t.badClient);
     }
     const session = loadSession(db, getCookie(c, SESSION_COOKIE));
-    if (!session) return fail(400, 'Přihlášení vypršelo. Zkus to prosím znovu.');
+    if (!session) return fail(400, t.sessionExpired);
 
     if (decision !== 'approve') {
       return c.redirect(

@@ -156,8 +156,11 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   activeLocale = locale;
   // Reflect the active language on <html lang> so assistive tech announces
   // content with the right pronunciation (index.html ships a static "cs").
+  // Also mirror it into a cookie so server-rendered pages (the MCP OAuth
+  // consent screen) speak the same language.
   useEffect(() => {
     document.documentElement.lang = locale;
+    document.cookie = `ih_locale=${locale}; path=/; max-age=31536000; samesite=lax`;
   }, [locale]);
   const setLocale = useCallback((l: Locale) => {
     try {

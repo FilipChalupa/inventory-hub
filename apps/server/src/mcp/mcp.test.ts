@@ -377,3 +377,36 @@ describe('MCP full flow', () => {
     expect(call.result.isError).toBe(true);
   });
 });
+
+describe('MCP consent localization', () => {
+  async function consentPage(opts: { lang?: string; localeCookie?: string } = {}) {
+    const { client_id } = await registerClient();
+    const qs = new URLSearchParams({
+      response_type: 'code',
+      client_id,
+      redirect_uri: 'http://localhost:8123/callback',
+      code_challenge: 'x',
+      code_challenge_method: 'S256',
+    });
+    let cookie = server.loginAs(server.createUser());
+    if (opts.localeCookie) cookie += `; ih_locale=${opts.localeCookie}`;
+    const headers: Record<string, string> = { Cookie: cookie };
+    if (opts.lang) headers['accept-language'] = opts.lang;
+    const res = await server.app.request(`http://localhost:5173/authorize?${qs}`, { headers });
+    return res.text();
+  }
+
+  it('follows the app language cookie, then Accept-Language', async () => {
+    expect(await consentPage()).toContain('Povolit');
+    expect(await consentPage({ lang: 'en-US,en;q=0.9' })).toContain('Allow');
+    expect(await consentPage({ lang: 'en-US', localeCookie: 'cs' })).toContain('Povolit');
+  });
+
+  it('preselects read-only and localizes errors', async () => {
+    expect(await consentPage({ lang: 'en' })).toMatch(/value="read" checked/);
+    const err = await server.app.request('http://localhost:5173/authorize?client_id=nope', {
+      headers: { 'accept-language': 'en' },
+    });
+    expect(await err.text()).toContain('Invalid authorization request.');
+  });
+});
