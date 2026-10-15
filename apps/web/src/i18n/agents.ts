@@ -54,6 +54,28 @@ export const agents = ns({
     disconnectMessage:
       'Asistent okamžitě ztratí přístup. Pro opětovné připojení bude potřeba nová autorizace nebo nový token.',
     disconnected: 'Odpojeno',
+
+    // Verify
+    verify: 'Vyzkoušet token',
+    verifying: 'Zkouším…',
+    verifyOk: (n: number) => `✓ Funguje — asistent uvidí ${n} nástrojů.`,
+    verifyFail: (e: string) => `✗ Nepodařilo se připojit: ${e}`,
+
+    // Tools
+    toolsTitle: 'Co asistent umí',
+    toolsIntro:
+      'Nástroje, které asistent dostane. Zápisové fungují jen u připojení s právem zápisu a vždy jen v rozsahu tvé role.',
+    toolsRead: (n: number) => `Čtení (${n})`,
+    toolsWrite: (n: number) => `Zápis (${n})`,
+
+    // History
+    historyTitle: 'Historie',
+    historyOrgTitle: 'Historie v organizaci',
+    historyEmpty: 'Zatím žádné záznamy.',
+    eventConnected: 'připojen asistent',
+    eventTokenCreated: 'vytvořen token',
+    eventRevoked: 'odpojeno',
+    eventBy: (name: string) => `provedl(a) ${name}`,
   },
   en: {
     title: 'AI assistants (MCP)',
@@ -104,5 +126,24 @@ export const agents = ns({
     disconnectMessage:
       'The assistant loses access immediately. Reconnecting will need a new authorization or a new token.',
     disconnected: 'Disconnected',
+
+    verify: 'Test token',
+    verifying: 'Testing…',
+    verifyOk: (n: number) => `✓ Works — the assistant will see ${n} tools.`,
+    verifyFail: (e: string) => `✗ Could not connect: ${e}`,
+
+    toolsTitle: 'What the assistant can do',
+    toolsIntro:
+      'Tools the assistant gets. Write tools only work on read-write connections and always within your role.',
+    toolsRead: (n: number) => `Read (${n})`,
+    toolsWrite: (n: number) => `Write (${n})`,
+
+    historyTitle: 'History',
+    historyOrgTitle: 'Organization history',
+    historyEmpty: 'Nothing yet.',
+    eventConnected: 'assistant connected',
+    eventTokenCreated: 'token created',
+    eventRevoked: 'disconnected',
+    eventBy: (name: string) => `by ${name}`,
   },
 });

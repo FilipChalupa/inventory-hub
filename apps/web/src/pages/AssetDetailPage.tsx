@@ -23,6 +23,7 @@ import { AssetPhotosCard } from './asset-detail/AssetPhotosCard.js';
 import { ExternalIdsCard } from './asset-detail/ExternalIdsCard.js';
 import { EditAssetForm } from './asset-detail/EditAssetForm.js';
 import { NewDamageForm } from './asset-detail/NewDamageForm.js';
+import { ViaAgentBadge } from '../components/ViaAgentBadge.js';
 import {
   FragmentRow,
   formatCustomFieldValue,
@@ -703,6 +704,7 @@ export function AssetDetailPage() {
             <li key={e.id} className="py-1.5 flex justify-between gap-4">
               <span className="text-xs text-slate-500">
                 {t.assetDetail.eventLabels[e.type] ?? e.type}
+                <ViaAgentBadge via={e.via} />
               </span>
               <span className="text-xs text-slate-500">{formatDate(e.occurredAt)}</span>
             </li>

@@ -80,6 +80,8 @@ export type AssetEventRow = {
   actorUserId: string | null;
   type: string;
   payload: Record<string, unknown>;
+  /** Name of the AI agent (MCP) that performed the action, if any. */
+  via: string | null;
   occurredAt: string;
 };
 
@@ -146,12 +148,28 @@ export type McpConnectionRow = {
   user: { id: string; name: string; email: string };
 };
 
+export type McpEventRow = {
+  id: string;
+  userId: string;
+  type: 'connected' | 'token_created' | 'revoked';
+  kind: 'oauth' | 'personal';
+  connectionName: string;
+  access: McpAccess | null;
+  occurredAt: string;
+  user: { id: string; name: string; email: string };
+  actor: { id: string; name: string; email: string } | null;
+};
+
+export type McpToolRow = { name: string; description: string; access: 'read' | 'write' };
+
 export type LoanEventRow = {
   id: string;
   type: string;
   occurredAt: string;
   actorUserId: string | null;
   actorName: string | null;
+  /** Name of the AI agent (MCP) that performed the action, if any. */
+  via: string | null;
   assetCode: string | null;
   payload: Record<string, unknown>;
 };
@@ -747,6 +765,9 @@ export const apiClient = {
   mcpConnections: {
     list: (opts: { all?: boolean } = {}) =>
       api<{ items: McpConnectionRow[] }>(`/api/mcp-connections${opts.all ? '?all=1' : ''}`),
+    events: (opts: { all?: boolean } = {}) =>
+      api<{ items: McpEventRow[] }>(`/api/mcp-connections/events${opts.all ? '?all=1' : ''}`),
+    tools: () => api<{ items: McpToolRow[] }>('/api/mcp-connections/tools'),
     createToken: (input: Partial<CreateMcpTokenInput> & { name: string }) =>
       api<McpConnectionRow & { token: string }>('/api/mcp-connections/tokens', {
         method: 'POST',

@@ -570,6 +570,7 @@ export const loanRoutes = new Hono<AppContext>()
         occurredAt: assetEvents.occurredAt,
         actorUserId: assetEvents.actorUserId,
         actorName: users.name,
+        via: assetEvents.via,
         assetCode: assets.code,
         payload: assetEvents.payload,
       })

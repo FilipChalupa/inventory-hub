@@ -13,6 +13,13 @@ const config: UserConfig & { test: Record<string, unknown> } = {
       '/api': apiTarget,
       '/health': apiTarget,
       '/auth': apiTarget,
+      // Remote MCP endpoint + its OAuth authorization server, so the connector
+      // URL shown in the app (PUBLIC_APP_URL + /mcp) also works in dev.
+      '/mcp': apiTarget,
+      '/.well-known': apiTarget,
+      '/authorize': apiTarget,
+      '/token': apiTarget,
+      '/register': apiTarget,
     },
   },
   build: {

@@ -17,6 +17,7 @@ import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { useT, getLocale } from '../i18n/index.js';
+import { ViaAgentBadge } from '../components/ViaAgentBadge.js';
 import { localeTag } from '../i18n/util.js';
 
 export function LoanDetailPage() {
@@ -576,7 +577,8 @@ function LoanHistoryCard({ events }: { events: LoanEventRow[] }) {
                   )}
                 </span>
                 <span className="text-xs text-slate-500">
-                  {e.actorName ?? t.loanDetail.system} ·{' '}
+                  {e.actorName ?? t.loanDetail.system}
+                  <ViaAgentBadge via={e.via} /> ·{' '}
                   {new Date(e.occurredAt).toLocaleString(localeTag(getLocale()))}
                 </span>
               </div>

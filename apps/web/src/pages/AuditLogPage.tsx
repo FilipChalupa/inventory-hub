@@ -3,6 +3,7 @@ import { errorMessage } from '../lib/errors.js';
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../lib/api.js';
+import { ViaAgentBadge } from '../components/ViaAgentBadge.js';
 import { Button, Card, Input, Select, SkeletonList, formatDate } from '../components/ui.js';
 import { useT } from '../i18n/index.js';
 
@@ -159,6 +160,7 @@ export function AuditLogPage() {
                     {e.actorUserId
                       ? (userById.get(e.actorUserId) ?? t.common.none)
                       : t.audit.system}
+                    <ViaAgentBadge via={e.via} />
                   </td>
                   <td className="py-1.5 px-3 text-xs text-slate-500 dark:text-slate-400 max-w-md truncate">
                     {payloadSummary(e.payload)}

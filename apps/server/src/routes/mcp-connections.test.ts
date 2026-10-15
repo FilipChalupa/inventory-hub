@@ -168,3 +168,17 @@ describe('OAuth connections', () => {
     expect(del.status).toBe(200);
   });
 });
+
+describe('tool catalogue', () => {
+  it('lists every MCP tool with its access level', async () => {
+    const cookie = server.loginAs(server.createUser({ role: 'member' }));
+    const res = await server.authRequest('/api/mcp-connections/tools', { cookie });
+    const body = (await res.json()) as { items: { name: string; access: string }[] };
+    expect(body.items).toContainEqual(
+      expect.objectContaining({ name: 'list_assets', access: 'read' }),
+    );
+    expect(body.items).toContainEqual(
+      expect.objectContaining({ name: 'create_loan', access: 'write' }),
+    );
+  });
+});

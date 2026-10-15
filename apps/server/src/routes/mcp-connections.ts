@@ -12,6 +12,7 @@ import {
   revokePersonalToken,
 } from '../mcp/connections.js';
 import { notifyAgentConnected } from '../mcp/notify.js';
+import { MCP_TOOLS } from '../mcp/tools.js';
 
 // Every user manages their own MCP access (OAuth connections + personal
 // tokens); admins can additionally list and revoke anyone's via `?all=1` /
@@ -27,6 +28,12 @@ export const mcpConnectionRoutes = new Hono<AppContext>()
     const items = listConnections(c.get('db'), all ? {} : { userId: user.id });
     return c.json({ items });
   })
+  // What a connected agent can do — shown on the AI assistants page.
+  .get('/tools', (c) =>
+    c.json({
+      items: MCP_TOOLS.map((t) => ({ name: t.name, description: t.description, access: t.access })),
+    }),
+  )
   .get('/events', (c) => {
     const user = c.get('user')!;
     const all = c.req.query('all') === '1';

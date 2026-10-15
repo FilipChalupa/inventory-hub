@@ -3,6 +3,9 @@ import { ns } from './util.js';
 /** Strings for shared UI components under src/components/*. */
 export const components = ns({
   cs: {
+    // ViaAgentBadge
+    viaAgent: 'přes AI',
+    viaAgentTitle: (name: string) => `Provedl AI asistent „${name}" jménem uživatele`,
     // Toast
     toastClose: 'Zavřít',
     // ErrorBoundary
@@ -37,6 +40,8 @@ export const components = ns({
       'Offline režim — uložené stránky a poslední data zůstanou dostupné, ale změny (vytvořit / upravit / vrátit) se uloží až po obnovení připojení.',
   },
   en: {
+    viaAgent: 'via AI',
+    viaAgentTitle: (name: string) => `Done by AI assistant "${name}" on the user's behalf`,
     // Toast
     toastClose: 'Close',
     // ErrorBoundary

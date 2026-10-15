@@ -888,6 +888,7 @@ export const assetRoutes = new Hono<AppContext>()
         assetId: assetEvents.assetId,
         actorUserId: assetEvents.actorUserId,
         type: assetEvents.type,
+        via: assetEvents.via,
         payload: assetEvents.payload,
         occurredAt: assetEvents.occurredAt,
         assetCode: assets.code,

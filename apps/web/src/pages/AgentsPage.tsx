@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { MCP_TOKEN_EXPIRY_DAYS, type McpAccess } from '@inventory-hub/shared';
-import { apiClient, type McpConnectionRow } from '../lib/api.js';
+import { apiClient, type McpConnectionRow, type McpEventRow } from '../lib/api.js';
+import { probeMcpToken, type McpProbeResult } from '../lib/mcpProbe.js';
 import { errorMessage } from '../lib/errors.js';
 import { Button, Card, Field, Input, Select, formatDate } from '../components/ui.js';
 import { CopyField } from '../components/CopyField.js';
@@ -64,6 +65,10 @@ export function AgentsPage() {
           empty={t.agents.orgEmpty}
         />
       )}
+
+      <ToolsSection />
+
+      <HistorySection all={isAdmin} />
     </section>
   );
 }
@@ -120,9 +125,12 @@ function PersonalTokenSection({ url }: { url: string }) {
               2,
             )}
           />
-          <Button variant="ghost" className="text-xs" onClick={() => setCreated(null)}>
-            {t.agents.done}
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <VerifyButton token={created.token} />
+            <Button variant="ghost" className="text-xs" onClick={() => setCreated(null)}>
+              {t.agents.done}
+            </Button>
+          </div>
         </div>
       )}
 
@@ -251,6 +259,125 @@ function ConnectionsSection({
               >
                 {t.agents.disconnect}
               </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function VerifyButton({ token }: { token: string }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [state, setState] = useState<'idle' | 'busy' | McpProbeResult>('idle');
+  return (
+    <>
+      <Button
+        variant="secondary"
+        className="text-xs"
+        disabled={state === 'busy'}
+        onClick={async () => {
+          setState('busy');
+          setState(await probeMcpToken(token));
+          // The probe stamped the token's "last used" — refresh the lists.
+          void qc.invalidateQueries({ queryKey: ['mcp-connections'] });
+        }}
+      >
+        {state === 'busy' ? t.agents.verifying : t.agents.verify}
+      </Button>
+      {typeof state === 'object' && (
+        <span
+          role="status"
+          className={
+            state.ok ? 'text-xs text-emerald-700 dark:text-emerald-300' : 'text-xs text-red-600'
+          }
+        >
+          {state.ok ? t.agents.verifyOk(state.toolCount) : t.agents.verifyFail(state.error)}
+        </span>
+      )}
+    </>
+  );
+}
+
+function ToolsSection() {
+  const t = useT();
+  const tools = useQuery({
+    queryKey: ['mcp-tools'],
+    queryFn: () => apiClient.mcpConnections.tools(),
+  });
+  const items = tools.data?.items ?? [];
+  const groups = [
+    { label: t.agents.toolsRead, items: items.filter((x) => x.access === 'read') },
+    { label: t.agents.toolsWrite, items: items.filter((x) => x.access === 'write') },
+  ];
+  return (
+    <Card>
+      <h2 className="font-semibold mb-2">{t.agents.toolsTitle}</h2>
+      <p className="text-xs text-slate-500 mb-3">{t.agents.toolsIntro}</p>
+      {groups.map((g) => (
+        <details key={g.label(0)} className="mb-2">
+          <summary className="cursor-pointer text-sm font-medium">
+            {g.label(g.items.length)}
+          </summary>
+          <ul className="mt-2 space-y-1.5 pl-4">
+            {g.items.map((tool) => (
+              <li key={tool.name} className="text-xs">
+                <code className="font-mono text-slate-800 dark:text-slate-200">{tool.name}</code>
+                <span className="text-slate-500"> — {tool.description}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ))}
+    </Card>
+  );
+}
+
+function HistorySection({ all }: { all: boolean }) {
+  const t = useT();
+  const events = useQuery({
+    queryKey: ['mcp-connections', 'events', all ? 'all' : 'mine'],
+    queryFn: () => apiClient.mcpConnections.events({ all }),
+  });
+  const items = events.data?.items ?? [];
+  const label = (e: McpEventRow) =>
+    e.type === 'connected'
+      ? t.agents.eventConnected
+      : e.type === 'token_created'
+        ? t.agents.eventTokenCreated
+        : t.agents.eventRevoked;
+  return (
+    <Card>
+      <h2 className="font-semibold mb-2">
+        {all ? t.agents.historyOrgTitle : t.agents.historyTitle}
+      </h2>
+      {items.length === 0 ? (
+        <p className="text-sm text-slate-500">
+          {events.isLoading ? t.common.loading : t.agents.historyEmpty}
+        </p>
+      ) : (
+        <ul className="divide-y divide-slate-200 text-sm dark:divide-slate-700">
+          {items.map((e) => (
+            <li key={e.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-1.5">
+              <span>
+                <span className="text-slate-500">{label(e)}</span>{' '}
+                <span className="font-medium break-all">{e.connectionName}</span>
+                {e.access && (
+                  <span className="text-xs text-slate-500">
+                    {' '}
+                    ({e.access === 'read-write' ? t.agents.accessReadWrite : t.agents.accessRead})
+                  </span>
+                )}
+                {all && <span className="text-xs text-slate-500"> · {e.user.name}</span>}
+                {e.actor && e.actor.id !== e.user.id && (
+                  <span className="text-xs text-slate-500">
+                    {' '}
+                    · {t.agents.eventBy(e.actor.name)}
+                  </span>
+                )}
+              </span>
+              <span className="text-xs text-slate-500">{formatDate(e.occurredAt)}</span>
             </li>
           ))}
         </ul>
