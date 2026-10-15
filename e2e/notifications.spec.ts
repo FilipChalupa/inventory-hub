@@ -25,6 +25,8 @@ test.describe('notifications', () => {
     // Reload so the bell refetches, then open it — the overdue loan shows up.
     await page.reload();
     await page.getByRole('button', { name: /Otevřít notifikace/i }).click();
-    await expect(page.getByRole('menuitem').first()).toBeVisible();
+    await expect(
+      page.getByRole('button').filter({ hasText: 'Výpůjčka po termínu' }).first(),
+    ).toBeVisible();
   });
 });
