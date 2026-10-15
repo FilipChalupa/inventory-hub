@@ -552,6 +552,17 @@ export const oauthTokens = sqliteTable(
       .references(() => users.id, { onDelete: 'cascade' }),
     scope: text('scope').notNull(),
     audience: text('audience'),
+    // 'oauth' = issued via the authorization-code flow (rotating refresh
+    // token); 'personal' = a long-lived bearer token the user minted in the
+    // web app for agents that can't do OAuth (no refresh token).
+    kind: text('kind', { enum: ['oauth', 'personal'] })
+      .notNull()
+      .default('oauth'),
+    // User-given label + recognisable plaintext prefix (personal tokens only).
+    name: text('name'),
+    tokenPrefix: text('token_prefix'),
+    // Throttled stamp of the last authenticated /mcp request.
+    lastUsedAt: integer('last_used_at', { mode: 'timestamp_ms' }),
     accessExpiresAt: integer('access_expires_at', { mode: 'timestamp_ms' }).notNull(),
     refreshExpiresAt: integer('refresh_expires_at', { mode: 'timestamp_ms' }),
     // Set when this token was created by rotating a refresh token, so the

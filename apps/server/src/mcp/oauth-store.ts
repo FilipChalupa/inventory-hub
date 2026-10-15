@@ -8,7 +8,7 @@
  * to the client.
  */
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { eq, lt } from 'drizzle-orm';
+import { and, eq, isNull, lt, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { oauthAuthCodes, oauthClients, oauthTokens } from '../db/schema.js';
 import type { OauthClientRow } from '../db/schema.js';
@@ -200,6 +200,7 @@ export function issueTokens(db: Db, input: IssueTokensInput): IssuedTokens {
 }
 
 export type VerifiedToken = {
+  id: string;
   userId: string;
   clientId: string;
   scope: string;
@@ -217,6 +218,7 @@ export function verifyAccessToken(db: Db, token: string): VerifiedToken | null {
   if (!row || row.revokedAt) return null;
   if (row.accessExpiresAt.getTime() < Date.now()) return null;
   return {
+    id: row.id,
     userId: row.userId,
     clientId: row.clientId,
     scope: row.scope,
@@ -255,6 +257,25 @@ export function rotateRefreshToken(
     });
     return { ...issued, clientId: row.clientId, userId: row.userId, audience: row.audience };
   });
+}
+
+const LAST_USED_THROTTLE_MS = 60_000;
+
+/** Stamps `lastUsedAt` on a token row, at most once a minute. */
+export function touchToken(db: Db, tokenId: string): void {
+  const now = new Date();
+  db.update(oauthTokens)
+    .set({ lastUsedAt: now })
+    .where(
+      and(
+        eq(oauthTokens.id, tokenId),
+        or(
+          isNull(oauthTokens.lastUsedAt),
+          lt(oauthTokens.lastUsedAt, new Date(now.getTime() - LAST_USED_THROTTLE_MS)),
+        ),
+      ),
+    )
+    .run();
 }
 
 /** Revokes the token row matching the given access or refresh token. */
