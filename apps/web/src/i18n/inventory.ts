@@ -2,6 +2,9 @@ import { ns } from './util.js';
 
 export const inventory = ns({
   cs: {
+    offlineReady: '✓ připraveno offline',
+    offlineReadyHint:
+      'Data inventury jsou uložená v zařízení — půjde otevřít a skenovat i bez připojení.',
     title: 'Inventury',
     newInventory: '+ Nová inventura',
     intro:
@@ -32,6 +35,9 @@ export const inventory = ns({
     genericError: 'Chyba',
   },
   en: {
+    offlineReady: '✓ ready offline',
+    offlineReadyHint:
+      'This stock-take is stored on the device — it can be opened and scanned without a connection.',
     title: 'Inventories',
     newInventory: '+ New inventory',
     intro:

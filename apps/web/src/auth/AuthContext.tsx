@@ -37,13 +37,47 @@ async function purgeApiCache(): Promise<void> {
   }
 }
 
+/**
+ * Last confirmed identity, so the app can start while offline (e.g. opening a
+ * prepared inventory in a warehouse) instead of falling back to the login
+ * page. Only name/role — the server still authenticates every request, and
+ * offline the app only shows data already in the service-worker cache.
+ */
+const LAST_ME_KEY = 'ih.lastMe';
+
+function readLastMe(): AuthMe | undefined {
+  try {
+    const raw = localStorage.getItem(LAST_ME_KEY);
+    return raw ? (JSON.parse(raw) as AuthMe) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function rememberMe(me: AuthMe): void {
+  try {
+    if (me.authenticated) localStorage.setItem(LAST_ME_KEY, JSON.stringify(me));
+    else localStorage.removeItem(LAST_ME_KEY);
+  } catch {
+    // storage unavailable
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const qc = useQueryClient();
   const me = useQuery({
     queryKey: ['auth', 'me'],
-    queryFn: () => apiClient.auth.me(),
+    queryFn: async () => {
+      const res = await apiClient.auth.me();
+      rememberMe(res);
+      return res;
+    },
     staleTime: 60_000,
     retry: false,
+    // Offline only: online we always wait for the server's answer, so a
+    // logged-out user never sees a flash of the app.
+    initialData: () => (navigator.onLine ? undefined : readLastMe()),
+    initialDataUpdatedAt: 0,
   });
 
   const value: AuthValue = {
@@ -51,6 +85,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     isLoading: me.isLoading,
     logout: async () => {
       await apiClient.auth.logout();
+      try {
+        localStorage.removeItem(LAST_ME_KEY);
+      } catch {
+        // ignore
+      }
       await purgeApiCache();
       await qc.invalidateQueries();
       qc.removeQueries({ queryKey: ['auth', 'me'] });

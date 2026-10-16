@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { apiClient, type InventorySessionRow } from '../lib/api.js';
 import { errorMessage } from '../lib/errors.js';
@@ -72,6 +72,49 @@ export function InventoryPage() {
   });
 
   const items = sessions.data?.items ?? [];
+
+  // Make open stock-takes usable offline: fetching their data (and the
+  // session page's code) here puts it in the service-worker cache, so the
+  // session opens later without a connection.
+  const [offlineReady, setOfflineReady] = useState<Set<string>>(new Set());
+  const openIds = items
+    .filter((s) => s.status === 'open')
+    .slice(0, 10)
+    .map((s) => s.id)
+    .join(',');
+  useEffect(() => {
+    if (!openIds || !navigator.onLine) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        await Promise.all([
+          import('./InventorySessionPage.js'),
+          queryClient.prefetchQuery({
+            queryKey: ['locations'],
+            queryFn: () => apiClient.locations.list(),
+          }),
+        ]);
+      } catch {
+        return;
+      }
+      for (const sid of openIds.split(',')) {
+        try {
+          // fetchQuery (not prefetch) so a fresh network copy lands in the cache.
+          await queryClient.fetchQuery({
+            queryKey: ['inventory', sid],
+            queryFn: () => apiClient.inventory.get(sid),
+            staleTime: 0,
+          });
+          if (!cancelled) setOfflineReady((prev) => new Set(prev).add(sid));
+        } catch {
+          // stays "not ready"
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openIds, queryClient]);
   const locationName = (id: string | null) =>
     id ? locationPath(locations.data?.items ?? [], id) || '—' : t.inventory.wholeOrganization;
 
@@ -218,7 +261,12 @@ export function InventoryPage() {
       {items.length > 0 && (
         <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {items.map((s) => (
-            <SessionRow key={s.id} session={s} locationName={locationName(s.locationId)} />
+            <SessionRow
+              key={s.id}
+              session={s}
+              locationName={locationName(s.locationId)}
+              offlineReady={offlineReady.has(s.id)}
+            />
           ))}
         </ul>
       )}
@@ -229,9 +277,11 @@ export function InventoryPage() {
 function SessionRow({
   session,
   locationName,
+  offlineReady,
 }: {
   session: InventorySessionRow;
   locationName: string;
+  offlineReady: boolean;
 }) {
   const t = useT();
   return (
@@ -242,6 +292,14 @@ function SessionRow({
           <div className="text-xs text-slate-500">
             {locationName} · {t.inventory.createdAt(formatDate(session.createdAt))} ·{' '}
             {t.inventory.scanned(session.scanCount ?? 0)}
+            {offlineReady && (
+              <span
+                className="ml-2 text-emerald-700 dark:text-emerald-400"
+                title={t.inventory.offlineReadyHint}
+              >
+                · {t.inventory.offlineReady}
+              </span>
+            )}
           </div>
         </div>
         <span
