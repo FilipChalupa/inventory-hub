@@ -441,3 +441,38 @@ describe('upload links', () => {
     expect(res.isError).toBe(true);
   });
 });
+
+describe('bulk identifiers', () => {
+  it('applies valid items and reports the rest', async () => {
+    const call = await connect(server.createUser({ role: 'operator' }));
+    const a = (await call('create_asset', { name: 'A', typeId: server.laptopTypeId })).body.code;
+    const b = (await call('create_asset', { name: 'B', typeId: server.laptopTypeId })).body.code;
+    await call('add_asset_external_id', { code: b, kind: 'serial', value: 'OWNED' });
+    await call('add_asset_external_id', { code: b, kind: 'ean', value: 'MINE' });
+    const items = [
+      { code: a.toLowerCase(), kind: 'serial', value: 'S-1' },
+      { code: a, kind: 'serial', value: 'S-1' },
+      { code: a, kind: 'serial', value: 'OWNED' },
+      { code: 'NOPE-1', kind: 'serial', value: 'S-2' },
+      { code: b, kind: 'ean', value: 'MINE' },
+    ];
+    const dry = await call('bulk_add_external_ids', { items, dryRun: true });
+    expect(dry.body.summary.added).toBe(1);
+    expect((await call('find_asset_by_identifier', { value: 'S-1' })).body.items).toEqual([]);
+
+    const res = await call('bulk_add_external_ids', { items });
+    expect(res.body.summary).toEqual({
+      added: 1,
+      already: 1,
+      conflict: 1,
+      asset_not_found: 1,
+      duplicate_in_request: 1,
+    });
+    expect(res.body.problems.map((p: any) => p.result).sort()).toEqual([
+      'asset_not_found',
+      'conflict',
+      'duplicate_in_request',
+    ]);
+    expect((await call('find_asset_by_identifier', { value: 's1' })).body.items[0].code).toBe(a);
+  });
+});

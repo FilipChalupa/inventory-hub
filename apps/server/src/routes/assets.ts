@@ -813,6 +813,92 @@ export const assetRoutes = new Hono<AppContext>()
       .run();
     return c.json({ ok: true });
   })
+  // Bulk add identifiers (e.g. serial numbers from a spreadsheet) to existing
+  // assets. Applies every valid item and reports each one's outcome, so a
+  // caller can fix and resend just the failures.
+  .post(
+    '/external-ids/bulk',
+    requireAuth('admin', 'operator'),
+    zValidator(
+      'json',
+      z.object({
+        items: z
+          .array(
+            z.object({
+              code: z.string().trim().min(1),
+              kind: z.string().trim().min(1).max(40),
+              value: z.string().trim().min(1).max(200),
+            }),
+          )
+          .min(1)
+          .max(1000),
+        dryRun: z.boolean().optional(),
+      }),
+    ),
+    (c) => {
+      const db = c.get('db');
+      const user = c.get('user')!;
+      const { items, dryRun } = c.req.valid('json');
+      type Outcome = 'added' | 'already' | 'conflict' | 'asset_not_found' | 'duplicate_in_request';
+      const results: { code: string; kind: string; value: string; result: Outcome }[] = [];
+      const seen = new Set<string>();
+      db.transaction((tx) => {
+        for (const item of items) {
+          const code = item.code.toUpperCase();
+          const key = `${item.kind}\0${item.value}`;
+          const push = (result: Outcome) => results.push({ ...item, code, result });
+          if (seen.has(key)) {
+            push('duplicate_in_request');
+            continue;
+          }
+          seen.add(key);
+          const asset = tx
+            .select({ id: assets.id })
+            .from(assets)
+            .where(eq(assets.code, code))
+            .get();
+          if (!asset) {
+            push('asset_not_found');
+            continue;
+          }
+          const owner = tx
+            .select({ assetId: assetExternalIds.assetId })
+            .from(assetExternalIds)
+            .where(
+              and(eq(assetExternalIds.kind, item.kind), eq(assetExternalIds.value, item.value)),
+            )
+            .get();
+          if (owner) {
+            push(owner.assetId === asset.id ? 'already' : 'conflict');
+            continue;
+          }
+          if (!dryRun) {
+            tx.insert(assetExternalIds)
+              .values({ assetId: asset.id, kind: item.kind, value: item.value })
+              .run();
+            tx.insert(assetEvents)
+              .values({
+                assetId: asset.id,
+                actorUserId: user.id,
+                type: 'updated',
+                payload: { externalId: { kind: item.kind, value: item.value, op: 'added' } },
+              })
+              .run();
+          }
+          push('added');
+        }
+      });
+      const summary: Record<Outcome, number> = {
+        added: 0,
+        already: 0,
+        conflict: 0,
+        asset_not_found: 0,
+        duplicate_in_request: 0,
+      };
+      for (const r of results) summary[r.result]++;
+      return c.json({ dryRun: Boolean(dryRun), summary, results });
+    },
+  )
   .get('/:code/external-ids', (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
@@ -973,6 +1059,9 @@ export const assetRoutes = new Hono<AppContext>()
     }
     const file = form.get('file');
     const dryRun = form.get('dryRun') === 'true';
+    // Rows whose `code` already exists only get their identifiers added
+    // (e.g. back-filling serial numbers) instead of failing as duplicates.
+    const attachToExisting = form.get('attachToExisting') === 'true';
     if (!(file instanceof File)) {
       return c.json({ error: { message: 'Pole „file" je povinné' } }, 400);
     }
@@ -988,14 +1077,43 @@ export const assetRoutes = new Hono<AppContext>()
       return c.json({ error: { message: 'Maximálně 1000 řádků na import' } }, 400);
     }
 
-    const required = ['name'];
+    const required = attachToExisting ? ['code'] : ['name'];
     const knownHeaders = new Set(['code', 'name', 'type', 'notes']);
-    const customFieldHeaders = headers.filter((h) => !knownHeaders.has(h));
+    // Identifier columns: serial / ean / sku, or `id:<kind>` for any other
+    // kind (e.g. id:imei). Several values in one cell are separated by ';'.
+    // A bare serial/ean/sku column stays a custom field when some asset type
+    // defines a field of that name (back-compat); `id:serial` always works.
+    const customFieldKeys = new Set(
+      db
+        .select({ schema: assetTypes.customFieldsSchema })
+        .from(assetTypes)
+        .all()
+        .flatMap((t) => ((t.schema ?? []) as CustomFieldsSchema).map((f) => f.key)),
+    );
+    const identifierKind = (h: string): string | null => {
+      const lower = h.trim().toLowerCase();
+      if ((lower === 'serial' || lower === 'ean' || lower === 'sku') && !customFieldKeys.has(h)) {
+        return lower;
+      }
+      const m = /^id:(.{1,40})$/.exec(lower);
+      return m ? m[1]!.trim() : null;
+    };
+    const identifierHeaders = headers.filter((h) => identifierKind(h));
+    const customFieldHeaders = headers.filter((h) => !knownHeaders.has(h) && !identifierKind(h));
     for (const r of required) {
       if (!headers.includes(r)) {
         return c.json({ error: { message: `Chybí povinný sloupec: ${r}` } }, 400);
       }
     }
+    const identifiersOf = (row: Record<string, string>) =>
+      identifierHeaders.flatMap((h) =>
+        (row[h] ?? '')
+          .split(';')
+          .map((v) => v.trim())
+          .filter(Boolean)
+          .map((value) => ({ kind: identifierKind(h)!, value })),
+      );
+    const seenIdentifiers = new Map<string, number>(); // kind\0value → line
 
     // Cache asset types by prefix.
     const typesByPrefix = new Map<string, typeof assetTypes.$inferSelect>();
@@ -1010,6 +1128,11 @@ export const assetRoutes = new Hono<AppContext>()
       input: Record<string, string>;
       code: string | null;
       issues: string[];
+      /** 'update' = existing asset that only gets identifiers added. */
+      action: 'create' | 'update';
+      /** Existing asset id for 'update' rows. */
+      assetId?: string;
+      identifiers: { kind: string; value: string }[];
     };
     const preview: PreviewRow[] = [];
     const seenCodes = new Set<string>();
@@ -1022,6 +1145,47 @@ export const assetRoutes = new Hono<AppContext>()
       const codeRaw = (row['code'] ?? '').trim().toUpperCase();
       const typePrefix = (row['type'] ?? '').trim().toUpperCase();
       const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
+      const identifiers = identifiersOf(row);
+
+      const existingAsset = codeRaw
+        ? db.select({ id: assets.id }).from(assets).where(eq(assets.code, codeRaw)).get()
+        : undefined;
+      // Identifier checks shared by both row kinds: unique within the CSV and
+      // not already owned by a different asset.
+      const checkIdentifiers = (ownAssetId: string | null) => {
+        for (const ident of identifiers) {
+          const key = `${ident.kind}\0${ident.value}`;
+          const dupLine = seenIdentifiers.get(key);
+          if (dupLine) issues.push(`${ident.kind} ${ident.value} je i na řádku ${dupLine}`);
+          else seenIdentifiers.set(key, i + 2);
+          const owner = db
+            .select({ assetId: assetExternalIds.assetId })
+            .from(assetExternalIds)
+            .where(
+              and(eq(assetExternalIds.kind, ident.kind), eq(assetExternalIds.value, ident.value)),
+            )
+            .get();
+          if (owner && owner.assetId !== ownAssetId) {
+            issues.push(`${ident.kind} ${ident.value} už patří jinému assetu`);
+          }
+        }
+      };
+
+      if (attachToExisting && existingAsset) {
+        if (identifiers.length === 0) issues.push('Řádek nemá žádný identifikátor k doplnění');
+        checkIdentifiers(existingAsset.id);
+        preview.push({
+          lineNumber: i + 2,
+          input: row,
+          code: codeRaw,
+          issues,
+          action: 'update',
+          assetId: existingAsset.id,
+          identifiers,
+        });
+        continue;
+      }
+      checkIdentifiers(null);
 
       if (!name) issues.push('Chybí name');
       if (codeRaw) {
@@ -1042,13 +1206,7 @@ export const assetRoutes = new Hono<AppContext>()
         finalCode = codeRaw;
         if (usedCodesInRun.has(codeRaw)) issues.push('Duplicitní code v CSV');
         else usedCodesInRun.add(codeRaw);
-        // Check DB collision
-        const existing = db
-          .select({ id: assets.id })
-          .from(assets)
-          .where(eq(assets.code, codeRaw))
-          .get();
-        if (existing) issues.push(`Code ${codeRaw} už v databázi existuje`);
+        if (existingAsset) issues.push(`Code ${codeRaw} už v databázi existuje`);
       }
 
       // Validate custom fields against schema if a type is resolved.
@@ -1069,13 +1227,23 @@ export const assetRoutes = new Hono<AppContext>()
         }
       }
 
-      preview.push({ lineNumber: i + 2, input: row, code: finalCode, issues });
+      preview.push({
+        lineNumber: i + 2,
+        input: row,
+        code: finalCode,
+        issues,
+        action: 'create',
+        identifiers,
+      });
       if (finalCode) seenCodes.add(finalCode);
     }
 
     const hasErrors = preview.some((p) => p.issues.length > 0);
     if (dryRun || hasErrors) {
-      return c.json({ preview, hasErrors, created: 0 }, hasErrors && !dryRun ? 400 : 200);
+      return c.json(
+        { preview, hasErrors, created: 0, updated: 0 },
+        hasErrors && !dryRun ? 400 : 200,
+      );
     }
 
     // Pre-compute auto-generated codes outside the transaction so we
@@ -1085,7 +1253,7 @@ export const assetRoutes = new Hono<AppContext>()
     const counters = new Map<string, string>(); // codePrefix → last code
     for (let idx = 0; idx < preview.length; idx++) {
       const p = preview[idx]!;
-      if (p.code || p.issues.length > 0) continue;
+      if (p.code || p.issues.length > 0 || p.action === 'update') continue;
       const typePrefix = (p.input['type'] ?? '').trim().toUpperCase();
       const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
       if (!type) continue;
@@ -1098,9 +1266,40 @@ export const assetRoutes = new Hono<AppContext>()
     }
 
     let created = 0;
+    let updated = 0;
     db.transaction((tx) => {
+      const addIdentifiers = (assetId: string, idents: { kind: string; value: string }[]) => {
+        let added = 0;
+        for (const ident of idents) {
+          const exists = tx
+            .select({ id: assetExternalIds.id })
+            .from(assetExternalIds)
+            .where(
+              and(eq(assetExternalIds.kind, ident.kind), eq(assetExternalIds.value, ident.value)),
+            )
+            .get();
+          if (exists) continue; // already on this asset (others were rejected above)
+          tx.insert(assetExternalIds)
+            .values({ assetId, kind: ident.kind, value: ident.value })
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId,
+              actorUserId: user.id,
+              type: 'updated',
+              payload: { externalId: { ...ident, op: 'added' }, source: 'import' },
+            })
+            .run();
+          added++;
+        }
+        return added;
+      };
       for (let idx = 0; idx < preview.length; idx++) {
         const p = preview[idx]!;
+        if (p.action === 'update') {
+          if (addIdentifiers(p.assetId!, p.identifiers) > 0) updated += 1;
+          continue;
+        }
         const row = p.input;
         const typePrefix = (row['type'] ?? '').trim().toUpperCase();
         const type = typePrefix ? typesByPrefix.get(typePrefix) : null;
@@ -1132,11 +1331,12 @@ export const assetRoutes = new Hono<AppContext>()
             payload: { code, source: 'import' },
           })
           .run();
+        addIdentifiers(id, p.identifiers);
         created += 1;
       }
     });
 
-    return c.json({ preview, hasErrors: false, created });
+    return c.json({ preview, hasErrors: false, created, updated });
   })
   .post(
     '/labels',

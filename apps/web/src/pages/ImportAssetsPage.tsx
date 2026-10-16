@@ -13,10 +13,15 @@ const KIND_REDIRECT: Record<Kind, string> = {
   locations: '/locations',
 };
 
-function runImport(kind: Kind, file: File, dryRun: boolean): Promise<ImportResult> {
+function runImport(
+  kind: Kind,
+  file: File,
+  dryRun: boolean,
+  attachToExisting: boolean,
+): Promise<ImportResult> {
   switch (kind) {
     case 'assets':
-      return apiClient.assets.import(file, dryRun);
+      return apiClient.assets.import(file, dryRun, { attachToExisting });
     case 'asset-types':
       return apiClient.assetTypes.import(file, dryRun);
     case 'locations':
@@ -36,6 +41,8 @@ export function ImportAssetsPage() {
   const [preview, setPreview] = useState<ImportPreviewRow[] | null>(null);
   const [hasErrors, setHasErrors] = useState(false);
   const [createdCount, setCreatedCount] = useState<number | null>(null);
+  const [updatedCount, setUpdatedCount] = useState(0);
+  const [attachToExisting, setAttachToExisting] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,7 +58,7 @@ export function ImportAssetsPage() {
     setBusy(true);
     resetResult();
     try {
-      const res = await runImport(kind, file, true);
+      const res = await runImport(kind, file, true, attachToExisting);
       setPreview(res.preview);
       setHasErrors(res.hasErrors);
     } catch (err) {
@@ -66,10 +73,11 @@ export function ImportAssetsPage() {
     setBusy(true);
     setError(null);
     try {
-      const res = await runImport(kind, file, false);
+      const res = await runImport(kind, file, false, attachToExisting);
       setPreview(res.preview);
       setHasErrors(res.hasErrors);
       setCreatedCount(res.created);
+      setUpdatedCount(res.updated ?? 0);
     } catch (err) {
       setError(errorMessage(err));
     } finally {
@@ -112,6 +120,25 @@ export function ImportAssetsPage() {
           {t.importAssets.kindHints[kind]} {t.importAssets.limitPrefix}{' '}
           {t.importAssets.kindLimits[kind]}.
         </p>
+        {kind === 'assets' && (
+          <label className="mb-3 flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={attachToExisting}
+              onChange={(e) => {
+                setAttachToExisting(e.target.checked);
+                resetResult();
+              }}
+            />
+            <span>
+              {t.importAssets.attachToExisting}
+              <span className="block text-xs text-slate-500">
+                {t.importAssets.attachToExistingHint}
+              </span>
+            </span>
+          </label>
+        )}
         <input
           type="file"
           accept=".csv,text/csv"
@@ -136,7 +163,9 @@ export function ImportAssetsPage() {
         {error && <p className="text-sm text-red-600 mt-2">{error}</p>}
         {createdCount !== null && (
           <p className="text-sm text-green-700 dark:text-green-400 mt-2">
-            {t.importAssets.imported(createdCount)}{' '}
+            {attachToExisting
+              ? t.importAssets.imported2(createdCount, updatedCount)
+              : t.importAssets.imported(createdCount)}{' '}
             <button className="underline" onClick={() => navigate(KIND_REDIRECT[kind])}>
               {t.importAssets.goToList}
             </button>
@@ -159,6 +188,9 @@ export function ImportAssetsPage() {
                 <tr className="text-left border-b border-slate-200 dark:border-slate-700">
                   <th className="py-1 pr-3">#</th>
                   {kind === 'assets' && <th className="py-1 pr-3">{t.importAssets.colCode}</th>}
+                  {attachToExisting && kind === 'assets' && (
+                    <th className="py-1 pr-3">{t.importAssets.colAction}</th>
+                  )}
                   {headers.map((h) => (
                     <th key={h} className="py-1 pr-3">
                       {h}
@@ -177,6 +209,13 @@ export function ImportAssetsPage() {
                     {kind === 'assets' && (
                       <td className="py-1 pr-3 font-mono text-xs">
                         {p.code ?? t.importAssets.emptyValue}
+                      </td>
+                    )}
+                    {attachToExisting && kind === 'assets' && (
+                      <td className="py-1 pr-3 text-xs">
+                        {p.action === 'update'
+                          ? t.importAssets.actionUpdate
+                          : t.importAssets.actionCreate}
                       </td>
                     )}
                     {headers.map((h) => (

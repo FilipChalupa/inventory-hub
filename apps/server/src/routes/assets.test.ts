@@ -707,6 +707,83 @@ describe('assets API', () => {
       expect(body.hasErrors).toBe(true);
     });
 
+    it('creates assets with serial / EAN / id:<kind> identifiers', async () => {
+      const csv =
+        'name,type,serial,ean,id:imei\r\nPhone,LAP,SN-1,8590000000001;8590000000002,35-1\r\n';
+      const res = await importCsv(csv, false);
+      expect(res.status).toBe(200);
+      const list = await server.authRequest('/api/assets', { cookie });
+      const code = ((await list.json()) as { items: { code: string }[] }).items[0]!.code;
+      const ids = await server.authRequest(`/api/assets/${code}/external-ids`, { cookie });
+      const items = ((await ids.json()) as { items: { kind: string; value: string }[] }).items;
+      expect(items.map((x) => `${x.kind}=${x.value}`).sort()).toEqual([
+        'ean=8590000000001',
+        'ean=8590000000002',
+        'imei=35-1',
+        'serial=SN-1',
+      ]);
+    });
+
+    it('back-fills identifiers onto existing assets with attachToExisting', async () => {
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'A',
+        code: 'LAP-60001',
+        typeId: server.laptopTypeId,
+      });
+      await jsonPost(server, cookie, '/api/assets', {
+        name: 'B',
+        code: 'LAP-60002',
+        typeId: server.laptopTypeId,
+      });
+      await jsonPost(server, cookie, '/api/assets/LAP-60002/external-ids', {
+        kind: 'serial',
+        value: 'TAKEN',
+      });
+      const send = (csv: string, dryRun: boolean) => {
+        const form = new FormData();
+        form.append('file', new File([csv], 'ids.csv', { type: 'text/csv' }));
+        form.append('dryRun', String(dryRun));
+        form.append('attachToExisting', 'true');
+        return server.authRequest('/api/assets/import', { cookie, method: 'POST', body: form });
+      };
+      // No name column needed; a serial owned by another asset is an issue.
+      const bad = await send('code,serial\r\nLAP-60001,TAKEN\r\n', true);
+      const badBody = (await bad.json()) as { hasErrors: boolean; preview: { issues: string[] }[] };
+      expect(badBody.hasErrors).toBe(true);
+      expect(badBody.preview[0]!.issues.join()).toContain('jinému assetu');
+
+      const ok = await send('code,serial\r\nLAP-60001,SN-A\r\nLAP-60002,TAKEN\r\n', false);
+      expect(ok.status).toBe(200);
+      const body = (await ok.json()) as {
+        created: number;
+        updated: number;
+        preview: { action: string }[];
+      };
+      expect(body).toMatchObject({ created: 0, updated: 1 }); // LAP-60002 already had it
+      expect(body.preview.map((p) => p.action)).toEqual(['update', 'update']);
+      const lookup = await server.authRequest('/api/assets/lookup?value=sn-a', { cookie });
+      expect(((await lookup.json()) as { items: { code: string }[] }).items[0]!.code).toBe(
+        'LAP-60001',
+      );
+    });
+
+    it('keeps a bare serial column as a custom field when a type defines one', async () => {
+      await server.authRequest(`/api/asset-types/${server.laptopTypeId}`, {
+        cookie,
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          customFieldsSchema: [{ key: 'serial', label: 'Serial', type: 'text' }],
+        }),
+      });
+      const res = await importCsv('name,type,serial\r\nX,LAP,CF-1\r\n', false);
+      expect(res.status).toBe(200);
+      const lookup = await server.authRequest('/api/assets/lookup?value=CF-1', { cookie });
+      const hit = ((await lookup.json()) as { items: { matchedOn: { field: string }[] }[] })
+        .items[0]!;
+      expect(hit.matchedOn[0]!.field).toBe('customField');
+    });
+
     it('rejects non-admin/operator', async () => {
       const memberCookie = server.loginAs(
         server.createUser({ role: 'member', email: 'member@example.com' }),

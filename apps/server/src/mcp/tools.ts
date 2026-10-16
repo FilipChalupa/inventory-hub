@@ -343,6 +343,28 @@ export const MCP_TOOLS: McpTool[] = [
     }),
   ),
   tool(
+    'bulk_add_external_ids',
+    'write',
+    'Add many identifiers at once (admin/operator), e.g. serial numbers from a spreadsheet the user pasted: items of { code, kind, value }, up to 1000. Valid items are applied; each item reports added / already / conflict (owned by another asset) / asset_not_found / duplicate_in_request. Use dryRun to check first.',
+    {
+      items: z
+        .array(z.object({ code: z.string(), kind: z.string(), value: z.string() }))
+        .min(1)
+        .max(1000),
+      dryRun: z.boolean().optional(),
+    },
+    (a) => ({ method: 'POST', path: '/api/assets/external-ids/bulk', body: a }),
+    undefined,
+    // Only the problems are worth the model's context; the summary covers the rest.
+    (body) => ({
+      dryRun: body.dryRun,
+      summary: body.summary,
+      problems: (body.results ?? []).filter(
+        (r: { result: string }) => r.result !== 'added' && r.result !== 'already',
+      ),
+    }),
+  ),
+  tool(
     'remove_asset_external_id',
     'write',
     'Remove an external identifier from an asset (admin/operator); `id` comes from list_asset_external_ids.',

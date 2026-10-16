@@ -288,11 +288,15 @@ export type ImportPreviewRow = {
   input: Record<string, string>;
   code?: string | null;
   issues: string[];
+  /** Assets CSV only: 'update' rows just get identifiers added. */
+  action?: 'create' | 'update';
 };
 export type ImportResult = {
   preview: ImportPreviewRow[];
   hasErrors: boolean;
   created: number;
+  /** Assets CSV with attachToExisting: assets that got identifiers added. */
+  updated?: number;
 };
 
 export type InventorySessionRow = {
@@ -339,10 +343,16 @@ export type ScanResult = {
   report: InventoryReport;
 };
 
-async function uploadImportCsv(path: string, file: File, dryRun: boolean): Promise<ImportResult> {
+async function uploadImportCsv(
+  path: string,
+  file: File,
+  dryRun: boolean,
+  extra: Record<string, string> = {},
+): Promise<ImportResult> {
   const form = new FormData();
   form.append('file', file);
   form.append('dryRun', dryRun ? 'true' : 'false');
+  for (const [k, v] of Object.entries(extra)) form.append(k, v);
   const res = await fetch(path, { method: 'POST', body: form, credentials: 'include' });
   const body = (await res.json().catch(() => null)) as unknown;
   if (body && typeof body === 'object' && 'preview' in body) {
@@ -599,7 +609,10 @@ export const apiClient = {
         method: 'POST',
         body: { codes },
       }),
-    import: (file: File, dryRun: boolean) => uploadImportCsv('/api/assets/import', file, dryRun),
+    import: (file: File, dryRun: boolean, opts: { attachToExisting?: boolean } = {}) =>
+      uploadImportCsv('/api/assets/import', file, dryRun, {
+        attachToExisting: opts.attachToExisting ? 'true' : 'false',
+      }),
   },
 
   assetTypes: {
