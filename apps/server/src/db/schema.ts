@@ -8,6 +8,7 @@ import {
   type AnySQLiteColumn,
 } from 'drizzle-orm/sqlite-core';
 import { currentPrincipal } from '../mcp/principal.js';
+import { normIdentifierSql } from './identifier-sql.js';
 
 const id = () =>
   text('id')
@@ -242,6 +243,7 @@ export const assets = sqliteTable(
     locationIdx: index('assets_location_idx').on(t.locationId),
     warrantyIdx: index('assets_warranty_idx').on(t.warrantyUntil),
     parentIdx: index('assets_parent_idx').on(t.parentAssetId),
+    codeNormIdx: index('assets_code_norm_idx').on(normIdentifierSql(t.code)),
   }),
 );
 
@@ -265,6 +267,8 @@ export const assetExternalIds = sqliteTable(
     assetIdx: index('asset_external_ids_asset_idx').on(t.assetId),
     valueIdx: index('asset_external_ids_value_idx').on(t.value),
     kindValueUnique: uniqueIndex('asset_external_ids_kind_value_unique').on(t.kind, t.value),
+    // Backs the separator/case-insensitive identifier lookup.
+    valueNormIdx: index('asset_external_ids_value_norm_idx').on(normIdentifierSql(t.value)),
   }),
 );
 
@@ -587,6 +591,29 @@ export const oauthTokens = sqliteTable(
     accessIdx: uniqueIndex('oauth_tokens_access_idx').on(t.accessTokenHash),
     refreshIdx: index('oauth_tokens_refresh_idx').on(t.refreshTokenHash),
     userIdx: index('oauth_tokens_user_idx').on(t.userId),
+  }),
+);
+
+/**
+ * Scalar custom-field values of every asset, flattened for the identifier
+ * lookup ("which asset has inventory number X?"). Maintained entirely by
+ * SQLite triggers on `assets` (see the migration that creates them), so no
+ * application write path can forget to update it. `valueNorm` is the
+ * normalized form (see db/identifier-sql.ts).
+ */
+export const assetFieldValues = sqliteTable(
+  'asset_field_values',
+  {
+    assetId: text('asset_id')
+      .notNull()
+      .references(() => assets.id, { onDelete: 'cascade' }),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+    valueNorm: text('value_norm').notNull(),
+  },
+  (t) => ({
+    assetIdx: index('asset_field_values_asset_idx').on(t.assetId),
+    valueNormIdx: index('asset_field_values_value_norm_idx').on(t.valueNorm),
   }),
 );
 

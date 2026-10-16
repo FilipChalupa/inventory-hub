@@ -1,6 +1,9 @@
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
-import { assetExternalIds, assets, type AssetRow } from '../db/schema.js';
+import { assetExternalIds, assetFieldValues, assets, type AssetRow } from '../db/schema.js';
+import { normIdentifierSql, normalizeIdentifier } from '../db/identifier-sql.js';
+
+export { normalizeIdentifier };
 
 export type LookupMatch = {
   field: 'code' | 'externalId' | 'customField';
@@ -10,14 +13,6 @@ export type LookupMatch = {
   /** Matched exactly as typed (not just after normalization). */
   exact: boolean;
 };
-
-/** Case- and separator-insensitive form of an identifier: "ab-12 3" → "AB123". */
-export function normalizeIdentifier(v: string): string {
-  return v.toUpperCase().replace(/[\s\-_.:/]/g, '');
-}
-
-const norm = (col: unknown) =>
-  sql`upper(replace(replace(replace(replace(replace(replace(${col}, ' ', ''), '-', ''), '_', ''), '.', ''), ':', ''), '/', ''))`;
 
 /**
  * Exact identifier lookup — "which asset has serial ABC123?". Matches the
@@ -31,7 +26,7 @@ export function lookupAssetsByIdentifier(
   value: string,
   kind?: string,
 ): { asset: AssetRow; matchedOn: LookupMatch[] }[] {
-  const wanted = normalizeIdentifier(value.trim());
+  const wanted = normalizeIdentifier(value);
   if (!wanted) return [];
   const typed = value.trim();
   const hits = new Map<string, LookupMatch[]>();
@@ -42,7 +37,7 @@ export function lookupAssetsByIdentifier(
     const byCode = db
       .select({ id: assets.id, code: assets.code })
       .from(assets)
-      .where(sql`${norm(assets.code)} = ${wanted}`)
+      .where(sql`${normIdentifierSql(assets.code)} = ${wanted}`)
       .all();
     for (const a of byCode) add(a.id, { field: 'code', value: a.code, exact: a.code === typed });
   }
@@ -56,7 +51,7 @@ export function lookupAssetsByIdentifier(
     .from(assetExternalIds)
     .where(
       and(
-        sql`${norm(assetExternalIds.value)} = ${wanted}`,
+        sql`${normIdentifierSql(assetExternalIds.value)} = ${wanted}`,
         kind ? eq(assetExternalIds.kind, kind) : undefined,
       ),
     )
@@ -66,12 +61,16 @@ export function lookupAssetsByIdentifier(
   }
 
   if (!kind) {
-    const byCustom = db.all<{ id: string; key: string; value: string }>(
-      sql`SELECT a.id AS id, je.key AS key, CAST(je.value AS TEXT) AS value
-          FROM ${assets} a, json_each(a.custom_fields) je
-          WHERE je.type IN ('text', 'integer', 'real')
-            AND ${norm(sql`CAST(je.value AS TEXT)`)} = ${wanted}`,
-    );
+    // Flattened by triggers on `assets`, indexed on the normalized value.
+    const byCustom = db
+      .select({
+        id: assetFieldValues.assetId,
+        key: assetFieldValues.key,
+        value: assetFieldValues.value,
+      })
+      .from(assetFieldValues)
+      .where(eq(assetFieldValues.valueNorm, wanted))
+      .all();
     for (const r of byCustom) {
       add(r.id, { field: 'customField', key: r.key, value: r.value, exact: r.value === typed });
     }
