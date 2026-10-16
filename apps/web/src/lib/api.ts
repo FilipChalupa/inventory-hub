@@ -18,6 +18,7 @@ import type {
   ApiKeyScope,
   CreateMcpTokenInput,
   McpAccess,
+  McpPolicy,
 } from '@inventory-hub/shared';
 
 type ApiOptions = {
@@ -795,6 +796,9 @@ export const apiClient = {
     events: (opts: { all?: boolean } = {}) =>
       api<{ items: McpEventRow[] }>(`/api/mcp-connections/events${opts.all ? '?all=1' : ''}`),
     tools: () => api<{ items: McpToolRow[] }>('/api/mcp-connections/tools'),
+    policy: () => api<McpPolicy>('/api/mcp-connections/policy'),
+    setPolicy: (policy: McpPolicy) =>
+      api<McpPolicy>('/api/mcp-connections/policy', { method: 'PUT', body: policy }),
     createToken: (input: Partial<CreateMcpTokenInput> & { name: string }) =>
       api<McpConnectionRow & { token: string }>('/api/mcp-connections/tokens', {
         method: 'POST',

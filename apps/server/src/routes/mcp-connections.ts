@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { createMcpTokenInput } from '@inventory-hub/shared';
+import { createMcpTokenInput, mcpPolicySchema } from '@inventory-hub/shared';
 import type { AppContext } from '../app.js';
 import { requireAuth } from '../middleware/auth.js';
 import {
@@ -13,6 +13,7 @@ import {
 } from '../mcp/connections.js';
 import { notifyAgentConnected } from '../mcp/notify.js';
 import { MCP_TOOLS } from '../mcp/tools.js';
+import { MCP_DISABLED_MESSAGE, getMcpPolicy, roleMayWrite, setMcpPolicy } from '../mcp/policy.js';
 
 // Every user manages their own MCP access (OAuth connections + personal
 // tokens); admins can additionally list and revoke anyone's via `?all=1` /
@@ -43,9 +44,34 @@ export const mcpConnectionRoutes = new Hono<AppContext>()
     const items = listMcpEvents(c.get('db'), all ? {} : { userId: user.id });
     return c.json({ items });
   })
+  // Org-wide MCP rules: everyone may read them (the UI adapts), admins set them.
+  .get('/policy', (c) => c.json(getMcpPolicy(c.get('db'))))
+  .put('/policy', requireAuth('admin'), zValidator('json', mcpPolicySchema), (c) => {
+    const policy = c.req.valid('json');
+    setMcpPolicy(c.get('db'), policy);
+    return c.json(policy);
+  })
   .post('/tokens', zValidator('json', createMcpTokenInput), async (c) => {
     const user = c.get('user')!;
     const input = c.req.valid('json');
+    const policy = getMcpPolicy(c.get('db'));
+    if (!policy.enabled) return c.json({ error: { message: MCP_DISABLED_MESSAGE } }, 403);
+    if (input.access === 'read-write' && !roleMayWrite(policy, user.role)) {
+      return c.json({ error: { message: 'Administrátor pro tvou roli povolil jen čtení.' } }, 403);
+    }
+    if (
+      policy.maxTokenDays !== null &&
+      (input.expiresInDays === null || input.expiresInDays > policy.maxTokenDays)
+    ) {
+      return c.json(
+        {
+          error: {
+            message: `Administrátor omezil platnost tokenů na nejvýš ${policy.maxTokenDays} dní.`,
+          },
+        },
+        400,
+      );
+    }
     const created = createPersonalToken(c.get('db'), {
       user: { id: user.id, name: user.name, email: user.email },
       name: input.name,

@@ -40,6 +40,7 @@ import {
 } from './oauth-store.js';
 import { recordMcpEvent } from './connections.js';
 import { notifyAgentConnected, notifyAgentRevokedForReuse } from './notify.js';
+import { getMcpPolicy, roleMayWrite } from './policy.js';
 
 // Cookie capturing a pending /authorize request across the Google login
 // round-trip. The auth callback in routes/auth.ts honours it. Keep this string
@@ -103,6 +104,8 @@ const CONSENT_COPY = {
     incomplete: 'Neúplný požadavek.',
     badClient: 'Neplatný klient nebo redirect_uri.',
     sessionExpired: 'Přihlášení vypršelo. Zkus to prosím znovu.',
+    disabled: 'Připojování AI asistentů (MCP) administrátor v této organizaci vypnul.',
+    readOnlyByPolicy: 'Administrátor pro tvou roli povolil jen čtení.',
   },
   en: {
     connect: (app: string) => `Connect ${app}`,
@@ -122,6 +125,9 @@ const CONSENT_COPY = {
     incomplete: 'Incomplete request.',
     badClient: 'Invalid client or redirect_uri.',
     sessionExpired: 'Your sign-in expired. Please try again.',
+    disabled:
+      'An administrator has turned off AI-assistant (MCP) connections for this organization.',
+    readOnlyByPolicy: 'Your administrator allows read-only access for your role.',
   },
 } satisfies Record<UiLocale, unknown>;
 
@@ -130,6 +136,7 @@ function renderConsent(opts: {
   clientName: string;
   userEmail: string;
   hidden: Record<string, string>;
+  allowWrite: boolean;
 }): string {
   const t = CONSENT_COPY[opts.locale];
   const app = escapeHtml(opts.clientName);
@@ -148,8 +155,12 @@ ${hiddenInputs}
 <div class="scopes">
   <label class="opt"><input type="radio" name="grant" value="read" checked>
     <span><strong>${t.read}</strong><span>${t.readHint}</span></span></label>
-  <label class="opt"><input type="radio" name="grant" value="read-write">
-    <span><strong>${t.readWrite}</strong><span>${t.readWriteHint}</span></span></label>
+  ${
+    opts.allowWrite
+      ? `<label class="opt"><input type="radio" name="grant" value="read-write">
+    <span><strong>${t.readWrite}</strong><span>${t.readWriteHint}</span></span></label>`
+      : `<p class="hint">${t.readOnlyByPolicy}</p>`
+  }
 </div>
 <p class="hint">${t.manageHint}</p>
 <div class="actions">
@@ -320,8 +331,11 @@ export function createOauthRoutes() {
         return c.redirect('/auth/google/start');
       }
 
+      const policy = getMcpPolicy(db);
+      if (!policy.enabled) return fail(400, t.disabled);
       return c.html(
         renderConsent({
+          allowWrite: roleMayWrite(policy, session.user.role),
           locale,
           clientName: client.clientName || t.unknownApp,
           userEmail: session.user.email,
@@ -355,7 +369,7 @@ export function createOauthRoutes() {
     const state = get('state') || undefined;
     const resource = get('resource') || undefined;
     // Anything but an explicit read-write choice falls back to least privilege.
-    const grant = get('grant') === 'read-write' ? 'read-write' : 'read';
+    let grant: 'read' | 'read-write' = get('grant') === 'read-write' ? 'read-write' : 'read';
     const decision = get('decision');
 
     if (!clientId || !redirectUri || !codeChallenge) return fail(400, t.incomplete);
@@ -365,6 +379,10 @@ export function createOauthRoutes() {
     }
     const session = loadSession(db, getCookie(c, SESSION_COOKIE));
     if (!session) return fail(400, t.sessionExpired);
+    const policy = getMcpPolicy(db);
+    if (!policy.enabled) return fail(400, t.disabled);
+    // The form only offers read-only then, but never trust the form.
+    if (!roleMayWrite(policy, session.user.role)) grant = 'read';
 
     if (decision !== 'approve') {
       return c.redirect(

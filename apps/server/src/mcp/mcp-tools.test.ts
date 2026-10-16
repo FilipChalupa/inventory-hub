@@ -85,7 +85,8 @@ describe('MCP tool registry', () => {
     const call = await connect(server.createUser({ role: 'auditor' }));
     const res = await call('create_location', { name: 'Sklad' });
     expect(res.isError).toBe(true);
-    expect(JSON.stringify(res.body)).toContain('Auditor');
+    // Refused before reaching the routers (whose auditor guard is the backstop).
+    expect(JSON.stringify(res.body)).toMatch(/read-only|Auditor/);
   });
 
   it('runs an inventory session end to end', async () => {
@@ -474,5 +475,84 @@ describe('bulk identifiers', () => {
       'duplicate_in_request',
     ]);
     expect((await call('find_asset_by_identifier', { value: 's1' })).body.items[0].code).toBe(a);
+  });
+});
+
+describe('org MCP policy', () => {
+  async function setPolicy(cookie: string, policy: Record<string, unknown>) {
+    const res = await server.authRequest('/api/mcp-connections/policy', {
+      method: 'PUT',
+      cookie,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(policy),
+    });
+    return res;
+  }
+
+  it('only admins change it; everyone can read it', async () => {
+    const member = server.loginAs(server.createUser({ role: 'member' }));
+    expect((await setPolicy(member, { enabled: false })).status).toBe(403);
+    const get = await server.authRequest('/api/mcp-connections/policy', { cookie: member });
+    expect(await get.json()).toEqual({
+      enabled: true,
+      writeRoles: ['admin', 'operator', 'member'],
+      maxTokenDays: null,
+    });
+  });
+
+  it('disabling MCP cuts live connections and token creation', async () => {
+    const admin = server.createUser({ role: 'admin' });
+    const cookie = server.loginAs(admin);
+    const call = await connect(admin);
+    expect((await call('get_stats')).isError).toBe(false);
+
+    expect((await setPolicy(cookie, { enabled: false })).status).toBe(200);
+    const res = await rpc(
+      createPersonalToken(server.db, { user: admin, name: 'x', access: 'read', expiresInDays: 30 })
+        .token,
+      {
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'initialize',
+        params: {
+          protocolVersion: '2025-06-18',
+          capabilities: {},
+          clientInfo: { name: 't', version: '1' },
+        },
+      },
+    );
+    expect(res.status).toBe(403);
+    const token = await server.authRequest('/api/mcp-connections/tokens', {
+      method: 'POST',
+      cookie,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'n' }),
+    });
+    expect(token.status).toBe(403);
+  });
+
+  it('write roles and max token lifetime are enforced', async () => {
+    const admin = server.loginAs(server.createUser({ role: 'admin' }));
+    await setPolicy(admin, { enabled: true, writeRoles: ['admin'], maxTokenDays: 90 });
+
+    const op = server.createUser({ role: 'operator' });
+    const call = await connect(op); // connection itself was read-write
+    const write = await call('create_location', { name: 'Sklad' });
+    expect(write.isError).toBe(true);
+    expect(JSON.stringify(write.body)).toContain('read-only for your role');
+    expect((await call('list_locations')).isError).toBe(false);
+
+    const opCookie = server.loginAs(op);
+    const mint = (body: Record<string, unknown>) =>
+      server.authRequest('/api/mcp-connections/tokens', {
+        method: 'POST',
+        cookie: opCookie,
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'n', ...body }),
+      });
+    expect((await mint({ access: 'read-write', expiresInDays: 30 })).status).toBe(403);
+    expect((await mint({ access: 'read', expiresInDays: 365 })).status).toBe(400);
+    expect((await mint({ access: 'read', expiresInDays: null })).status).toBe(400);
+    expect((await mint({ access: 'read', expiresInDays: 90 })).status).toBe(201);
   });
 });

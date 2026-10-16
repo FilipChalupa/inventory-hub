@@ -169,6 +169,13 @@
       "when": 1792162999848,
       "tag": "0023_asset_field_values_triggers",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "6",
+      "when": 1792189776292,
+      "tag": "0024_concerned_shape",
+      "breakpoints": true
     }
   ]
 }

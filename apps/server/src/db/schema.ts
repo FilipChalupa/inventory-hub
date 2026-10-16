@@ -49,6 +49,9 @@ export const orgSettings = sqliteTable('org_settings', {
   // to this URL, signed with an HMAC-SHA256 of the body using webhookSecret.
   webhookUrl: text('webhook_url'),
   webhookSecret: text('webhook_secret'),
+  // Org-wide AI-agent (MCP) rules; null = defaults (see @inventory-hub/shared
+  // mcpPolicySchema). Managed via /api/mcp-connections/policy.
+  mcpPolicy: text('mcp_policy', { mode: 'json' }).$type<Record<string, unknown>>(),
   ...timestamps,
 });
 

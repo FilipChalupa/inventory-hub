@@ -410,3 +410,69 @@ describe('MCP consent localization', () => {
     expect(await err.text()).toContain('Invalid authorization request.');
   });
 });
+
+describe('consent under org MCP policy', () => {
+  async function setPolicy(policy: Record<string, unknown>) {
+    const admin = server.loginAs(server.createUser({ role: 'admin' }));
+    await server.authRequest('/api/mcp-connections/policy', {
+      method: 'PUT',
+      cookie: admin,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(policy),
+    });
+  }
+  async function consent(role: 'member' | 'admin', grant = 'read-write') {
+    const { client_id } = await registerClient();
+    const cookie = server.loginAs(server.createUser({ role }));
+    const qs = new URLSearchParams({
+      response_type: 'code',
+      client_id,
+      redirect_uri: 'http://localhost:8123/callback',
+      code_challenge: 'x',
+      code_challenge_method: 'S256',
+    });
+    const page = await (
+      await server.app.request(`http://localhost:5173/authorize?${qs}`, {
+        headers: { Cookie: cookie },
+      })
+    ).text();
+    const post = await server.app.request('http://localhost:5173/authorize/consent', {
+      method: 'POST',
+      headers: { Cookie: cookie, 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        client_id,
+        redirect_uri: 'http://localhost:8123/callback',
+        code_challenge: 'x',
+        grant,
+        decision: 'approve',
+      }).toString(),
+      redirect: 'manual',
+    });
+    return { page, post, client_id };
+  }
+
+  it('offers only read-only to roles without write, and enforces it', async () => {
+    await setPolicy({ enabled: true, writeRoles: ['admin'], maxTokenDays: null });
+    const { page, post } = await consent('member');
+    expect(page).not.toContain('value="read-write"');
+    expect(page).toContain('jen čtení');
+    expect(post.status).toBe(302);
+    const code = new URL(post.headers.get('location')!).searchParams.get('code')!;
+    const { oauthAuthCodes } = await import('../db/schema.js');
+    const { hashToken } = await import('./oauth-store.js');
+    const { eq } = await import('drizzle-orm');
+    const row = server.db
+      .select()
+      .from(oauthAuthCodes)
+      .where(eq(oauthAuthCodes.codeHash, hashToken(code)))
+      .get();
+    expect(row!.scope).toBe('mcp:read');
+  });
+
+  it('refuses to connect at all when disabled', async () => {
+    await setPolicy({ enabled: false, writeRoles: ['admin'], maxTokenDays: null });
+    const { page, post } = await consent('admin');
+    expect(page).toContain('vypnul');
+    expect(post.status).toBe(400);
+  });
+});

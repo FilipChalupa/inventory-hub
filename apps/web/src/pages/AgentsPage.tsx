@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { MCP_TOKEN_EXPIRY_DAYS, type McpAccess } from '@inventory-hub/shared';
+import { MCP_TOKEN_EXPIRY_DAYS, type McpAccess, type McpPolicy } from '@inventory-hub/shared';
 import { apiClient, type McpConnectionRow, type McpEventRow } from '../lib/api.js';
 import { probeMcpToken, type McpProbeResult } from '../lib/mcpProbe.js';
 import { errorMessage } from '../lib/errors.js';
@@ -20,8 +20,20 @@ import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 export function AgentsPage() {
   const t = useT();
   const isAdmin = hasRole(useCurrentUser(), 'admin');
+  const user = useCurrentUser();
   const info = useQuery({ queryKey: ['mcp-info'], queryFn: () => apiClient.org.mcpInfo() });
+  const policy = useQuery({
+    queryKey: ['mcp-policy'],
+    queryFn: () => apiClient.mcpConnections.policy(),
+  });
   const url = info.data?.url ?? '';
+  const enabled = policy.data?.enabled ?? true;
+  const mayWrite =
+    !!user &&
+    user.role !== 'auditor' &&
+    (policy.data?.writeRoles ?? ['admin', 'operator', 'member']).includes(
+      user.role as 'admin' | 'operator' | 'member',
+    );
 
   return (
     <section className="space-y-6 max-w-2xl">
@@ -29,6 +41,15 @@ export function AgentsPage() {
         <h1 className="text-2xl font-bold">{t.agents.title}</h1>
         <p className="text-sm text-slate-500 mt-1">{t.agents.intro}</p>
       </div>
+
+      {!enabled && (
+        <p
+          role="alert"
+          className="rounded-sm border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200"
+        >
+          {t.agents.disabledBanner}
+        </p>
+      )}
 
       <Card>
         <h2 className="font-semibold mb-2">{t.agents.connectTitle}</h2>
@@ -53,9 +74,17 @@ export function AgentsPage() {
         )}
       </Card>
 
-      <PersonalTokenSection url={url} />
+      {enabled && (
+        <PersonalTokenSection
+          url={url}
+          mayWrite={mayWrite}
+          maxDays={policy.data?.maxTokenDays ?? null}
+        />
+      )}
 
       <ConnectionsSection title={t.agents.myTitle} empty={t.agents.myEmpty} />
+
+      {isAdmin && policy.data && <PolicySection policy={policy.data} />}
 
       {isAdmin && (
         <ConnectionsSection
@@ -73,21 +102,33 @@ export function AgentsPage() {
   );
 }
 
-function PersonalTokenSection({ url }: { url: string }) {
+function PersonalTokenSection({
+  url,
+  mayWrite,
+  maxDays,
+}: {
+  url: string;
+  mayWrite: boolean;
+  maxDays: number | null;
+}) {
   const t = useT();
   const qc = useQueryClient();
   const [name, setName] = useState('');
   const [access, setAccess] = useState<McpAccess>('read');
   // Select values are strings; '' encodes "never expires".
   const [expiry, setExpiry] = useState('90');
+  const expiryOptions = MCP_TOKEN_EXPIRY_DAYS.filter((d) => maxDays === null || d <= maxDays);
+  // Keep the selection valid when the admin's limit is tighter.
+  const effectiveExpiry =
+    maxDays !== null && (expiry === '' || Number(expiry) > maxDays) ? String(maxDays) : expiry;
   const [created, setCreated] = useState<{ name: string; token: string } | null>(null);
 
   const create = useMutation({
     mutationFn: () =>
       apiClient.mcpConnections.createToken({
         name: name.trim(),
-        access,
-        expiresInDays: expiry ? Number(expiry) : null,
+        access: mayWrite ? access : 'read',
+        expiresInDays: effectiveExpiry ? Number(effectiveExpiry) : null,
       }),
     onSuccess: (res) => {
       setCreated({ name: res.name, token: res.token });
@@ -152,19 +193,24 @@ function PersonalTokenSection({ url }: { url: string }) {
           </Field>
         </div>
         <Field label={t.agents.accessLabel}>
-          <Select value={access} onChange={(e) => setAccess(e.target.value as McpAccess)}>
+          <Select
+            value={mayWrite ? access : 'read'}
+            disabled={!mayWrite}
+            title={mayWrite ? undefined : t.agents.readOnlyForRole}
+            onChange={(e) => setAccess(e.target.value as McpAccess)}
+          >
             <option value="read">{t.agents.accessRead}</option>
-            <option value="read-write">{t.agents.accessReadWrite}</option>
+            {mayWrite && <option value="read-write">{t.agents.accessReadWrite}</option>}
           </Select>
         </Field>
         <Field label={t.agents.expiryLabel}>
-          <Select value={expiry} onChange={(e) => setExpiry(e.target.value)}>
-            {MCP_TOKEN_EXPIRY_DAYS.map((d) => (
+          <Select value={effectiveExpiry} onChange={(e) => setExpiry(e.target.value)}>
+            {expiryOptions.map((d) => (
               <option key={d} value={String(d)}>
                 {t.agents.expiryDays(d)}
               </option>
             ))}
-            <option value="">{t.agents.expiryNever}</option>
+            {maxDays === null && <option value="">{t.agents.expiryNever}</option>}
           </Select>
         </Field>
         <Button type="submit" disabled={create.isPending || !name.trim()}>
@@ -263,6 +309,86 @@ function ConnectionsSection({
           ))}
         </ul>
       )}
+    </Card>
+  );
+}
+
+function PolicySection({ policy }: { policy: McpPolicy }) {
+  const t = useT();
+  const qc = useQueryClient();
+  const [draft, setDraft] = useState<McpPolicy>(policy);
+  const save = useMutation({
+    mutationFn: (p: McpPolicy) => apiClient.mcpConnections.setPolicy(p),
+    onSuccess: (saved) => {
+      qc.setQueryData(['mcp-policy'], saved);
+      toast.success(t.agents.policySaved);
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+  const roles = [
+    ['admin', t.agents.roleAdmin],
+    ['operator', t.agents.roleOperator],
+    ['member', t.agents.roleMember],
+  ] as const;
+  const toggleRole = (role: McpPolicy['writeRoles'][number], on: boolean) =>
+    setDraft((d) => ({
+      ...d,
+      writeRoles: on ? [...d.writeRoles, role] : d.writeRoles.filter((r) => r !== role),
+    }));
+
+  return (
+    <Card>
+      <h2 className="font-semibold mb-1">{t.agents.policyTitle}</h2>
+      <p className="text-xs text-slate-500 mb-3">{t.agents.policyIntro}</p>
+      <div className="space-y-3 text-sm">
+        <label className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={draft.enabled}
+            onChange={(e) => setDraft((d) => ({ ...d, enabled: e.target.checked }))}
+          />
+          {t.agents.policyEnabled}
+        </label>
+        <fieldset disabled={!draft.enabled} className="space-y-3 disabled:opacity-60">
+          <div>
+            <p>{t.agents.policyWriteRoles}</p>
+            <div className="mt-1 flex flex-wrap gap-4">
+              {roles.map(([role, label]) => (
+                <label key={role} className="flex items-center gap-1.5">
+                  <input
+                    type="checkbox"
+                    checked={draft.writeRoles.includes(role)}
+                    onChange={(e) => toggleRole(role, e.target.checked)}
+                  />
+                  {label}
+                </label>
+              ))}
+            </div>
+            <p className="text-xs text-slate-500 mt-1">{t.agents.policyWriteHint}</p>
+          </div>
+          <Field label={t.agents.policyMaxDays}>
+            <Select
+              value={draft.maxTokenDays === null ? '' : String(draft.maxTokenDays)}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  maxTokenDays: e.target.value ? Number(e.target.value) : null,
+                }))
+              }
+            >
+              <option value="">{t.agents.policyNoLimit}</option>
+              {MCP_TOKEN_EXPIRY_DAYS.map((days) => (
+                <option key={days} value={String(days)}>
+                  {t.agents.expiryDays(days)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </fieldset>
+        <Button onClick={() => save.mutate(draft)} disabled={save.isPending}>
+          {t.agents.policySave}
+        </Button>
+      </div>
     </Card>
   );
 }

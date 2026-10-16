@@ -15,6 +15,7 @@ import type { EmailSender } from '../lib/email.js';
 import { callApi, callApiRaw, createMcpDispatchApp, type McpDispatchApp } from './dispatch.js';
 import { runWithPrincipal, type McpPrincipal } from './principal.js';
 import { scopeAllowsWrite } from './oauth-store.js';
+import { getMcpPolicy, roleMayWrite } from './policy.js';
 import {
   DESTRUCTIVE_TOOLS,
   IDEMPOTENT_TOOLS,
@@ -60,10 +61,20 @@ async function runTool(
   authInfo: AuthInfo | undefined,
   appUrl: string,
   serverUrl: string,
+  db: Db,
 ): Promise<ToolResult> {
   const principal = authInfo?.extra?.principal as McpPrincipal | undefined;
   if (!principal) {
     return textResult({ error: 'Unauthorized: no MCP principal on request.' }, true);
+  }
+  if (t.access === 'write' && !roleMayWrite(getMcpPolicy(db), principal.user.role)) {
+    return textResult(
+      {
+        error:
+          'Your administrator has made AI-agent access read-only for your role, so write tools are unavailable.',
+      },
+      true,
+    );
   }
   if (t.access === 'write' && !scopeAllowsWrite(principal.scope)) {
     return textResult(
@@ -96,7 +107,7 @@ async function runTool(
   return out;
 }
 
-function buildServer(app: McpDispatchApp, appUrl: string, serverUrl: string): McpServer {
+function buildServer(app: McpDispatchApp, appUrl: string, serverUrl: string, db: Db): McpServer {
   const server = new McpServer(SERVER_INFO);
   for (const t of MCP_TOOLS) {
     server.registerTool(
@@ -117,7 +128,7 @@ function buildServer(app: McpDispatchApp, appUrl: string, serverUrl: string): Mc
         },
       },
       async (args: Record<string, unknown>, extra: { authInfo?: AuthInfo }) =>
-        runTool(app, t, args, extra?.authInfo, appUrl, serverUrl),
+        runTool(app, t, args, extra?.authInfo, appUrl, serverUrl, db),
     );
   }
   return server;
@@ -207,7 +218,7 @@ export function createMcpRuntime(
           sessions.delete(id);
         },
       });
-      const server = buildServer(dispatchApp, appUrl, serverUrl);
+      const server = buildServer(dispatchApp, appUrl, serverUrl, deps.db);
       session.transport = transport;
       session.server = server;
       await server.connect(transport);

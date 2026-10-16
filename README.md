@@ -87,7 +87,11 @@ connection and emails the user. Each connection is rate-limited
 rows to keep the agent's context small. Agents can look assets up by serial
 number, EAN or any other identifier, manage those identifiers, attach photos
 (base64, a public URL, or a one-time upload link they `curl` a file to) and
-look at an asset's photos. The consent screen
+look at an asset's photos.
+
+Admins set organization rules on the same page: turn MCP off entirely, limit
+which roles may use write tools (others get read-only), and cap the lifetime
+of new personal tokens. Rules apply to existing connections immediately. The consent screen
 preselects read-only and follows the user's app language.
 
 Tools mirror the REST API (assets, loans, contacts, damages, locations, asset

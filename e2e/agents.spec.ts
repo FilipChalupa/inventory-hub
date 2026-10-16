@@ -30,4 +30,44 @@ test.describe('AI assistants (MCP)', () => {
     await expect(history.filter({ hasText: 'odpojeno' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Odpojit' })).toHaveCount(0);
   });
+
+  test('admin rules: limit token lifetime, then turn MCP off and on', async ({ page }) => {
+    await devLogin(page);
+    await page.goto('/agents');
+    const rules = page
+      .locator('div')
+      .filter({
+        has: page.getByRole('heading', { name: 'Pravidla pro organizaci' }),
+      })
+      .last();
+    try {
+      await rules.getByLabel('Nejdelší platnost nových osobních tokenů').selectOption('30');
+      await rules.getByRole('button', { name: 'Uložit pravidla' }).click();
+      await expect(page.getByText('Pravidla uložena')).toBeVisible();
+      await page.reload();
+      // Second select of the token form (access, then expiry).
+      const expiry = page
+        .locator('form')
+        .filter({ has: page.getByRole('button', { name: 'Vytvořit token' }) })
+        .locator('select')
+        .nth(1);
+      await expect(expiry.locator('option')).toHaveText(['30 dní']);
+
+      await rules.getByLabel('Povolit připojování AI asistentů (MCP)').uncheck();
+      await rules.getByRole('button', { name: 'Uložit pravidla' }).click();
+      await page.reload();
+      await expect(page.getByRole('alert')).toContainText('vypnul');
+      await expect(page.getByRole('button', { name: 'Vytvořit token' })).toHaveCount(0);
+    } finally {
+      // The e2e DB is shared across specs: restore the defaults.
+      await page.request.put('/api/mcp-connections/policy', {
+        headers: { 'content-type': 'application/json' },
+        data: JSON.stringify({
+          enabled: true,
+          writeRoles: ['admin', 'operator', 'member'],
+          maxTokenDays: null,
+        }),
+      });
+    }
+  });
 });

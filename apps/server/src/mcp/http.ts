@@ -20,6 +20,7 @@ import { saveUploadBuffer, sniffMime } from '../lib/uploads.js';
 import { callApi, createMcpDispatchApp } from './dispatch.js';
 import { runWithPrincipal } from './principal.js';
 import { consumeUploadLink, getUploadLink } from './upload-links.js';
+import { MCP_DISABLED_MESSAGE, getMcpPolicy } from './policy.js';
 import type { McpPrincipal } from './principal.js';
 
 const MCP_IP_LIMIT = { bucket: 'mcp-ip', windowMs: 60_000, max: 1200 };
@@ -65,8 +66,12 @@ export function mountMcp(
       if (!link)
         return c.json({ error: { message: 'Upload link is invalid, used or expired.' } }, 404);
       const user = db.select().from(users).where(eq(users.id, link.userId)).get();
-      if (!user || user.disabledAt)
+      if (!user || user.disabledAt) {
         return c.json({ error: { message: 'User no longer active.' } }, 403);
+      }
+      if (!getMcpPolicy(db).enabled) {
+        return c.json({ error: { message: MCP_DISABLED_MESSAGE } }, 403);
+      }
 
       let form: FormData;
       try {
@@ -160,6 +165,9 @@ export function mountMcp(
 
     const user = db.select().from(users).where(eq(users.id, verified.userId)).get();
     if (!user || user.disabledAt) return unauthorized('User no longer active.');
+    if (!getMcpPolicy(db).enabled) {
+      return c.json({ error: 'mcp_disabled', error_description: MCP_DISABLED_MESSAGE }, 403);
+    }
 
     // Per-connection budget: a looping agent is throttled on its own.
     const limited = hitRateLimit(
