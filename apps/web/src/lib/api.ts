@@ -480,7 +480,7 @@ export const apiClient = {
 
   assets: {
     lookup: (value: string) =>
-      api<{ items: (Asset & { matchedOn: AssetLookupMatch[] })[] }>(
+      api<{ items: (Asset & { id: string; matchedOn: AssetLookupMatch[] })[] }>(
         `/api/assets/lookup?value=${encodeURIComponent(value)}`,
       ),
     list: (params: ListAssetsParams = {}) => {

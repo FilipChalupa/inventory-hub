@@ -14,6 +14,9 @@ export const commandPalette = ns({
     empty: 'Nic nenalezeno',
     // aria-label for the dialog.
     dialogLabel: 'Příkazová paleta',
+    // Why an exact identifier hit matched (shown next to the asset).
+    matchedCode: 'kód',
+    matchedField: (key: string) => `pole ${key}`,
   },
   en: {
     searchButton: 'Search…',
@@ -23,5 +26,7 @@ export const commandPalette = ns({
     loading: 'Searching…',
     empty: 'Nothing found',
     dialogLabel: 'Command palette',
+    matchedCode: 'code',
+    matchedField: (key: string) => `field ${key}`,
   },
 });

@@ -11,7 +11,8 @@ import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import clsx from 'clsx';
 import { mainNav, catalogNav, adminNav, userNav, type NavItem } from '../nav.js';
-import { apiClient } from '../lib/api.js';
+import { apiClient, type AssetLookupMatch } from '../lib/api.js';
+import type { Asset } from '@inventory-hub/shared';
 import { useCurrentUser } from '../auth/AuthContext.js';
 import { useDebouncedValue } from '../lib/useDebouncedValue.js';
 import { useT } from '../i18n/index.js';
@@ -106,7 +107,34 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
     enabled: debouncedQ.length > 0,
     placeholderData: keepPreviousData,
   });
-  const assetItems = debouncedQ.length > 0 ? (assetsQuery.data?.items ?? []) : [];
+  // Exact identifier hits (serial, EAN, custom field…) go first and say what
+  // matched; the fuzzy list follows without duplicates.
+  const lookupQuery = useQuery({
+    queryKey: ['command-palette', 'lookup', debouncedQ],
+    queryFn: () => apiClient.assets.lookup(debouncedQ),
+    enabled: debouncedQ.length >= 3,
+    placeholderData: keepPreviousData,
+  });
+  const assetItems = useMemo(() => {
+    if (debouncedQ.length === 0) return [];
+    const exact = debouncedQ.length >= 3 ? (lookupQuery.data?.items ?? []) : [];
+    const seen = new Set(exact.map((a) => a.id));
+    const rest = (assetsQuery.data?.items ?? []).filter((a) => !seen.has(a.id));
+    return [...exact, ...rest].slice(0, LIMIT) as (Asset & {
+      id: string;
+      matchedOn?: AssetLookupMatch[];
+    })[];
+  }, [debouncedQ, lookupQuery.data, assetsQuery.data]);
+
+  const kindLabels: Record<string, string> = {
+    serial: t.assetDetail.kindSerial,
+    ean: t.assetDetail.kindEan,
+    sku: t.assetDetail.kindSku,
+  };
+  const matchLabel = (m: AssetLookupMatch) =>
+    m.field === 'code'
+      ? null // the code is shown anyway
+      : `${m.field === 'externalId' ? (kindLabels[m.key ?? ''] ?? m.key) : t.commandPalette.matchedField(m.key ?? '')}: ${m.value}`;
   const showAssetsSection = q.length > 0;
 
   const total = navItems.length + assetItems.length;
@@ -271,14 +299,29 @@ function PaletteModal({ onClose }: { onClose: () => void }) {
                       <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
                         {asset.code}
                       </span>
-                      <span className="min-w-0 flex-1 truncate">{asset.name}</span>
+                      <span className="min-w-0 flex-1 truncate">
+                        {asset.name}
+                        {asset.matchedOn
+                          ?.map(matchLabel)
+                          .filter(Boolean)
+                          .map((label) => (
+                            <span
+                              key={label}
+                              className="ml-2 text-xs text-emerald-700 dark:text-emerald-300"
+                            >
+                              {label}
+                            </span>
+                          ))}
+                      </span>
                       <StatusBadge status={asset.status} />
                     </button>
                   );
                 })
               ) : (
                 <p className="px-3 py-2 text-sm text-slate-500 dark:text-slate-400">
-                  {assetsQuery.isFetching ? t.commandPalette.loading : t.commandPalette.empty}
+                  {assetsQuery.isFetching || lookupQuery.isFetching
+                    ? t.commandPalette.loading
+                    : t.commandPalette.empty}
                 </p>
               )}
             </>
