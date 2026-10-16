@@ -344,6 +344,25 @@ export function openApiDocument() {
           },
         },
       },
+      '/api/inventory/{id}/compare': {
+        get: {
+          summary: 'Compare with an earlier stock-take',
+          description:
+            'Lists newlyMissing, recovered, stillMissing, addedToScope and removedFromScope relative to `with` (default: the previous closed session with the same scope, else the previous closed one). `{ base: null }` when there is nothing earlier.',
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'with', in: 'query', schema: { type: 'string' } },
+          ],
+          responses: { 200: ok('Comparison'), 404: ok('Session not found', ref('Error')) },
+        },
+      },
+      '/api/inventory/{id}/report.csv': {
+        get: {
+          summary: 'Export the reconciled report as CSV',
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: { 200: ok('CSV file'), 404: ok('Session not found', ref('Error')) },
+        },
+      },
       '/api/inventory/{id}/close': {
         post: {
           summary: 'Close a session',

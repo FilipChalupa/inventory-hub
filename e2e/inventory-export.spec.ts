@@ -37,4 +37,46 @@ test.describe('inventory export', () => {
       fullPage: true,
     });
   });
+
+  test('compares with the previous stock-take', async ({ page }) => {
+    await devLogin(page);
+    const post = async (path: string, body: unknown) =>
+      (
+        await page.request.post(path, {
+          headers: { 'content-type': 'application/json' },
+          data: JSON.stringify(body),
+        })
+      ).json();
+    for (const [code, name] of [
+      ['LAP-97201', 'Cmp steady'],
+      ['LAP-97202', 'Cmp lost'],
+      ['LAP-97203', 'Cmp back'],
+    ]) {
+      await post('/api/assets', { name, code });
+    }
+    const codes = ['LAP-97201', 'LAP-97202', 'LAP-97203'];
+    const first = (await post('/api/inventory', { name: 'Cmp Q3', assetCodes: codes })).session;
+    for (const code of ['LAP-97201', 'LAP-97202']) {
+      await post(`/api/inventory/${first.id}/scan`, { code });
+    }
+    await post(`/api/inventory/${first.id}/close`, {});
+    // createdAt has one-second resolution; make sure Q4 is strictly later.
+    await page.waitForTimeout(1100);
+    const second = (await post('/api/inventory', { name: 'Cmp Q4', assetCodes: codes })).session;
+    for (const code of ['LAP-97201', 'LAP-97203']) {
+      await post(`/api/inventory/${second.id}/scan`, { code });
+    }
+
+    await page.goto(`/inventory/${second.id}`);
+    // The card = the heading's row's parent.
+    const card = page
+      .getByRole('heading', { name: 'Porovnání s minulou inventurou' })
+      .locator('../..');
+    await expect(card).toContainText('Cmp Q3');
+    await expect(card.getByRole('heading', { name: /Nově chybí/ })).toBeVisible();
+    await expect(card).toContainText('LAP-97202');
+    await expect(card.getByRole('heading', { name: /Znovu nalezeno/ })).toBeVisible();
+    await expect(card).toContainText('LAP-97203');
+    await card.screenshot({ path: process.env.SHOT_CMP ?? 'test-results/compare.png' });
+  });
 });

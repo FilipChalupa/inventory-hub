@@ -933,6 +933,16 @@ export const MCP_TOOLS: McpTool[] = [
     },
   ),
   tool(
+    'compare_inventories',
+    'read',
+    'What changed since an earlier stock-take: newly missing (found last time), found again, missing in both (repeat losses), and assets that joined / left the scope. `with` picks the earlier session; by default the previous closed one with the same scope.',
+    { id: z.string(), with: z.string().optional() },
+    (a) => ({
+      method: 'GET',
+      path: `/api/inventory/${encodeURIComponent(a.id)}/compare${qs({ with: a.with })}`,
+    }),
+  ),
+  tool(
     'create_inventory',
     'write',
     'Start an inventory session (admin/operator). Scope by locationId and/or typeIds, or list exact assetCodes; omit all to cover the whole organization.',

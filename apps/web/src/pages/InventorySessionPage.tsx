@@ -14,6 +14,7 @@ import {
   Button,
   Card,
   Input,
+  Select,
   SkeletonList,
   StatusBadge,
   Textarea,
@@ -421,7 +422,108 @@ export function InventorySessionPage() {
         canWrite={canWrite}
         onSaveNote={onSaveNote}
       />
+
+      <CompareSection sessionId={id} />
     </section>
+  );
+}
+
+/** What changed since an earlier stock-take (default: the previous one). */
+function CompareSection({ sessionId }: { sessionId: string }) {
+  const t = useT();
+  const [withId, setWithId] = useState<string>('');
+  const sessions = useQuery({ queryKey: ['inventory'], queryFn: () => apiClient.inventory.list() });
+  const cmp = useQuery({
+    queryKey: ['inventory', sessionId, 'compare', withId],
+    queryFn: () => apiClient.inventory.compare(sessionId, withId || undefined),
+  });
+  const others = (sessions.data?.items ?? []).filter(
+    (s) => s.id !== sessionId && s.status === 'closed',
+  );
+  const data = cmp.data;
+  if (!data) return null;
+
+  return (
+    <Card className="space-y-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">{t.inventorySession.compareTitle}</h2>
+        {data.base && others.length > 1 && (
+          <label className="flex items-center gap-2 text-sm print:hidden">
+            {t.inventorySession.compareWith}
+            <Select value={withId || data.base.id} onChange={(e) => setWithId(e.target.value)}>
+              {others.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name} ({formatDate(s.createdAt)})
+                </option>
+              ))}
+            </Select>
+          </label>
+        )}
+      </div>
+      {!data.base ? (
+        <p className="text-sm text-slate-500">{t.inventorySession.compareNone}</p>
+      ) : (
+        <>
+          <p className="text-xs text-slate-500">
+            {data.base.name} · {formatDate(data.base.closedAt ?? data.base.createdAt)}
+          </p>
+          {!data.base.sameScope && (
+            <p className="text-xs text-amber-700 dark:text-amber-300">
+              {t.inventorySession.compareDifferentScope}
+            </p>
+          )}
+          {(
+            [
+              [
+                'newlyMissing',
+                t.inventorySession.compareNewlyMissing,
+                'text-red-700 dark:text-red-300',
+              ],
+              [
+                'stillMissing',
+                t.inventorySession.compareStillMissing,
+                'text-red-700 dark:text-red-300',
+              ],
+              [
+                'recovered',
+                t.inventorySession.compareRecovered,
+                'text-emerald-700 dark:text-emerald-300',
+              ],
+              ['addedToScope', t.inventorySession.compareAdded, ''],
+              ['removedFromScope', t.inventorySession.compareRemoved, ''],
+            ] as const
+          ).map(([key, label, tone]) =>
+            data[key].length === 0 ? null : (
+              <div key={key}>
+                <h3 className={'text-sm font-medium ' + tone}>
+                  {label} ({data[key].length})
+                </h3>
+                <ul className="mt-1 text-sm">
+                  {data[key].map((a) => (
+                    <li key={a.id}>
+                      <Link to={`/a/${a.code}`} className="hover:underline">
+                        <span className="font-mono">{a.code}</span> — {a.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ),
+          )}
+          {(
+            [
+              'newlyMissing',
+              'stillMissing',
+              'recovered',
+              'addedToScope',
+              'removedFromScope',
+            ] as const
+          ).every((k) => data[k].length === 0) && (
+            <p className="text-sm text-slate-500">{t.inventorySession.compareNothing}</p>
+          )}
+        </>
+      )}
+    </Card>
   );
 }
 

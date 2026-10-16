@@ -252,6 +252,80 @@ describe('inventory API', () => {
     expect(mail.text).toContain('report.csv');
   });
 
+  it('a closed report is frozen: later archiving does not rewrite it', async () => {
+    const a = await makeAsset(server, cookie, 'Kept');
+    const b = await makeAsset(server, cookie, 'Archived later');
+    const sid = await createSession(server, cookie);
+    await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: a });
+    await jsonPost(server, cookie, `/api/inventory/${sid}/close`, {});
+    server.db.update(assets).set({ archivedAt: new Date() }).where(eq(assets.code, b)).run();
+
+    const detail = (await (
+      await server.authRequest(`/api/inventory/${sid}`, { cookie })
+    ).json()) as {
+      session: Record<string, unknown>;
+      report: { counts: Record<string, number>; missing: { code: string }[] };
+    };
+    expect(detail.report.counts).toMatchObject({ expected: 2, found: 1, missing: 1 });
+    expect(detail.report.missing.map((m) => m.code)).toEqual([b]);
+    expect(detail.session).not.toHaveProperty('expectedSnapshot');
+
+    // Reopening goes back to the live scope (B is archived now).
+    await jsonPost(server, cookie, `/api/inventory/${sid}/reopen`, {});
+    const live = (await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
+      report: { counts: Record<string, number> };
+    };
+    expect(live.report.counts.expected).toBe(1);
+  });
+
+  it('compares with the previous stock-take', async () => {
+    const a = await makeAsset(server, cookie, 'Always there');
+    const b = await makeAsset(server, cookie, 'Lost this time');
+    const c2 = await makeAsset(server, cookie, 'Found again');
+    const d = await makeAsset(server, cookie, 'Never found');
+    const e = await makeAsset(server, cookie, 'Retired');
+
+    const scanAll = async (sid: string, codes: string[]) => {
+      for (const code of codes)
+        await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code });
+    };
+    const first = await createSession(server, cookie, { name: 'Q3' });
+    await scanAll(first, [a, b, e]);
+    await jsonPost(server, cookie, `/api/inventory/${first}/close`, {});
+    // Q4 must be created later than Q3 (createdAt has 1 s resolution).
+    server.db
+      .update(inventorySessions)
+      .set({ createdAt: new Date(Date.now() - 60_000) })
+      .where(eq(inventorySessions.id, first))
+      .run();
+
+    server.db.update(assets).set({ archivedAt: new Date() }).where(eq(assets.code, e)).run();
+    const f = await makeAsset(server, cookie, 'Bought since');
+    const second = await createSession(server, cookie, { name: 'Q4' });
+    await scanAll(second, [a, c2, f]);
+
+    const res = await server.authRequest(`/api/inventory/${second}/compare`, { cookie });
+    expect(res.status).toBe(200);
+    const cmp = (await res.json()) as Record<string, { code: string }[]> & {
+      base: { name: string; sameScope: boolean };
+    };
+    const codes = (k: string) => cmp[k]!.map((x) => x.code);
+    expect(cmp.base).toMatchObject({ name: 'Q3', sameScope: true });
+    expect(codes('newlyMissing')).toEqual([b]);
+    expect(codes('recovered')).toEqual([c2]);
+    expect(codes('stillMissing')).toEqual([d]);
+    expect(codes('addedToScope')).toEqual([f]);
+    expect(codes('removedFromScope')).toEqual([e]);
+
+    // Nothing earlier to compare with.
+    const none = await server.authRequest(`/api/inventory/${first}/compare`, { cookie });
+    expect(await none.json()).toEqual({ base: null });
+    expect(
+      (await server.authRequest(`/api/inventory/${second}/compare?with=${second}`, { cookie }))
+        .status,
+    ).toBe(404);
+  });
+
   it('refuses an identifier that matches several assets', async () => {
     const a = await makeAsset(server, cookie, 'A');
     const b = await makeAsset(server, cookie, 'B');

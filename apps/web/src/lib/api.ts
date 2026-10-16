@@ -336,6 +336,24 @@ export type InventoryReport = {
   unexpected: InventoryReportAsset[];
 };
 
+export type InventoryCompareAsset = { id: string; code: string; name: string; status: AssetStatus };
+export type InventoryComparison =
+  | { base: null }
+  | {
+      base: {
+        id: string;
+        name: string;
+        createdAt: string;
+        closedAt: string | null;
+        sameScope: boolean;
+      };
+      newlyMissing: InventoryCompareAsset[];
+      recovered: InventoryCompareAsset[];
+      stillMissing: InventoryCompareAsset[];
+      addedToScope: InventoryCompareAsset[];
+      removedFromScope: InventoryCompareAsset[];
+    };
+
 export type ScanResult = {
   result: ScanResultKind;
   /** Report list the asset now belongs to. */
@@ -746,6 +764,10 @@ export const apiClient = {
 
   inventory: {
     list: () => api<{ items: InventorySessionRow[] }>('/api/inventory'),
+    compare: (id: string, withId?: string) =>
+      api<InventoryComparison>(
+        `/api/inventory/${id}/compare${withId ? `?with=${encodeURIComponent(withId)}` : ''}`,
+      ),
     get: (id: string) =>
       api<{ session: InventorySessionRow; report: InventoryReport }>(`/api/inventory/${id}`),
     create: (input: CreateInventorySessionInput) =>

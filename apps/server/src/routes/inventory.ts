@@ -80,6 +80,12 @@ function scopeCondition(db: Db, session: InventorySessionRow): SQL {
   return and(...conds)!;
 }
 
+/** A session as sent to clients — without the (possibly large) snapshot. */
+function publicSession(s: InventorySessionRow) {
+  const { expectedSnapshot: _snapshot, ...rest } = s;
+  return rest;
+}
+
 /** Just the columns a report row needs (not notes, custom fields, …). */
 const REPORT_COLUMNS = {
   id: assets.id,
@@ -90,6 +96,16 @@ const REPORT_COLUMNS = {
 };
 
 function expectedAssets(db: Db, session: InventorySessionRow) {
+  // Closed with a snapshot: exactly what was expected then (archived since or
+  // not), so the record doesn't drift.
+  if (session.status === 'closed' && session.expectedSnapshot) {
+    if (session.expectedSnapshot.length === 0) return [];
+    return db
+      .select(REPORT_COLUMNS)
+      .from(assets)
+      .where(inArray(assets.id, session.expectedSnapshot))
+      .all();
+  }
   return db.select(REPORT_COLUMNS).from(assets).where(scopeCondition(db, session)).all();
 }
 
@@ -241,7 +257,7 @@ export const inventoryRoutes = new Hono<AppContext>()
         .from(inventoryScans)
         .where(eq(inventoryScans.sessionId, s.id))
         .all().length;
-      return { ...s, scanCount };
+      return { ...publicSession(s), scanCount };
     });
     return c.json({ items });
   })
@@ -298,9 +314,81 @@ export const inventoryRoutes = new Hono<AppContext>()
         .from(inventorySessions)
         .where(eq(inventorySessions.id, id))
         .get()!;
-      return c.json({ session }, 201);
+      return c.json({ session: publicSession(session) }, 201);
     },
   )
+  // What changed since an earlier stock-take: assets newly missing, found
+  // again, missing in both (repeat losses), and the scope's churn. `with`
+  // picks the earlier session; by default the latest earlier closed session
+  // with the same scope, else the latest earlier closed one.
+  .get('/:id/compare', (c) => {
+    const db = c.get('db');
+    const current = db
+      .select()
+      .from(inventorySessions)
+      .where(eq(inventorySessions.id, c.req.param('id')))
+      .get();
+    if (!current) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+
+    const withId = c.req.query('with');
+    let base: InventorySessionRow | undefined;
+    if (withId) {
+      base = db.select().from(inventorySessions).where(eq(inventorySessions.id, withId)).get();
+      if (!base || base.id === current.id) {
+        return c.json({ error: { message: 'Inventura pro porovnání nenalezena' } }, 404);
+      }
+    } else {
+      const sameScope = (s: InventorySessionRow) =>
+        JSON.stringify([s.locationId, s.typeIds ?? [], s.assetIds ?? []]) ===
+        JSON.stringify([current.locationId, current.typeIds ?? [], current.assetIds ?? []]);
+      const earlier = db
+        .select()
+        .from(inventorySessions)
+        .where(
+          and(
+            eq(inventorySessions.status, 'closed'),
+            lt(inventorySessions.createdAt, current.createdAt),
+          ),
+        )
+        .orderBy(desc(inventorySessions.createdAt))
+        .limit(50)
+        .all();
+      base = earlier.find(sameScope) ?? earlier[0];
+    }
+    if (!base) return c.json({ base: null });
+
+    const now = buildReport(db, current);
+    const before = buildReport(db, base);
+    const ids = (list: ReportAsset[]) => new Set(list.map((a) => a.id));
+    const brief = (a: ReportAsset) => ({ id: a.id, code: a.code, name: a.name, status: a.status });
+    const beforeFound = ids(before.found);
+    const beforeMissing = ids(before.missing);
+    const nowExpected = ids([...now.found, ...now.missing]);
+    const beforeExpected = new Set([...beforeFound, ...beforeMissing]);
+
+    return c.json({
+      base: {
+        id: base.id,
+        name: base.name,
+        createdAt: base.createdAt,
+        closedAt: base.closedAt,
+        sameScope:
+          JSON.stringify([base.locationId, base.typeIds ?? [], base.assetIds ?? []]) ===
+          JSON.stringify([current.locationId, current.typeIds ?? [], current.assetIds ?? []]),
+      },
+      newlyMissing: now.missing.filter((a) => beforeFound.has(a.id)).map(brief),
+      recovered: now.found.filter((a) => beforeMissing.has(a.id)).map(brief),
+      stillMissing: now.missing.filter((a) => beforeMissing.has(a.id)).map(brief),
+      addedToScope: [...now.found, ...now.missing]
+        .filter((a) => !beforeExpected.has(a.id))
+        .map(brief)
+        .sort((a, b) => a.code.localeCompare(b.code)),
+      removedFromScope: [...before.found, ...before.missing]
+        .filter((a) => !nowExpected.has(a.id))
+        .map(brief)
+        .sort((a, b) => a.code.localeCompare(b.code)),
+    });
+  })
   // The reconciled report as CSV, one row per asset (found / missing /
   // unexpected) with who scanned it and when — for accounting / archiving.
   .get('/:id/report.csv', (c) => {
@@ -379,7 +467,7 @@ export const inventoryRoutes = new Hono<AppContext>()
     const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
     if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
     const report = buildReport(db, session);
-    return c.json({ session, report });
+    return c.json({ session: publicSession(session), report });
   })
   .patch(
     '/:id',
@@ -518,11 +606,13 @@ export const inventoryRoutes = new Hono<AppContext>()
     if (session.status === 'closed') {
       return c.json({ error: { message: 'Inventura je už uzavřená' } }, 409);
     }
+    const expectedSnapshot = expectedAssets(db, session).map((a) => a.id);
     db.update(inventorySessions)
       .set({
         status: 'closed',
         closedAt: new Date(),
         closedByUserId: user.id,
+        expectedSnapshot,
         updatedAt: new Date(),
       })
       .where(eq(inventorySessions.id, id))
@@ -530,7 +620,7 @@ export const inventoryRoutes = new Hono<AppContext>()
 
     // Tell the admins how it went (and any webhook listener), so the result
     // doesn't depend on someone opening the page.
-    const report = buildReport(db, session);
+    const report = buildReport(db, { ...session, status: 'closed', expectedSnapshot });
     const env = c.get('env');
     const appUrl = env.PUBLIC_APP_URL.replace(/\/$/, '');
     emitWebhook(db, 'inventory.closed', {
@@ -581,7 +671,14 @@ export const inventoryRoutes = new Hono<AppContext>()
       return c.json({ error: { message: 'Inventura je už otevřená' } }, 409);
     }
     db.update(inventorySessions)
-      .set({ status: 'open', closedAt: null, closedByUserId: null, updatedAt: new Date() })
+      .set({
+        status: 'open',
+        closedAt: null,
+        closedByUserId: null,
+        // Live scope again until the next close.
+        expectedSnapshot: null,
+        updatedAt: new Date(),
+      })
       .where(eq(inventorySessions.id, id))
       .run();
     return c.json({ ok: true });

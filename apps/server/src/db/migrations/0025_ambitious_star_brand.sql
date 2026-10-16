@@ -1,0 +1,1 @@
+ALTER TABLE `inventory_sessions` ADD `expected_snapshot` text;

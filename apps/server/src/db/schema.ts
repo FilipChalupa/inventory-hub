@@ -351,6 +351,11 @@ export const inventorySessions = sqliteTable('inventory_sessions', {
   startedByUserId: text('started_by_user_id').references(() => users.id, { onDelete: 'set null' }),
   closedAt: integer('closed_at', { mode: 'timestamp_ms' }),
   closedByUserId: text('closed_by_user_id').references(() => users.id, { onDelete: 'set null' }),
+  // Asset ids expected at the moment of closing. A closed report is rebuilt
+  // from this, so later archiving / moves don't rewrite history (and
+  // comparisons between stock-takes stay truthful). Null for sessions closed
+  // before this existed, or while open.
+  expectedSnapshot: text('expected_snapshot', { mode: 'json' }).$type<string[]>(),
   ...timestamps,
 });
 
