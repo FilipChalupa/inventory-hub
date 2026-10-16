@@ -1,5 +1,5 @@
 import { lookup } from 'node:dns/promises';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { resolve, sep } from 'node:path';
 import type { Env } from '../env.js';
@@ -165,6 +165,33 @@ export function generateRelativePath(extension: string): string {
   return `${yyyy}/${mm}/${crypto.randomUUID()}.${extension}`;
 }
 
+/** Shape of a path produced by {@link generateRelativePath}. */
+const STORED_PATH = /^\d{4}\/\d{2}\/[0-9a-f-]{36}\.(jpg|png|webp|gif|pdf)$/;
+const IMAGE_EXTS = new Set(['jpg', 'png', 'webp', 'gif']);
+
+/**
+ * True when `path` names a file this server actually stored (right shape,
+ * inside UPLOAD_DIR, exists) — and, with `imagesOnly`, an image. Guards the
+ * routes that attach an upload to a record, so a client can't reference an
+ * arbitrary or someone else's guessed path, or attach a PDF as a photo.
+ */
+export async function isStoredUpload(
+  env: Env,
+  path: string,
+  opts: { imagesOnly?: boolean } = {},
+): Promise<boolean> {
+  const m = STORED_PATH.exec(path);
+  if (!m) return false;
+  if (opts.imagesOnly && !IMAGE_EXTS.has(m[1]!)) return false;
+  const absolute = resolve(env.UPLOAD_DIR, path);
+  if (!isInside(env.UPLOAD_DIR, absolute)) return false;
+  try {
+    return (await stat(absolute)).isFile();
+  } catch {
+    return false;
+  }
+}
+
 export function isInside(parent: string, child: string): boolean {
   const p = resolve(parent) + sep;
   const c = resolve(child);
@@ -195,6 +222,33 @@ export async function saveUploadBuffer(
 }
 
 /**
+ * Reads a fetch Response body into memory, giving up (and cancelling the
+ * download) as soon as it exceeds `maxBytes`. Returns null when too large.
+ */
+export async function readCapped(res: Response, maxBytes: number): Promise<Buffer | null> {
+  const declared = Number(res.headers.get('content-length') ?? NaN);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    await res.body?.cancel().catch(() => undefined);
+    return null;
+  }
+  if (!res.body) return Buffer.alloc(0);
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks, total);
+}
+
+/**
  * Downloads a remote image/document URL into UPLOAD_DIR and returns the stored
  * relative path, or null on any failure (never throws). Size-capped by
  * UPLOAD_MAX_BYTES. Used by the bulk import to pull source-system media.
@@ -217,9 +271,10 @@ export async function storeRemoteFile(env: Env, url: string, retries = 1): Promi
         if (attempt < retries) continue;
         return null;
       }
-      const buffer = Buffer.from(await res.arrayBuffer());
-      // Deterministic outcomes — don't retry.
-      if (buffer.byteLength > env.UPLOAD_MAX_BYTES) return null;
+      // Deterministic outcomes — don't retry. The body is read with a hard
+      // cap so a huge (or endless) response can't exhaust memory.
+      const buffer = await readCapped(res, env.UPLOAD_MAX_BYTES);
+      if (!buffer) return null;
       // Trust the file's magic bytes, not the origin's Content-Type header.
       const mime = sniffMime(buffer);
       if (!mime) return null;

@@ -8,10 +8,11 @@ import type { Email, EmailSender } from './email.js';
 import { SESSION_COOKIE, createSession } from './sessions.js';
 import { createTestDb } from './test-db.js';
 import { _resetRateLimits } from './rate-limit.js';
+import { generateRelativePath } from './uploads.js';
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 
 const TEST_ENV_BASE: Env = {
   NODE_ENV: 'test',
@@ -55,6 +56,8 @@ export type TestServer = {
   authRequest: (path: string, init?: RequestInit & { cookie?: string }) => Promise<Response>;
   laptopTypeId: string;
   sentEmails: Email[];
+  /** Writes a real file into UPLOAD_DIR (a 1×1 PNG by default) and returns its stored path. */
+  storeUpload: (opts?: { ext?: 'png' | 'pdf'; ageDays?: number }) => string;
 };
 
 /**
@@ -103,7 +106,29 @@ export function setupTestServer(envOverrides: Partial<Env> = {}): TestServer {
     return app.request(path, { ...init, headers });
   };
 
+  const storeUpload: TestServer['storeUpload'] = (opts = {}) => {
+    const ext = opts.ext ?? 'png';
+    const rel = generateRelativePath(ext);
+    const abs = join(env.UPLOAD_DIR, rel);
+    mkdirSync(dirname(abs), { recursive: true });
+    writeFileSync(
+      abs,
+      ext === 'pdf'
+        ? Buffer.from('%PDF-1.4\n')
+        : Buffer.from(
+            'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+            'base64',
+          ),
+    );
+    if (opts.ageDays) {
+      const t = new Date(Date.now() - opts.ageDays * 24 * 60 * 60 * 1000);
+      utimesSync(abs, t, t);
+    }
+    return rel;
+  };
+
   return {
+    storeUpload,
     app,
     db,
     sqlite,

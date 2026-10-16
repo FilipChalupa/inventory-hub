@@ -7,6 +7,7 @@ import type { AppContext } from '../app.js';
 import { assetEvents, assets, damageReports } from '../db/schema.js';
 import { requireAuth } from '../middleware/auth.js';
 import { emitWebhook } from '../lib/webhooks.js';
+import { isStoredUpload } from '../lib/uploads.js';
 
 const createInput = z.object({
   occurredAt: z.coerce.date(),
@@ -32,10 +33,18 @@ export const damageRoutes = new Hono<AppContext>()
       .all();
     return c.json({ items });
   })
-  .post('/by-asset/:code', zValidator('json', createInput), (c) => {
+  .post('/by-asset/:code', zValidator('json', createInput), async (c) => {
     const db = c.get('db');
     const code = c.req.param('code').toUpperCase();
     const input = c.req.valid('json');
+    for (const path of input.photoPaths ?? []) {
+      if (!(await isStoredUpload(c.get('env'), path, { imagesOnly: true }))) {
+        return c.json(
+          { error: { message: `Neznámý nebo nepodporovaný soubor fotky: ${path}` } },
+          400,
+        );
+      }
+    }
 
     const asset = db.select().from(assets).where(eq(assets.code, code)).get();
     if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);

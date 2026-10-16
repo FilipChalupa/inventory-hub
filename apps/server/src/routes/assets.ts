@@ -26,6 +26,7 @@ import { emailCopy } from '../lib/email-copy.js';
 import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
 import { likeContains } from '../lib/search.js';
+import { isStoredUpload } from '../lib/uploads.js';
 import { emitWebhook } from '../lib/webhooks.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Db } from '../db/client.js';
@@ -604,12 +605,15 @@ export const assetRoutes = new Hono<AppContext>()
     '/:code/photos',
     requireAuth('admin', 'operator'),
     zValidator('json', z.object({ path: z.string().min(1).max(500) })),
-    (c) => {
+    async (c) => {
       const db = c.get('db');
       const code = c.req.param('code').toUpperCase();
       const { path } = c.req.valid('json');
       const asset = db.select().from(assets).where(eq(assets.code, code)).get();
       if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      if (!(await isStoredUpload(c.get('env'), path, { imagesOnly: true }))) {
+        return c.json({ error: { message: 'Neznámý nebo nepodporovaný soubor fotky' } }, 400);
+      }
       const existing = (asset.photoPaths ?? []) as string[];
       if (existing.includes(path)) {
         return c.json({ photoPaths: existing });
@@ -663,12 +667,15 @@ export const assetRoutes = new Hono<AppContext>()
     '/:code/documents',
     requireAuth('admin', 'operator'),
     zValidator('json', z.object({ path: z.string().min(1).max(500) })),
-    (c) => {
+    async (c) => {
       const db = c.get('db');
       const code = c.req.param('code').toUpperCase();
       const { path } = c.req.valid('json');
       const asset = db.select().from(assets).where(eq(assets.code, code)).get();
       if (!asset) return c.json({ error: { message: 'Asset nenalezen' } }, 404);
+      if (!(await isStoredUpload(c.get('env'), path))) {
+        return c.json({ error: { message: 'Neznámý soubor dokumentu' } }, 400);
+      }
       const existing = (asset.documentPaths ?? []) as string[];
       if (existing.includes(path)) {
         return c.json({ documentPaths: existing });

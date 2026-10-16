@@ -36,7 +36,7 @@ describe('damages API', () => {
 
   it('creates a damage report with photos up to the limit', async () => {
     const code = await makeAsset(server, cookie);
-    const photos = Array.from({ length: MAX_DAMAGE_PHOTOS }, (_, i) => `photo-${i}.jpg`);
+    const photos = Array.from({ length: MAX_DAMAGE_PHOTOS }, () => server.storeUpload());
     const res = await jsonPost(server, cookie, `/api/damages/by-asset/${code}`, {
       occurredAt: new Date().toISOString(),
       description: 'Praskla obrazovka',
@@ -44,6 +44,24 @@ describe('damages API', () => {
       photoPaths: photos,
     });
     expect(res.status).toBe(201);
+  });
+
+  it('rejects photo paths that are not stored images', async () => {
+    const code = await makeAsset(server, cookie);
+    for (const bad of [
+      'photo-1.jpg',
+      '2026/01/00000000-0000-0000-0000-000000000000.png',
+      '../../etc/passwd',
+      server.storeUpload({ ext: 'pdf' }),
+    ]) {
+      const res = await jsonPost(server, cookie, `/api/damages/by-asset/${code}`, {
+        occurredAt: new Date().toISOString(),
+        description: 'x',
+        severity: 'minor',
+        photoPaths: [bad],
+      });
+      expect(res.status, bad).toBe(400);
+    }
   });
 
   it('rejects more than MAX_DAMAGE_PHOTOS attachments', async () => {

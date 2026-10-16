@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { assertPublicHttpUrl, sniffMime } from './uploads.js';
+import { assertPublicHttpUrl, readCapped, sniffMime } from './uploads.js';
 
 describe('sniffMime', () => {
   it('detects real image/pdf signatures', () => {
@@ -45,5 +45,45 @@ describe('assertPublicHttpUrl (SSRF guard)', () => {
 
   it('allows a public IP literal', async () => {
     expect(await assertPublicHttpUrl('https://93.184.216.34/')).toBe(true);
+  });
+});
+
+describe('readCapped', () => {
+  const streamOf = (chunks: number[]) =>
+    new Response(
+      new ReadableStream<Uint8Array>({
+        start(controller) {
+          for (const n of chunks) controller.enqueue(new Uint8Array(n));
+          controller.close();
+        },
+      }),
+    );
+
+  it('returns the body when under the cap', async () => {
+    const buf = await readCapped(streamOf([3, 4]), 10);
+    expect(buf?.byteLength).toBe(7);
+  });
+
+  it('gives up as soon as the stream passes the cap', async () => {
+    expect(await readCapped(streamOf([6, 6, 6]), 10)).toBeNull();
+  });
+
+  it('rejects up front on an oversized Content-Length', async () => {
+    const res = new Response('x', { headers: { 'content-length': '999999' } });
+    expect(await readCapped(res, 10)).toBeNull();
+  });
+
+  it('stops an endless body at the cap', async () => {
+    let pulls = 0;
+    const endless = new Response(
+      new ReadableStream<Uint8Array>({
+        pull(controller) {
+          pulls++;
+          controller.enqueue(new Uint8Array(1024));
+        },
+      }),
+    );
+    expect(await readCapped(endless, 10_000)).toBeNull();
+    expect(pulls).toBeLessThan(20);
   });
 });

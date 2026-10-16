@@ -1,4 +1,6 @@
 import { Hono } from 'hono';
+import { bodyLimit } from 'hono/body-limit';
+import { createMiddleware } from 'hono/factory';
 import { mkdir, stat, writeFile, readFile } from 'node:fs/promises';
 import { resolve, join, normalize } from 'node:path';
 import type { AppContext } from '../app.js';
@@ -25,7 +27,25 @@ const importInput = z
     message: 'Pošli buď dataBase64, nebo url.',
   });
 
+/**
+ * Caps the request body while it streams in (Content-Length can be absent or
+ * lie), so an oversized upload is cut off instead of buffered. 2× the file
+ * limit leaves room for multipart framing and base64's 4/3 overhead.
+ */
+const uploadBodyLimit = createMiddleware<AppContext>((c, next) =>
+  bodyLimit({
+    maxSize: c.get('env').UPLOAD_MAX_BYTES * 2,
+    onError: (c) =>
+      c.json(
+        { error: { message: `Soubor je větší než limit ${c.get('env').UPLOAD_MAX_BYTES} B` } },
+        413,
+      ),
+  })(c, next),
+);
+
 export const uploadRoutes = new Hono<AppContext>()
+  .use('/', uploadBodyLimit)
+  .use('/import', uploadBodyLimit)
   .post('/', rateLimit({ bucket: 'uploads', windowMs: 60_000, max: 60 }), async (c) => {
     const env = c.get('env');
     const contentLength = Number(c.req.header('content-length') ?? '0');

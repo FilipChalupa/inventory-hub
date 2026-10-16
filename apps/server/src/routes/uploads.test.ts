@@ -131,7 +131,7 @@ describe('asset photos', () => {
 
   it('adds, lists, and removes a photo path on an asset', async () => {
     const code = await makeAsset();
-    const path = '2026/01/abc.png';
+    const path = server.storeUpload();
 
     const add = await server.authRequest(`/api/assets/${code}/photos`, {
       cookie,
@@ -156,7 +156,7 @@ describe('asset photos', () => {
 
   it('is idempotent — adding the same path twice keeps a single entry', async () => {
     const code = await makeAsset();
-    const path = '2026/01/dup.png';
+    const path = server.storeUpload();
     await server.authRequest(`/api/assets/${code}/photos`, {
       cookie,
       method: 'POST',
@@ -172,5 +172,21 @@ describe('asset photos', () => {
     expect(second.status).toBe(200);
     const body = (await second.json()) as { photoPaths: string[] };
     expect(body.photoPaths).toEqual([path]);
+  });
+
+  it('refuses to attach unknown paths or a PDF as a photo', async () => {
+    const code = await makeAsset();
+    const attach = (kind: 'photos' | 'documents', path: string) =>
+      server.authRequest(`/api/assets/${code}/${kind}`, {
+        cookie,
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+    expect((await attach('photos', '2026/01/abc.png')).status).toBe(400);
+    const pdf = server.storeUpload({ ext: 'pdf' });
+    expect((await attach('photos', pdf)).status).toBe(400);
+    expect((await attach('documents', pdf)).status).toBe(200);
+    expect((await attach('documents', 'x/../../secret.pdf')).status).toBe(400);
   });
 });
