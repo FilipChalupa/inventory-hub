@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { assetEvents, assets } from '../db/schema.js';
+import { assetEvents, assets, inventorySessions } from '../db/schema.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
 async function jsonPost(server: TestServer, cookie: string, path: string, body: unknown) {
@@ -170,6 +170,36 @@ describe('inventory API', () => {
     const sid = await createSession(server, cookie);
     const res = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: 'LAP-99999' });
     expect(res.status).toBe(404);
+  });
+
+  it('records the real time of an offline-queued scan, within bounds', async () => {
+    const a = await makeAsset(server, cookie, 'A');
+    const b = await makeAsset(server, cookie, 'B');
+    const sid = await createSession(server, cookie);
+    // The session started an hour ago; the device was offline since.
+    server.db
+      .update(inventorySessions)
+      .set({ createdAt: new Date(Date.now() - 3_600_000) })
+      .where(eq(inventorySessions.id, sid))
+      .run();
+    const scanAt = async (code: string, scannedAt: string) => {
+      const res = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code, scannedAt });
+      expect(res.status).toBe(200);
+      const events = await server.authRequest(`/api/assets/${code}/events`, { cookie });
+      const items = ((await events.json()) as { items: { type: string; occurredAt: string }[] })
+        .items;
+      return new Date(items.find((e) => e.type === 'inventory_seen')!.occurredAt).getTime();
+    };
+    const tenSecondsAgo = new Date(Date.now() - 10_000);
+    const t1 = await scanAt(a, tenSecondsAgo.toISOString());
+    expect(Math.abs(t1 - tenSecondsAgo.getTime())).toBeLessThan(5);
+    // A far-future claim (bad device clock) falls back to the receive time.
+    const t2 = await scanAt(b, new Date(Date.now() + 86_400_000).toISOString());
+    expect(Math.abs(t2 - Date.now())).toBeLessThan(5_000);
+    // So does one from before the session existed.
+    const c = await makeAsset(server, cookie, 'C');
+    const t3 = await scanAt(c, new Date(Date.now() - 7_200_000).toISOString());
+    expect(Math.abs(t3 - Date.now())).toBeLessThan(5_000);
   });
 
   it('refuses an identifier that matches several assets', async () => {

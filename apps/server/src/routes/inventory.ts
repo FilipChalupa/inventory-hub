@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
 import {
   createInventorySessionInput,
   inventoryItemNoteInput,
@@ -295,7 +295,7 @@ export const inventoryRoutes = new Hono<AppContext>()
       const db = c.get('db');
       const user = c.get('user')!;
       const id = c.req.param('id');
-      const scanned = c.req.valid('json').code;
+      const { code: scanned, scannedAt: claimedAt } = c.req.valid('json');
 
       const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
       if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
@@ -335,17 +335,33 @@ export const inventoryRoutes = new Hono<AppContext>()
       const result: ScanResultKind = already ? 'already' : inScope ? 'found' : 'unexpected';
 
       if (!already) {
-        const now = new Date();
+        // Offline-queued scans carry their real time; accept it only within
+        // [session start, now + 1 min] so a wrong device clock can't backdate.
+        const received = new Date();
+        const now =
+          claimedAt &&
+          claimedAt.getTime() >= session.createdAt.getTime() &&
+          claimedAt.getTime() <= received.getTime() + 60_000
+            ? claimedAt
+            : received;
         db.insert(inventoryScans)
           .values({ sessionId: id, assetId: asset.id, scannedByUserId: user.id, scannedAt: now })
           .run();
-        db.update(assets).set({ lastSeenAt: now }).where(eq(assets.id, asset.id)).run();
+        // Never move lastSeenAt backwards (a late-synced offline scan may be
+        // older than a sighting recorded meanwhile).
+        db.update(assets)
+          .set({ lastSeenAt: now })
+          .where(
+            and(eq(assets.id, asset.id), or(isNull(assets.lastSeenAt), lt(assets.lastSeenAt, now))),
+          )
+          .run();
         db.insert(assetEvents)
           .values({
             assetId: asset.id,
             actorUserId: user.id,
             type: 'inventory_seen',
-            payload: { sessionId: id, inScope },
+            payload: { sessionId: id, inScope, ...(now !== received ? { offline: true } : {}) },
+            occurredAt: now,
           })
           .run();
       }

@@ -50,6 +50,10 @@ export const scanInventoryInput = z.object({
   // An asset code, or any identifier the exact lookup resolves (serial
   // number, EAN, custom-field value…) — e.g. a manufacturer barcode.
   code: z.string().trim().min(1).max(200),
+  // When the scan actually happened — set by offline-queued scans that are
+  // sent later. The server ignores implausible values (future / before the
+  // session started) and uses the receive time instead.
+  scannedAt: z.coerce.date().optional(),
 });
 export type ScanInventoryInput = z.infer<typeof scanInventoryInput>;
 

@@ -751,8 +751,11 @@ export const apiClient = {
       api<{ session: InventorySessionRow }>('/api/inventory', { method: 'POST', body: input }),
     update: (id: string, input: UpdateInventorySessionInput) =>
       api<{ ok: true }>(`/api/inventory/${id}`, { method: 'PATCH', body: input }),
-    scan: (id: string, code: string) =>
-      api<ScanResult>(`/api/inventory/${id}/scan`, { method: 'POST', body: { code } }),
+    scan: (id: string, code: string, scannedAt?: string) =>
+      api<ScanResult>(`/api/inventory/${id}/scan`, {
+        method: 'POST',
+        body: scannedAt ? { code, scannedAt } : { code },
+      }),
     setItemNote: (id: string, assetId: string, note: string) =>
       api<{ ok: true; report: InventoryReport }>(
         `/api/inventory/${id}/items/${encodeURIComponent(assetId)}/note`,

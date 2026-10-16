@@ -13,8 +13,10 @@
  *  - GET /api/*: stale-while-revalidate. Cached responses appear instantly,
  *    a background fetch refreshes them.
  *  - Static assets (JS/CSS/fonts/QR PNGs): cache-first.
- *  - Writes (POST/PATCH/DELETE): pass through — we intentionally do NOT queue
- *    offline writes. The UI surfaces a banner so the operator knows.
+ *  - Writes (POST/PATCH/DELETE): pass through — the service worker does NOT
+ *    queue offline writes. The UI surfaces a banner so the operator knows.
+ *    (Inventory scans are the exception, queued by the page itself — see
+ *    src/lib/scanQueue.ts.)
  */
 
 const CACHE_NAME = 'inv-hub-v3';

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { errorMessage } from '../lib/errors.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +23,7 @@ import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
 import { classifyScan } from '../lib/scan.js';
+import { isNetworkError, scanQueue } from '../lib/scanQueue.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 import { useT } from '../i18n/index.js';
 
@@ -36,9 +37,10 @@ export function InventorySessionPage() {
   const queryClient = useQueryClient();
   const canWrite = hasRole(useCurrentUser(), 'admin', 'operator');
 
-  const [lastResult, setLastResult] = useState<{ kind: ScanResult['result']; text: string } | null>(
-    null,
-  );
+  const [lastResult, setLastResult] = useState<{
+    kind: ScanResult['result'] | 'queued';
+    text: string;
+  } | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const detail = useQuery({
@@ -61,9 +63,65 @@ export function InventorySessionPage() {
     queryClient.setQueryData<Detail>(['inventory', id], (old) =>
       old ? { ...old, report: next } : old,
     );
+  const applyReportRef = useRef(applyReport);
+  applyReportRef.current = applyReport;
+
+  const queue = useSyncExternalStore(scanQueue.subscribe, () => scanQueue.get(id));
+
+  // Offline → queue the scan locally; it is sent by the flusher below.
+  const queueScan = (code: string) => {
+    const added = scanQueue.enqueue(id, code);
+    setLastResult({
+      kind: 'queued',
+      text: added ? t.inventorySession.queuedOffline(code) : t.inventorySession.alreadyQueued(code),
+    });
+  };
+
+  // Sends queued scans one by one, oldest first. Stops at the first network
+  // failure (still offline); a refusal from the server is parked as failed.
+  const flushing = useRef(false);
+  const flushQueue = useCallback(async () => {
+    if (flushing.current) return;
+    flushing.current = true;
+    try {
+      for (const item of scanQueue.get(id).pending) {
+        try {
+          const res = await apiClient.inventory.scan(id, item.code, item.scannedAt);
+          scanQueue.done(id, item.id);
+          applyReportRef.current(res.report);
+        } catch (err) {
+          if (isNetworkError(err)) break;
+          scanQueue.fail(id, item.id, errorMessage(err));
+        }
+      }
+    } finally {
+      flushing.current = false;
+    }
+  }, [id]);
+
+  const pendingCount = queue.pending.length;
+  useEffect(() => {
+    if (pendingCount === 0) return;
+    void flushQueue();
+    const onOnline = () => void flushQueue();
+    window.addEventListener('online', onOnline);
+    // Retry periodically too: `online` isn't reliable on flaky Wi-Fi.
+    const timer = setInterval(() => void flushQueue(), 20_000);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      clearInterval(timer);
+    };
+  }, [pendingCount, flushQueue]);
 
   const scan = useMutation({
-    mutationFn: (code: string) => apiClient.inventory.scan(id, code),
+    // Default 'online' mode would *pause* the mutation while offline; we want
+    // it to fail fast so onError can queue the scan.
+    networkMode: 'always',
+    mutationFn: async (code: string) => {
+      // Known offline → don't wait for a doomed request; onError queues it.
+      if (!navigator.onLine) throw new TypeError('offline');
+      return apiClient.inventory.scan(id, code);
+    },
     onSuccess: (res) => {
       const label = `${res.asset.code} — ${res.asset.name}`;
       setLastResult({
@@ -77,11 +135,16 @@ export function InventorySessionPage() {
       });
       applyReport(res.report);
     },
-    onError: (e: unknown) =>
+    onError: (e: unknown, code) => {
+      if (isNetworkError(e)) {
+        queueScan(code);
+        return;
+      }
       setLastResult({
         kind: 'unexpected',
         text: e instanceof Error ? e.message : t.inventorySession.scanError,
-      }),
+      });
+    },
   });
 
   const itemNote = useMutation({
@@ -229,6 +292,30 @@ export function InventorySessionPage() {
           pending={scan.isPending}
           lastResult={lastResult}
         />
+      )}
+
+      {pendingCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+          <span role="status">{t.inventorySession.queuePending(pendingCount)}</span>
+          <Button variant="secondary" className="text-xs" onClick={() => void flushQueue()}>
+            {t.inventorySession.queueSyncNow}
+          </Button>
+        </div>
+      )}
+      {queue.failed.length > 0 && (
+        <div className="rounded-sm border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+          <p className="font-medium">{t.inventorySession.queueFailedTitle}</p>
+          <ul className="my-1 list-inside list-disc">
+            {queue.failed.map((f) => (
+              <li key={f.id}>
+                <span className="font-mono">{f.code}</span> — {f.error}
+              </li>
+            ))}
+          </ul>
+          <Button variant="ghost" className="text-xs" onClick={() => scanQueue.clearFailed(id)}>
+            {t.inventorySession.queueFailedDismiss}
+          </Button>
+        </div>
       )}
 
       {actionError && <p className="text-sm text-red-600">{actionError}</p>}
@@ -406,7 +493,7 @@ function ScanPanel({
 }: {
   onCode: (code: string) => void;
   pending: boolean;
-  lastResult: { kind: ScanResult['result']; text: string } | null;
+  lastResult: { kind: ScanResult['result'] | 'queued'; text: string } | null;
 }) {
   const t = useT();
   const [manual, setManual] = useState('');
