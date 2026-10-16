@@ -123,20 +123,21 @@ packages/
 
 ## Scripts (root)
 
-| Script                | What it does                                                              |
-| --------------------- | ------------------------------------------------------------------------- |
-| `npm run dev`         | runs the dev server + web in parallel                                     |
-| `npm run dev:server`  | backend only                                                              |
-| `npm run dev:web`     | frontend only                                                             |
-| `npm run build`       | builds all packages                                                       |
-| `npm run lint`        | ESLint across the repo                                                    |
-| `npm run format`      | formats the repo with Prettier (`format:check` to verify)                 |
-| `npm run typecheck`   | type-checks all packages                                                  |
-| `npm run test`        | tests for all packages                                                    |
-| `npm run db:generate` | generates SQL migrations from the Drizzle schema                          |
-| `npm run db:migrate`  | applies migrations manually (the server does it automatically on startup) |
-| `npm run db:seed`     | seeds demo data (dev only)                                                |
-| `npm run test:e2e`    | Playwright E2E against an ephemeral server                                |
+| Script                | What it does                                                                               |
+| --------------------- | ------------------------------------------------------------------------------------------ |
+| `npm run dev`         | runs the dev server + web in parallel                                                      |
+| `npm run dev:server`  | backend only                                                                               |
+| `npm run dev:web`     | frontend only                                                                              |
+| `npm run build`       | builds all packages                                                                        |
+| `npm run lint`        | ESLint across the repo                                                                     |
+| `npm run format`      | formats the repo with Prettier (`format:check` to verify)                                  |
+| `npm run typecheck`   | type-checks all packages                                                                   |
+| `npm run test`        | tests for all packages                                                                     |
+| `npm run db:generate` | generates SQL migrations from the Drizzle schema                                           |
+| `npm run db:migrate`  | applies migrations manually (the server does it automatically on startup)                  |
+| `npm run db:seed`     | seeds demo data (dev only)                                                                 |
+| `npm run test:e2e`    | Playwright E2E against an ephemeral server                                                 |
+| `npm run check`       | everything CI's unit job runs (lint, format, typecheck, build, tests) — run before pushing |
 
 ## E2E tests
 

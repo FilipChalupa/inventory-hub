@@ -87,3 +87,54 @@ jobs:
             playwright-report
             test-results
           retention-days: 7
+
+  # main sat red for months without anyone noticing, so a red main now opens
+  # (or comments on) a tracking issue — which notifies the repo's watchers —
+  # and the next green run closes it.
+  main-status:
+    name: Report main status
+    if: always() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: [unit, audit, docker, e2e]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        with:
+          script: |
+            const results = JSON.parse(process.env.RESULTS);
+            const failed = Object.entries(results)
+              .filter(([, r]) => r.result === 'failure' || r.result === 'cancelled')
+              .map(([job]) => job);
+            const label = 'ci-red-main';
+            const { owner, repo } = context.repo;
+            const open = await github.paginate(github.rest.issues.listForRepo, {
+              owner, repo, state: 'open', labels: label,
+            });
+            const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
+            const sha = context.sha.slice(0, 7);
+            if (failed.length === 0) {
+              for (const issue of open) {
+                await github.rest.issues.createComment({
+                  owner, repo, issue_number: issue.number,
+                  body: `✅ main is green again at ${sha} ([run](${runUrl})).`,
+                });
+                await github.rest.issues.update({
+                  owner, repo, issue_number: issue.number, state: 'closed',
+                });
+              }
+              return;
+            }
+            const body = `❌ CI failed on main at ${sha}: **${failed.join(', ')}** ([run](${runUrl})).`;
+            if (open.length > 0) {
+              await github.rest.issues.createComment({
+                owner, repo, issue_number: open[0].number, body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner, repo, title: 'CI is red on main', labels: [label], body,
+              });
+            }
