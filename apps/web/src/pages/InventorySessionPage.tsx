@@ -36,7 +36,9 @@ export function InventorySessionPage() {
   const t = useT();
   const { id = '' } = useParams();
   const queryClient = useQueryClient();
-  const canWrite = hasRole(useCurrentUser(), 'admin', 'operator');
+  const currentUser = useCurrentUser();
+  const canWrite = hasRole(currentUser, 'admin', 'operator');
+  const userId = currentUser?.id ?? '';
 
   const [lastResult, setLastResult] = useState<{
     kind: ScanResult['result'] | 'queued';
@@ -78,7 +80,7 @@ export function InventorySessionPage() {
 
   // Offline → queue the scan locally; it is sent by the flusher below.
   const queueScan = (code: string) => {
-    const added = scanQueue.enqueue(id, code);
+    const added = scanQueue.enqueue(id, code, userId);
     setLastResult({
       kind: 'queued',
       text: added ? t.inventorySession.queuedOffline(code) : t.inventorySession.alreadyQueued(code),
@@ -92,7 +94,9 @@ export function InventorySessionPage() {
     if (flushing.current) return;
     flushing.current = true;
     try {
-      for (const item of scanQueue.get(id).pending) {
+      // Only this user's scans: on a shared tablet another person's queued
+      // scans must not be sent under the current account.
+      for (const item of scanQueue.pendingFor(id, userId)) {
         try {
           const res = await apiClient.inventory.scan(id, item.code, item.scannedAt);
           scanQueue.done(id, item.id);
@@ -105,9 +109,9 @@ export function InventorySessionPage() {
     } finally {
       flushing.current = false;
     }
-  }, [id]);
+  }, [id, userId]);
 
-  const pendingCount = queue.pending.length;
+  const pendingCount = queue.pending.filter((p) => !p.userId || p.userId === userId).length;
   useEffect(() => {
     if (pendingCount === 0) return;
     void flushQueue();

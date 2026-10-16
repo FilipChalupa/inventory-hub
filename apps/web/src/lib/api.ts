@@ -20,6 +20,7 @@ import type {
   McpAccess,
   McpPolicy,
 } from '@inventory-hub/shared';
+import { forgetUserOnDevice } from './deviceSession.js';
 
 type ApiOptions = {
   method?: string;
@@ -36,6 +37,9 @@ async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
     signal: opts.signal,
   });
   if (!res.ok) {
+    // The session is gone (expired, revoked, user disabled): don't keep this
+    // user's identity or cached data around on the device.
+    if (res.status === 401) void forgetUserOnDevice();
     const err = await res.json().catch(() => ({ error: { message: res.statusText } }));
     throw new Error(err?.error?.message ?? `HTTP ${res.status}`);
   }

@@ -3,6 +3,7 @@ import { errorMessage } from '../lib/errors.js';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../lib/api.js';
+import { isSharedDevice, setSharedDevice } from '../lib/deviceSession.js';
 import { Button, Card, Field, Input } from '../components/ui.js';
 import { useT } from '../i18n/index.js';
 
@@ -14,6 +15,7 @@ export function LoginPage() {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const [email, setEmail] = useState('admin@example.com');
+  const [shared, setShared] = useState(isSharedDevice);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +54,22 @@ export function LoginPage() {
           <h1 className="text-2xl font-bold">Inventory Hub</h1>
           <p className="text-sm text-slate-600">{t.login.subtitle}</p>
         </div>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={shared}
+            onChange={(e) => {
+              setShared(e.target.checked);
+              setSharedDevice(e.target.checked);
+            }}
+          />
+          <span>
+            {t.login.sharedDevice}
+            <span className="block text-xs text-slate-500">{t.login.sharedDeviceHint}</span>
+          </span>
+        </label>
 
         {googleConfigured && (
           <a

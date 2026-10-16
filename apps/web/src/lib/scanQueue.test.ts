@@ -22,7 +22,7 @@ describe('scanQueue', () => {
   });
 
   it('survives a reload (state lives in localStorage)', () => {
-    scanQueue.enqueue('s1', 'LAP-2', new Date('2026-01-01T10:00:00Z'));
+    scanQueue.enqueue('s1', 'LAP-2', 'u1', new Date('2026-01-01T10:00:00Z'));
     const raw = localStorage.getItem('ih.scanQueue.s1')!;
     expect(JSON.parse(raw).pending[0]).toMatchObject({
       code: 'LAP-2',
@@ -38,5 +38,13 @@ describe('scanQueue', () => {
   it('tells network failures from server answers', () => {
     expect(isNetworkError(new TypeError('Failed to fetch'))).toBe(true);
     expect(isNetworkError(new Error('Asset nenalezen'))).toBe(false);
+  });
+
+  it("keeps each user's scans to themselves on a shared device", () => {
+    scanQueue.enqueue('s1', 'LAP-5', 'alice');
+    scanQueue.enqueue('s1', 'LAP-5', 'bob'); // same code, different person: both kept
+    scanQueue.enqueue('s1', 'LAP-6', 'bob');
+    expect(scanQueue.pendingFor('s1', 'alice').map((p) => p.code)).toEqual(['LAP-5']);
+    expect(scanQueue.pendingFor('s1', 'bob').map((p) => p.code)).toEqual(['LAP-5', 'LAP-6']);
   });
 });
