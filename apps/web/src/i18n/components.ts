@@ -37,7 +37,7 @@ export const components = ns({
     schemaOptionsPlaceholder: 'nový, použitý, rozbalený',
     // OfflineBanner
     offlineMessage:
-      'Offline režim — uložené stránky a poslední data zůstanou dostupné, ale změny (vytvořit / upravit / vrátit) se uloží až po obnovení připojení.',
+      'Offline režim — uložené stránky a poslední data zůstanou dostupné, ale změny (vytvořit / upravit / vrátit) teď nejde uložit. Výjimkou jsou skeny v inventuře: ty se uloží a odešlou po obnovení připojení.',
   },
   en: {
     viaAgent: 'via AI',
@@ -73,6 +73,6 @@ export const components = ns({
     schemaOptionsPlaceholder: 'new, used, opened',
     // OfflineBanner
     offlineMessage:
-      'Offline mode — saved pages and the latest data stay available, but changes (create / edit / return) will only be saved once the connection is restored.',
+      "Offline mode — saved pages and the latest data stay available, but changes (create / edit / return) can't be saved right now. Inventory scans are the exception: they are kept and sent once the connection is back.",
   },
 });
