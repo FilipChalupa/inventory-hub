@@ -21,7 +21,7 @@
     "@hono/zod-validator": "^0.4.1",
     "@inventory-hub/shared": "*",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@types/nodemailer": "^8.0.0",
+    "@types/nodemailer": "^8.0.1",
     "better-sqlite3": "^11.7.0",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.6.13",
