@@ -144,7 +144,7 @@ export function InventoryPage() {
               placeholder={t.inventory.assetSearchPlaceholder}
               className="mb-2"
             />
-            <ul className="max-h-48 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 dark:border-slate-700">
+            <ul className="max-h-48 overflow-y-auto divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 dark:border-slate-700">
               {assetList.data?.items.length === 0 && (
                 <li className="p-2 text-sm text-slate-500">{t.inventory.noAssetsMatch}</li>
               )}
@@ -216,7 +216,7 @@ export function InventoryPage() {
       )}
 
       {items.length > 0 && (
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {items.map((s) => (
             <SessionRow key={s.id} session={s} locationName={locationName(s.locationId)} />
           ))}
@@ -246,7 +246,7 @@ function SessionRow({
         </div>
         <span
           className={
-            'text-xs px-2 py-0.5 rounded font-medium ' +
+            'text-xs px-2 py-0.5 rounded-sm font-medium ' +
             (session.status === 'open'
               ? 'bg-amber-100 text-amber-800'
               : 'bg-emerald-100 text-emerald-800')

@@ -10,7 +10,7 @@ export function CopyField({ label, text }: { label: string; text: string }) {
     <div>
       <div className="text-xs text-slate-500 mb-1">{label}</div>
       <div className="flex items-stretch gap-2">
-        <code className="flex-1 whitespace-pre-wrap break-all rounded border border-slate-200 bg-white p-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
+        <code className="flex-1 whitespace-pre-wrap break-all rounded-sm border border-slate-200 bg-white p-2 font-mono text-xs dark:border-slate-600 dark:bg-slate-800">
           {text}
         </code>
         <Button

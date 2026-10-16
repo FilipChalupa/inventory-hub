@@ -56,7 +56,7 @@ export function LoginPage() {
         {googleConfigured && (
           <a
             href={apiClient.auth.googleStartUrl}
-            className="flex items-center justify-center gap-2 w-full rounded border border-slate-300 bg-white text-slate-900 px-4 py-2 text-sm font-medium hover:bg-slate-50"
+            className="flex items-center justify-center gap-2 w-full rounded-sm border border-slate-300 bg-white text-slate-900 px-4 py-2 text-sm font-medium hover:bg-slate-50"
           >
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden>
               <path
@@ -81,7 +81,7 @@ export function LoginPage() {
         )}
 
         {lockedOut && (
-          <div className="rounded border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700/60 dark:bg-amber-900/20">
+          <div className="rounded-sm border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700/60 dark:bg-amber-900/20">
             <p className="font-semibold text-amber-900 dark:text-amber-200">
               {t.login.noMethodTitle}
             </p>

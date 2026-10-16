@@ -118,7 +118,7 @@ export function NewLoanPage() {
 
   return (
     <section className="space-y-6 max-w-3xl">
-      <Link to="/loans" className="text-sm text-slate-500 hover:underline">
+      <Link to="/loans" className="inline-block text-sm text-slate-500 hover:underline">
         {t.newLoan.back}
       </Link>
       <h1 className="text-2xl font-bold">
@@ -126,7 +126,7 @@ export function NewLoanPage() {
       </h1>
 
       {fromLoanId && prefilled && (
-        <p className="rounded border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+        <p className="rounded-sm border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
           {t.newLoan.prefilledNote}
         </p>
       )}
@@ -182,7 +182,7 @@ export function NewLoanPage() {
             placeholder={t.newLoan.itemsSearchPlaceholder}
             className="mb-2"
           />
-          <ul className="max-h-64 overflow-y-auto divide-y rounded border">
+          <ul className="max-h-64 overflow-y-auto divide-y rounded-sm border">
             {assets.data?.items.length === 0 && (
               <li className="p-3 text-sm text-slate-500">{t.newLoan.noAssets}</li>
             )}
@@ -212,12 +212,12 @@ export function NewLoanPage() {
                   <span className="font-mono text-xs text-slate-500 w-28">{a.code}</span>
                   <span className="flex-1">{a.name}</span>
                   {!a.available && a.reason && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                    <span className="text-xs px-1.5 py-0.5 rounded-sm bg-slate-200 text-slate-600">
                       {a.reason}
                     </span>
                   )}
                   {a.available && a.status === 'on_loan' && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                    <span className="text-xs px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-800">
                       {t.newLoan.nowLent}
                     </span>
                   )}

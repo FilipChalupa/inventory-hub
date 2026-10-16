@@ -81,7 +81,7 @@ export function ImportAssetsPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="inline-block text-sm text-slate-500 hover:underline">
         ← {t.common.back}
       </Link>
       <h1 className="text-2xl font-bold">{t.importAssets.title}</h1>

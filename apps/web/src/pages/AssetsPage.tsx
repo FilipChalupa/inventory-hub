@@ -354,7 +354,7 @@ export function AssetsPage() {
               {t.assets.selectAll}
             </label>
           )}
-          <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+          <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
             {items.length === 0 && !isFreshInstall && (
               <li className="p-4 text-slate-500">{t.assets.noMatches}</li>
             )}

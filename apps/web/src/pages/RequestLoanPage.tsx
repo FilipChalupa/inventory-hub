@@ -67,7 +67,7 @@ export function RequestLoanPage() {
 
   return (
     <section className="space-y-6 max-w-3xl">
-      <Link to="/" className="text-sm text-slate-500 hover:underline">
+      <Link to="/" className="inline-block text-sm text-slate-500 hover:underline">
         {t.requestLoan.back}
       </Link>
       <h1 className="text-2xl font-bold">{t.requestLoan.title}</h1>
@@ -99,7 +99,7 @@ export function RequestLoanPage() {
             placeholder={t.requestLoan.itemsSearchPlaceholder}
             className="mb-2"
           />
-          <ul className="max-h-64 overflow-y-auto divide-y rounded border">
+          <ul className="max-h-64 overflow-y-auto divide-y rounded-sm border">
             {assets.data?.items.length === 0 && (
               <li className="p-3 text-sm text-slate-500">{t.requestLoan.noAssets}</li>
             )}
@@ -127,12 +127,12 @@ export function RequestLoanPage() {
                   <span className="font-mono text-xs text-slate-500 w-28">{a.code}</span>
                   <span className="flex-1">{a.name}</span>
                   {!a.available && a.reason && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                    <span className="text-xs px-1.5 py-0.5 rounded-sm bg-slate-200 text-slate-600">
                       {a.reason}
                     </span>
                   )}
                   {a.available && a.status === 'on_loan' && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                    <span className="text-xs px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-800">
                       {t.requestLoan.nowLent}
                     </span>
                   )}

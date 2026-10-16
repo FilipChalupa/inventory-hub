@@ -41,7 +41,7 @@ export const Button = forwardRef<
       ref={ref}
       type={type}
       className={clsx(
-        'inline-flex items-center justify-center rounded px-3 py-1.5 text-sm font-medium transition-colors',
+        'inline-flex items-center justify-center rounded-sm px-3 py-1.5 text-sm font-medium transition-colors',
         buttonVariants[variant],
         className,
       )}
@@ -51,7 +51,7 @@ export const Button = forwardRef<
 });
 
 const formControl =
-  'block w-full rounded border border-slate-300 px-3 py-2 text-sm bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
+  'block w-full rounded-sm border border-slate-300 px-3 py-2 text-sm bg-white text-slate-900 dark:bg-slate-800 dark:text-slate-100 dark:border-slate-600';
 
 // forwardRef so react-hook-form's `register()` ref reaches the real DOM node.
 // Without it the ref is silently dropped: `reset()` can't populate the input
@@ -110,7 +110,7 @@ export function Skeleton({ className }: { className?: string }) {
   return (
     <div
       aria-hidden="true"
-      className={clsx('animate-pulse rounded bg-slate-200 dark:bg-slate-700', className)}
+      className={clsx('animate-pulse rounded-sm bg-slate-200 dark:bg-slate-700', className)}
     />
   );
 }
@@ -131,7 +131,7 @@ export function Card({ children, className }: { children: ReactNode; className?:
   return (
     <div
       className={clsx(
-        'rounded border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700',
+        'rounded-sm border border-slate-200 bg-white p-4 dark:bg-slate-800 dark:border-slate-700',
         className,
       )}
     >
@@ -157,7 +157,7 @@ export function StatusBadge({ status }: { status: string }) {
   return (
     <span
       className={clsx(
-        'inline-block rounded px-2 py-0.5 text-xs font-medium',
+        'inline-block rounded-sm px-2 py-0.5 text-xs font-medium',
         statusStyles[status] ?? 'bg-slate-100 text-slate-700',
       )}
     >

@@ -67,14 +67,14 @@ export function ToastViewport() {
         <div
           key={item.id}
           className={clsx(
-            'pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded border px-3 py-2 text-sm shadow-lg',
+            'pointer-events-auto flex w-full max-w-sm items-start gap-2 rounded-sm border px-3 py-2 text-sm shadow-lg',
             kindStyles[item.kind],
           )}
         >
           <span aria-hidden="true" className="mt-0.5 font-bold">
             {kindIcon[item.kind]}
           </span>
-          <span className="flex-1 break-words">{item.message}</span>
+          <span className="flex-1 wrap-break-word">{item.message}</span>
           <button
             type="button"
             onClick={() => dismiss(item.id)}

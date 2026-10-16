@@ -132,7 +132,7 @@ export function LoansPage() {
         </Link>
       </div>
 
-      <div className="inline-flex rounded border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
+      <div className="inline-flex rounded-sm border border-slate-300 dark:border-slate-600 overflow-hidden text-sm">
         <ViewTab
           active={view === 'list'}
           onClick={() =>
@@ -238,7 +238,7 @@ export function LoansPage() {
           <h2 className="text-sm font-semibold text-slate-600 dark:text-slate-300">
             {t.loans.upcoming}
           </h2>
-          <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+          <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
             {upcoming.map((loan) => (
               <LoanRowItem key={loan.id} loan={loan} now={now} />
             ))}
@@ -247,7 +247,7 @@ export function LoansPage() {
       )}
 
       {view === 'list' && others.length > 0 && (
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {others.map((loan) => (
             <LoanRowItem key={loan.id} loan={loan} now={now} />
           ))}
@@ -307,7 +307,7 @@ function PendingApprovalSection({ loans }: { loans: LoanRow[] }) {
         {t.loans.pendingTitle}
         <span className="ml-2 font-normal text-slate-400">{loans.length}</span>
       </h2>
-      <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-fuchsia-200 bg-white dark:bg-slate-800 dark:border-fuchsia-900">
+      <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-fuchsia-200 bg-white dark:bg-slate-800 dark:border-fuchsia-900">
         {loans.map((loan) => (
           <li key={loan.id} className="flex items-center justify-between gap-4 p-3">
             <Link to={`/loans/${loan.id}`} className="min-w-0 flex-1 hover:underline">
@@ -397,12 +397,15 @@ function LoanRowItem({ loan, now }: { loan: LoanRow; now: Date }) {
         </div>
         <div className="flex items-center gap-2">
           {overdue && (
-            <span className="text-xs px-2 py-0.5 rounded bg-red-100 text-red-700 font-medium">
+            <span className="text-xs px-2 py-0.5 rounded-sm bg-red-100 text-red-700 font-medium">
               {t.loans.overdue}
             </span>
           )}
           <span
-            className={clsx('text-xs px-2 py-0.5 rounded font-medium', statusClasses[loan.status])}
+            className={clsx(
+              'text-xs px-2 py-0.5 rounded-sm font-medium',
+              statusClasses[loan.status],
+            )}
           >
             {t.loanStatuses[loan.status]}
           </span>

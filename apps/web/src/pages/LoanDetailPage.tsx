@@ -55,7 +55,7 @@ export function LoanDetailPage() {
   const openCount = l.items.filter((i) => !i.returnedAt).length;
   return (
     <article className="space-y-4">
-      <Link to="/loans" className="text-sm text-slate-500 hover:underline">
+      <Link to="/loans" className="inline-block text-sm text-slate-500 hover:underline">
         ← {t.common.back}
       </Link>
       <header>
@@ -63,12 +63,12 @@ export function LoanDetailPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold">{l.borrowerName}</h1>
             {requested && (
-              <span className="text-xs px-2 py-0.5 rounded bg-fuchsia-100 text-fuchsia-800 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-sm bg-fuchsia-100 text-fuchsia-800 font-medium">
                 {t.loanStatuses.requested}
               </span>
             )}
             {planned && (
-              <span className="text-xs px-2 py-0.5 rounded bg-violet-100 text-violet-800 font-medium">
+              <span className="text-xs px-2 py-0.5 rounded-sm bg-violet-100 text-violet-800 font-medium">
                 {t.loanStatuses.planned}
               </span>
             )}
@@ -302,7 +302,7 @@ function StartLoanBar({ loanId, onStarted }: { loanId: string; onStarted: () => 
     onSuccess: onStarted,
   });
   return (
-    <div className="mt-3 flex items-center gap-3 rounded border border-violet-200 bg-violet-50 p-3">
+    <div className="mt-3 flex items-center gap-3 rounded-sm border border-violet-200 bg-violet-50 p-3">
       <p className="text-sm text-violet-900 flex-1">{t.loanDetail.plannedNotice}</p>
       <Button onClick={() => start.mutate()} disabled={start.isPending}>
         {start.isPending ? t.loanDetail.starting : t.loanDetail.startLoan}
@@ -370,7 +370,7 @@ function AddLoanItems({
         onChange={(e) => setSearch(e.target.value)}
         placeholder={t.loanDetail.searchPlaceholder}
       />
-      <ul className="max-h-56 overflow-y-auto divide-y rounded border">
+      <ul className="max-h-56 overflow-y-auto divide-y rounded-sm border">
         {items.length === 0 && (
           <li className="p-3 text-sm text-slate-500">{t.loanDetail.noAvailableAssets}</li>
         )}
@@ -395,12 +395,12 @@ function AddLoanItems({
               <span className="font-mono text-xs text-slate-500 w-28">{a.code}</span>
               <span className="flex-1">{a.name}</span>
               {!a.available && a.reason && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-slate-200 text-slate-600">
+                <span className="text-xs px-1.5 py-0.5 rounded-sm bg-slate-200 text-slate-600">
                   {a.reason}
                 </span>
               )}
               {a.available && a.status === 'on_loan' && (
-                <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800">
+                <span className="text-xs px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-800">
                   {t.loanDetail.nowOnLoan}
                 </span>
               )}

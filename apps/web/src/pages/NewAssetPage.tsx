@@ -96,7 +96,7 @@ export function NewAssetPage() {
 
   return (
     <section className="max-w-xl">
-      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="inline-block text-sm text-slate-500 hover:underline">
         {t.newAsset.backToList}
       </Link>
       <h1 className="text-2xl font-bold mt-2 mb-4">{t.newAsset.title}</h1>

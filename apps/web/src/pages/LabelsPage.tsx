@@ -111,7 +111,7 @@ export function LabelsPage() {
             placeholder={t.labels.filterPlaceholder}
             className="mb-2"
           />
-          <ul className="max-h-64 overflow-y-auto divide-y rounded border text-sm dark:divide-slate-700 dark:border-slate-700">
+          <ul className="max-h-64 overflow-y-auto divide-y rounded-sm border text-sm dark:divide-slate-700 dark:border-slate-700">
             {filtered.map((a) => {
               const selected = codes.includes(a.code);
               return (
@@ -201,7 +201,7 @@ export function LabelsPage() {
                 // theme + in print. Without an explicit text color the children
                 // inherit the body's `dark:text-slate-100`, which prints light
                 // text on the white label (unreadable).
-                className="border border-slate-300 rounded p-3 flex items-center gap-3 break-inside-avoid bg-white text-slate-900"
+                className="border border-slate-300 rounded-sm p-3 flex items-center gap-3 break-inside-avoid bg-white text-slate-900"
               >
                 <img
                   src={apiClient.assets.qrUrl(l.code, { compact })}
@@ -212,7 +212,7 @@ export function LabelsPage() {
                   <p className="font-mono text-xs">{l.code}</p>
                   {showName && <p className="text-sm font-medium truncate">{l.name}</p>}
                   {note.trim() && (
-                    <p className="text-[10px] leading-tight text-slate-600 mt-0.5 break-words">
+                    <p className="text-[10px] leading-tight text-slate-600 mt-0.5 wrap-break-word">
                       {note.trim()}
                     </p>
                   )}

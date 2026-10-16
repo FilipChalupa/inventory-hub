@@ -194,7 +194,7 @@ export function AssetDetailPage() {
 
   return (
     <article className="space-y-6">
-      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="inline-block text-sm text-slate-500 hover:underline">
         {t.assetDetail.backToList}
       </Link>
 
@@ -211,7 +211,7 @@ export function AssetDetailPage() {
           <img
             src={apiClient.assets.qrUrl(a.code)}
             alt={t.assetDetail.qrAlt(a.code)}
-            className="w-32 h-32 border rounded bg-white"
+            className="w-32 h-32 border rounded-sm bg-white"
           />
           <Link
             to={`/labels?codes=${encodeURIComponent(a.code)}`}
@@ -618,8 +618,8 @@ export function AssetDetailPage() {
                 <span
                   className={
                     loan.status === 'planned'
-                      ? 'text-xs px-1.5 py-0.5 rounded bg-violet-100 text-violet-800'
-                      : 'text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-800'
+                      ? 'text-xs px-1.5 py-0.5 rounded-sm bg-violet-100 text-violet-800'
+                      : 'text-xs px-1.5 py-0.5 rounded-sm bg-amber-100 text-amber-800'
                   }
                 >
                   {loan.status === 'planned' ? t.assetDetail.planned : t.assetDetail.onLoan}
@@ -681,7 +681,7 @@ export function AssetDetailPage() {
                       href={`/api/uploads/${p}`}
                       target="_blank"
                       rel="noreferrer"
-                      className="block w-20 h-20 rounded border overflow-hidden bg-slate-50"
+                      className="block w-20 h-20 rounded-sm border overflow-hidden bg-slate-50"
                     >
                       <img
                         src={`/api/uploads/${p}`}

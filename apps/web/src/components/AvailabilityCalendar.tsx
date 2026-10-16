@@ -94,7 +94,7 @@ export function AvailabilityCalendar({
   return (
     <div>
       {blocked && (
-        <div className="mb-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
+        <div className="mb-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-900/30 dark:text-amber-200">
           {t.availabilityCalendar.blockedBanner(blocked.reason)}
         </div>
       )}
@@ -102,7 +102,7 @@ export function AvailabilityCalendar({
         <button
           type="button"
           onClick={() => shift(-1)}
-          className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+          className="rounded-sm px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
           aria-label={t.availabilityCalendar.prevMonth}
         >
           ←
@@ -114,14 +114,14 @@ export function AvailabilityCalendar({
           <button
             type="button"
             onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
-            className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             {t.availabilityCalendar.today}
           </button>
           <button
             type="button"
             onClick={() => shift(1)}
-            className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
             aria-label={t.availabilityCalendar.nextMonth}
           >
             →
@@ -164,7 +164,7 @@ export function AvailabilityCalendar({
               ? 'ring-2 ring-inset ring-slate-900 dark:ring-slate-100 font-semibold'
               : undefined;
           const className = clsx(
-            'aspect-square rounded flex items-center justify-center text-xs',
+            'aspect-square rounded-sm flex items-center justify-center text-xs',
             isBlocked ? blockedDayClass : dayClasses[state.status],
             !inMonth && 'opacity-40',
             selectable && 'cursor-pointer hover:ring-2 hover:ring-inset hover:ring-blue-400',
@@ -206,7 +206,7 @@ export function AvailabilityCalendar({
       </div>
 
       {onCreateLoan && sel && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded border border-blue-200 bg-blue-50 p-2 text-sm dark:border-blue-800 dark:bg-blue-900/30">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-sm border border-blue-200 bg-blue-50 p-2 text-sm dark:border-blue-800 dark:bg-blue-900/30">
           <span className="text-slate-700 dark:text-slate-200">
             {sel.end
               ? t.availabilityCalendar.rangeSummary(
@@ -242,7 +242,7 @@ export function CalendarLegend({ blocked = false }: { blocked?: boolean }) {
       {blocked && (
         <span className="inline-flex items-center gap-1.5">
           <span
-            className={clsx('inline-block w-3 h-3 rounded', blockedDayClass)}
+            className={clsx('inline-block w-3 h-3 rounded-sm', blockedDayClass)}
             style={HATCH_STYLE}
           />
           {t.availabilityCalendar.legendBlocked}
@@ -255,7 +255,7 @@ export function CalendarLegend({ blocked = false }: { blocked?: boolean }) {
 function LegendItem({ status, label }: { status: DayStatus; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={clsx('inline-block w-3 h-3 rounded', dayClasses[status])} />
+      <span className={clsx('inline-block w-3 h-3 rounded-sm', dayClasses[status])} />
       {label}
     </span>
   );

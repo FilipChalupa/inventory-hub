@@ -193,25 +193,25 @@ export function SettingsPage() {
         <div className="flex flex-wrap gap-2">
           <a
             href="/api/export/assets.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
+            className="inline-flex items-center rounded-sm border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             {t.settings.exportAssets}
           </a>
           <a
             href="/api/export/loans.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
+            className="inline-flex items-center rounded-sm border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             {t.settings.exportLoans}
           </a>
           <a
             href="/api/export/damages.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
+            className="inline-flex items-center rounded-sm border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             {t.settings.exportDamages}
           </a>
           <a
             href="/api/export/contacts.csv"
-            className="inline-flex items-center rounded border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
+            className="inline-flex items-center rounded-sm border border-slate-300 bg-white text-slate-900 px-3 py-1.5 text-sm hover:bg-slate-50 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600 dark:hover:bg-slate-600"
           >
             {t.settings.exportContacts}
           </a>
@@ -335,11 +335,11 @@ function CalendarFeedSection() {
       </p>
 
       {created && (
-        <div className="mb-3 rounded border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
+        <div className="mb-3 rounded-sm border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
           <p className="text-sm font-medium mb-1">
             {t.settings.calendarCreatedTitle(created.name)}
           </p>
-          <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
+          <code className="block break-all rounded-sm bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {calendarFeedUrl(created.token)}
           </code>
           <p className="text-xs text-slate-500 mt-1">{t.settings.calendarCreatedHint}</p>
@@ -466,9 +466,9 @@ function ApiKeysSection() {
       </p>
 
       {created && (
-        <div className="mb-3 rounded border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
+        <div className="mb-3 rounded-sm border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
           <p className="text-sm font-medium mb-1">{t.settings.apiKeyCreatedTitle(created.name)}</p>
-          <code className="block break-all rounded bg-white dark:bg-slate-800 p-2 font-mono text-xs">
+          <code className="block break-all rounded-sm bg-white dark:bg-slate-800 p-2 font-mono text-xs">
             {created.token}
           </code>
           <Button variant="ghost" className="text-xs mt-1" onClick={() => setCreated(null)}>
@@ -510,7 +510,7 @@ function ApiKeysSection() {
                 <span className="font-medium">{k.name}</span>{' '}
                 <span className="font-mono text-xs text-slate-500">{k.prefix}…</span>{' '}
                 {k.scopes.includes('feeds') && (
-                  <span className="ml-1 inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                  <span className="ml-1 inline-block rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                     + {t.settings.scopeFeeds}
                   </span>
                 )}
@@ -625,7 +625,7 @@ function InvitationsSection() {
       {create.error && <p className="text-sm text-red-600 mt-2">{errorMessage(create.error)}</p>}
 
       {lastUrl && (
-        <div className="mt-3 p-3 rounded bg-emerald-50 border border-emerald-200 text-xs space-y-1">
+        <div className="mt-3 p-3 rounded-sm bg-emerald-50 border border-emerald-200 text-xs space-y-1">
           <p className="font-medium">{t.settings.invitationCreated}</p>
           <code className="block break-all">{lastUrl}</code>
           <Button
@@ -638,7 +638,7 @@ function InvitationsSection() {
         </div>
       )}
 
-      <ul className="divide-y border rounded mt-4">
+      <ul className="divide-y border rounded-sm mt-4">
         {list.data?.items.length === 0 && (
           <li className="p-3 text-sm text-slate-500">{t.settings.invitationsEmpty}</li>
         )}
@@ -687,7 +687,7 @@ function AllowedDomainsEditor({
 
   return (
     <div className="space-y-3">
-      <ul className="divide-y rounded border">
+      <ul className="divide-y rounded-sm border">
         {value.length === 0 && (
           <li className="p-3 text-sm text-slate-500">{t.settings.allowedDomainsEmpty}</li>
         )}

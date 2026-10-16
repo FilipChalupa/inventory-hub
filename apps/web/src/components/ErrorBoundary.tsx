@@ -41,7 +41,7 @@ function ErrorFallback({ error, onRetry }: { error: unknown; onRetry: () => void
         {t.components.errorTitle}
       </h1>
       <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{t.components.errorBody}</p>
-      <p className="mt-2 break-words rounded bg-slate-100 p-2 font-mono text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-400">
+      <p className="mt-2 wrap-break-word rounded-sm bg-slate-100 p-2 font-mono text-xs text-slate-600 dark:bg-slate-900 dark:text-slate-400">
         {errorMessage(error)}
       </p>
       <div className="mt-4 flex gap-2">

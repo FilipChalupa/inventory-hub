@@ -193,7 +193,7 @@ function UtilizationSection() {
               <li key={a.code}>
                 <Link
                   to={`/a/${a.code}`}
-                  className="flex items-baseline gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                  className="flex items-baseline gap-2 rounded-sm px-1 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
                 >
                   <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
                     {a.code}
@@ -226,7 +226,7 @@ function UtilizationSection() {
                 <li key={a.code}>
                   <Link
                     to={`/a/${a.code}`}
-                    className="flex items-baseline gap-2 rounded px-1 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
+                    className="flex items-baseline gap-2 rounded-sm px-1 py-1 text-sm hover:bg-slate-50 dark:hover:bg-slate-700/50"
                   >
                     <span className="font-mono text-xs text-slate-500 dark:text-slate-400">
                       {a.code}
@@ -282,7 +282,7 @@ function Tile({
     </>
   );
   const className =
-    'block rounded border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800';
+    'block rounded-sm border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-800';
   if (to) {
     return (
       <Link
@@ -356,9 +356,9 @@ function Bar({
           {format ? format(count) : t.dashboard.pieces(count)}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded bg-slate-100 dark:bg-slate-700">
+      <div className="h-2 overflow-hidden rounded-sm bg-slate-100 dark:bg-slate-700">
         <div
-          className="h-full rounded bg-blue-500 dark:bg-blue-400"
+          className="h-full rounded-sm bg-blue-500 dark:bg-blue-400"
           style={{ width: `${Math.max(pct, 3)}%` }}
         />
       </div>
@@ -366,7 +366,10 @@ function Bar({
   );
   if (to) {
     return (
-      <Link to={to} className="block rounded p-1 -m-1 hover:bg-slate-50 dark:hover:bg-slate-700/40">
+      <Link
+        to={to}
+        className="block rounded-sm p-1 -m-1 hover:bg-slate-50 dark:hover:bg-slate-700/40"
+      >
         {content}
       </Link>
     );

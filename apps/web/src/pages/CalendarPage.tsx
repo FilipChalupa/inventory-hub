@@ -97,7 +97,7 @@ export function CalendarPage() {
           <button
             type="button"
             onClick={() => shift(-1)}
-            className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
             aria-label={t.calendar.prevMonth}
           >
             ←
@@ -108,7 +108,7 @@ export function CalendarPage() {
           <button
             type="button"
             onClick={() => shift(1)}
-            className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
             aria-label={t.calendar.nextMonth}
           >
             →
@@ -116,7 +116,7 @@ export function CalendarPage() {
           <button
             type="button"
             onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
-            className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             {t.calendar.today}
           </button>
@@ -170,7 +170,7 @@ export function CalendarPage() {
       )}
 
       {rows.length > 0 && (
-        <div className="overflow-x-auto rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+        <div className="overflow-x-auto rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           <table className="border-collapse text-xs">
             <thead>
               <tr>
@@ -208,7 +208,7 @@ export function CalendarPage() {
                         {asset.name}
                       </Link>
                       {blockReason && (
-                        <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                        <span className="ml-2 rounded-sm bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                           {blockReason}
                         </span>
                       )}

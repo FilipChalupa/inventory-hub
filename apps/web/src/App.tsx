@@ -111,7 +111,7 @@ function Shell() {
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-4 sm:gap-6">
           <button
             type="button"
-            className="sm:hidden -ml-1 rounded p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="sm:hidden -ml-1 rounded-sm p-1.5 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
             aria-label={t.common.menu}
             aria-controls="mobile-nav"
             aria-expanded={mobileOpen}
@@ -220,7 +220,7 @@ function SearchButton() {
       type="button"
       onClick={() => openCommandPalette()}
       aria-label={t.commandPalette.searchButton}
-      className="flex items-center gap-2 rounded p-1.5 text-slate-600 transition-colors hover:bg-slate-100 sm:border sm:border-slate-300 sm:px-2.5 sm:py-1.5 dark:text-slate-300 dark:hover:bg-slate-700 sm:dark:border-slate-600 print:hidden"
+      className="flex items-center gap-2 rounded-sm p-1.5 text-slate-600 transition-colors hover:bg-slate-100 sm:border sm:border-slate-300 sm:px-2.5 sm:py-1.5 dark:text-slate-300 dark:hover:bg-slate-700 sm:dark:border-slate-600 print:hidden"
     >
       <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-5 w-5 shrink-0">
         <path
@@ -230,7 +230,7 @@ function SearchButton() {
         />
       </svg>
       <span className="hidden text-sm sm:inline">{t.commandPalette.searchButton}</span>
-      <kbd className="hidden rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 sm:inline dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
+      <kbd className="hidden rounded-sm border border-slate-300 bg-slate-50 px-1.5 py-0.5 text-[10px] font-medium text-slate-500 sm:inline dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300">
         {SHORTCUT_HINT}
       </kbd>
     </button>
@@ -251,7 +251,7 @@ function MobileMenu() {
   const t = useT();
   const mobileLink = ({ isActive }: { isActive: boolean }) =>
     clsx(
-      'block rounded px-3 py-2 text-sm',
+      'block rounded-sm px-3 py-2 text-sm',
       isActive
         ? 'bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900'
         : 'text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-700',
@@ -291,7 +291,7 @@ function LanguageSwitcher({ className }: { className?: string }) {
       value={locale}
       onChange={(e) => setLocale(e.target.value as (typeof LOCALES)[number])}
       className={clsx(
-        'rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
+        'rounded-sm border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
         className,
       )}
     >
@@ -313,7 +313,7 @@ function UserMenu() {
   return (
     <Dropdown
       align="right"
-      triggerClassName="flex items-center gap-3 rounded px-1 py-1 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
+      triggerClassName="flex items-center gap-3 rounded-sm px-1 py-1 transition-colors hover:bg-slate-100 dark:hover:bg-slate-700"
       trigger={
         <>
           <span className="text-right hidden sm:block">
@@ -353,7 +353,7 @@ function UserMenu() {
   );
 }
 
-const navItemClass = 'px-3 py-1.5 rounded transition-colors whitespace-nowrap';
+const navItemClass = 'px-3 py-1.5 rounded-sm transition-colors whitespace-nowrap';
 
 function navItemState(isActive: boolean) {
   return isActive

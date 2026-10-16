@@ -50,7 +50,7 @@ export function CustomFieldsSchemaEditor({
         {value.map((f, idx) => (
           <li
             key={f.key}
-            className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end p-2 border rounded bg-slate-50 dark:bg-slate-900 dark:border-slate-700"
+            className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end p-2 border rounded-sm bg-slate-50 dark:bg-slate-900 dark:border-slate-700"
           >
             <Field label={t.components.schemaKey}>
               <Input value={f.key} disabled className="font-mono text-xs bg-slate-100" />
@@ -106,7 +106,7 @@ export function CustomFieldsSchemaEditor({
         ))}
       </ul>
 
-      <div className="border rounded p-3 space-y-2">
+      <div className="border rounded-sm p-3 space-y-2">
         <p className="text-xs font-medium text-slate-700">{t.components.schemaAddTitle}</p>
         <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_140px_80px_auto] gap-2 items-end">
           <Field label={t.components.schemaKeyHint}>

@@ -81,7 +81,7 @@ export function NotificationBell() {
             : t.notifications.open
         }
         onClick={() => setOpen((v) => !v)}
-        className="relative rounded p-1.5 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+        className="relative rounded-sm p-1.5 text-slate-600 transition-colors hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true" className="h-6 w-6">
           <path d="M10 2a5 5 0 0 0-5 5v2.6l-1.3 2.6A1 1 0 0 0 4.6 14h10.8a1 1 0 0 0 .9-1.4L15 9.6V7a5 5 0 0 0-5-5Z" />

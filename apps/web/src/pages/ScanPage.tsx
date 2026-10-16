@@ -75,7 +75,7 @@ export function ScanPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/assets" className="text-sm text-slate-500 hover:underline">
+      <Link to="/assets" className="inline-block text-sm text-slate-500 hover:underline">
         {t.scan.backToList}
       </Link>
       <h1 className="text-2xl font-bold">{t.scan.title}</h1>
@@ -83,7 +83,7 @@ export function ScanPage() {
       <Card>
         <div
           id={SCANNER_ELEMENT_ID}
-          className="w-full max-w-md mx-auto aspect-square bg-slate-100 rounded"
+          className="w-full max-w-md mx-auto aspect-square bg-slate-100 rounded-sm"
         />
         {!scanning && !error && (
           <p className="text-sm text-slate-500 text-center mt-3">{t.scan.initializing}</p>
@@ -100,7 +100,7 @@ export function ScanPage() {
             onChange={(e) => setManualCode(e.target.value)}
             aria-label={t.scan.manualEntry}
             placeholder="LAP-00001"
-            className="flex-1 border rounded px-2 py-1 font-mono"
+            className="flex-1 border rounded-sm px-2 py-1 font-mono"
           />
           <Button type="submit">{t.scan.open}</Button>
         </form>

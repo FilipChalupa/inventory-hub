@@ -156,7 +156,7 @@ export function LocationsPage() {
         </Card>
         <DragOverlay>
           {activeRow ? (
-            <div className="rounded border border-slate-300 bg-white dark:bg-slate-800 dark:border-slate-600 px-3 py-2 text-sm shadow">
+            <div className="rounded-sm border border-slate-300 bg-white dark:bg-slate-800 dark:border-slate-600 px-3 py-2 text-sm shadow-sm">
               {activeRow.name}
             </div>
           ) : null}

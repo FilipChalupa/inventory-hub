@@ -38,7 +38,7 @@ export function AgentsPage() {
         ) : (
           <>
             {!info.data?.googleConfigured && (
-              <p className="mb-3 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-200">
+              <p className="mb-3 rounded-sm border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:bg-amber-950/30 dark:border-amber-700 dark:text-amber-200">
                 ⚠ {t.agents.googleWarn}
               </p>
             )}
@@ -102,7 +102,7 @@ function PersonalTokenSection({ url }: { url: string }) {
       <p className="text-xs text-slate-500 mb-3">{t.agents.tokenIntro}</p>
 
       {created && (
-        <div className="mb-3 space-y-3 rounded border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
+        <div className="mb-3 space-y-3 rounded-sm border border-emerald-300 bg-emerald-50 p-3 dark:bg-emerald-950/30 dark:border-emerald-700">
           <p className="text-sm font-medium">{t.agents.tokenCreatedTitle(created.name)}</p>
           <CopyField label={t.agents.tokenLabel} text={created.token} />
           <CopyField
@@ -394,8 +394,8 @@ function Pill({ children, tone = 'default' }: { children: string; tone?: 'defaul
     <span
       className={
         tone === 'warn'
-          ? 'inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
-          : 'inline-block rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300'
+          ? 'inline-block rounded-sm bg-amber-100 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-200'
+          : 'inline-block rounded-sm bg-slate-100 px-1.5 py-0.5 text-[10px] font-medium text-slate-600 dark:bg-slate-700 dark:text-slate-300'
       }
     >
       {children}

@@ -76,7 +76,7 @@ export function AssetPhotosCard({
           {photos.map((p, i) => (
             <div
               key={p}
-              className="relative w-24 h-24 rounded border overflow-hidden bg-slate-50 group"
+              className="relative w-24 h-24 rounded-sm border overflow-hidden bg-slate-50 group"
             >
               <a
                 href={`/api/uploads/${p}`}

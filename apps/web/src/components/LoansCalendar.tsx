@@ -124,7 +124,7 @@ export function LoansCalendar() {
           <button
             type="button"
             onClick={() => shift(-1)}
-            className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
             aria-label={t.loansCalendar.prevMonth}
           >
             ←
@@ -132,7 +132,7 @@ export function LoansCalendar() {
           <button
             type="button"
             onClick={() => shift(1)}
-            className="rounded px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="rounded-sm px-2 py-1 text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
             aria-label={t.loansCalendar.nextMonth}
           >
             →
@@ -144,7 +144,7 @@ export function LoansCalendar() {
         <button
           type="button"
           onClick={() => setCursor({ year: today.getFullYear(), month: today.getMonth() })}
-          className="rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
+          className="rounded-sm px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           {t.loansCalendar.today}
         </button>
@@ -154,7 +154,7 @@ export function LoansCalendar() {
         <p className="text-sm text-red-600 mb-2">{errorMessage(schedule.error)}</p>
       )}
 
-      <div className="rounded border border-slate-200 dark:border-slate-700 overflow-hidden">
+      <div className="rounded-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="grid grid-cols-7 border-b border-slate-200 dark:border-slate-700">
           {weekdayLabels().map((label) => (
             <div
@@ -193,7 +193,7 @@ export function LoansCalendar() {
                 >
                   <span
                     className={clsx(
-                      'inline-block text-xs px-1 rounded',
+                      'inline-block text-xs px-1 rounded-sm',
                       inMonth
                         ? 'text-slate-500 dark:text-slate-400'
                         : 'text-slate-300 dark:text-slate-600',
@@ -243,7 +243,7 @@ export function LoansCalendar() {
 function LegendItem({ tone, label }: { tone: Tone; label: string }) {
   return (
     <span className="inline-flex items-center gap-1.5">
-      <span className={clsx('inline-block w-3 h-3 rounded', toneClass[tone])} />
+      <span className={clsx('inline-block w-3 h-3 rounded-sm', toneClass[tone])} />
       {label}
     </span>
   );

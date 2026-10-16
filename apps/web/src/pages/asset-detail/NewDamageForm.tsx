@@ -108,7 +108,7 @@ export function NewDamageForm({
             accept="image/jpeg,image/png,image/webp,image/gif"
             multiple
             onChange={(e) => handleFiles(e.target.files)}
-            className="block w-full text-sm text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:bg-slate-100 file:text-sm file:font-medium hover:file:bg-slate-200"
+            className="block w-full text-sm text-slate-600 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:bg-slate-100 file:text-sm file:font-medium hover:file:bg-slate-200"
           />
         </Field>
         {photos.length > 0 && (
@@ -116,7 +116,7 @@ export function NewDamageForm({
             {photos.map((p, idx) => (
               <div
                 key={p.path}
-                className="relative w-20 h-20 rounded border overflow-hidden bg-slate-50"
+                className="relative w-20 h-20 rounded-sm border overflow-hidden bg-slate-50"
               >
                 <img src={p.previewUrl} alt="" className="w-full h-full object-cover" />
                 <button

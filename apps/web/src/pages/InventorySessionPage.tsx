@@ -150,7 +150,7 @@ export function InventorySessionPage() {
   if (detail.error || !session || !report) {
     return (
       <section className="space-y-3">
-        <Link to="/inventory" className="text-sm text-slate-500 hover:underline">
+        <Link to="/inventory" className="inline-block text-sm text-slate-500 hover:underline">
           {t.inventorySession.backToInventories}
         </Link>
         <p className="text-sm text-red-600">
@@ -180,7 +180,7 @@ export function InventorySessionPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/inventory" className="text-sm text-slate-500 hover:underline">
+      <Link to="/inventory" className="inline-block text-sm text-slate-500 hover:underline">
         {t.inventorySession.backToInventories}
       </Link>
 
@@ -197,7 +197,7 @@ export function InventorySessionPage() {
         </div>
         <span
           className={
-            'text-xs px-2 py-0.5 rounded font-medium ' +
+            'text-xs px-2 py-0.5 rounded-sm font-medium ' +
             (isOpen ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
           }
         >
@@ -476,7 +476,7 @@ function ScanPanel({
       {scanning && (
         <div
           id={SCANNER_ELEMENT_ID}
-          className="w-full max-w-sm mx-auto aspect-square bg-slate-100 rounded"
+          className="w-full max-w-sm mx-auto aspect-square bg-slate-100 rounded-sm"
         />
       )}
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -507,7 +507,7 @@ function ScanPanel({
       </form>
 
       {lastResult && (
-        <div className={'text-sm rounded px-3 py-2 font-medium ' + resultClass}>
+        <div className={'text-sm rounded-sm px-3 py-2 font-medium ' + resultClass}>
           {lastResult.text}
         </div>
       )}
@@ -544,7 +544,7 @@ function AssetGroup({
       {assets.length === 0 ? (
         <p className="text-sm text-slate-400">{emptyText}</p>
       ) : (
-        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
+        <ul className="divide-y divide-slate-200 dark:divide-slate-700 rounded-sm border border-slate-200 bg-white dark:bg-slate-800 dark:border-slate-700">
           {assets.map((a) => (
             <ReportItem
               key={a.id}
@@ -603,7 +603,7 @@ function ReportItem({
                 setDraft(asset.note ?? '');
                 setEditing((v) => !v);
               }}
-              className="rounded px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
+              className="rounded-sm px-1.5 py-0.5 hover:bg-slate-100 dark:hover:bg-slate-700"
               title={
                 asset.note ? t.inventorySession.editNoteTitle : t.inventorySession.addNoteTitle
               }
