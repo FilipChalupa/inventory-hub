@@ -3,6 +3,7 @@ import { mkdir, stat, writeFile } from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { resolve, sep } from 'node:path';
 import type { Env } from '../env.js';
+import { fetchPublicBuffer } from './safe-fetch.js';
 
 /** Supported upload MIME types → file extension. */
 export const ALLOWED_MIME = new Map<string, string>([
@@ -119,7 +120,7 @@ function isBlockedIpv6(ip: string): boolean {
   return false;
 }
 
-function isBlockedAddress(address: string): boolean {
+export function isBlockedAddress(address: string): boolean {
   const family = isIP(address);
   if (family === 4) return isBlockedIpv4(address);
   if (family === 6) return isBlockedIpv6(address);
@@ -222,33 +223,6 @@ export async function saveUploadBuffer(
 }
 
 /**
- * Reads a fetch Response body into memory, giving up (and cancelling the
- * download) as soon as it exceeds `maxBytes`. Returns null when too large.
- */
-export async function readCapped(res: Response, maxBytes: number): Promise<Buffer | null> {
-  const declared = Number(res.headers.get('content-length') ?? NaN);
-  if (Number.isFinite(declared) && declared > maxBytes) {
-    await res.body?.cancel().catch(() => undefined);
-    return null;
-  }
-  if (!res.body) return Buffer.alloc(0);
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => undefined);
-      return null;
-    }
-    chunks.push(value);
-  }
-  return Buffer.concat(chunks, total);
-}
-
-/**
  * Downloads a remote image/document URL into UPLOAD_DIR and returns the stored
  * relative path, or null on any failure (never throws). Size-capped by
  * UPLOAD_MAX_BYTES. Used by the bulk import to pull source-system media.
@@ -258,31 +232,20 @@ export async function readCapped(res: Response, maxBytes: number): Promise<Buffe
  * immediately without burning retries.
  */
 export async function storeRemoteFile(env: Env, url: string, retries = 1): Promise<string | null> {
-  // SSRF guard: only public http(s) targets are fetched at all.
+  // Cheap pre-check (scheme + current DNS answer). The real guarantee is the
+  // connect-time check inside fetchPublicBuffer, which closes the DNS
+  // rebinding window between this check and the download.
   if (!(await assertPublicHttpUrl(url))) return null;
   for (let attempt = 0; ; attempt++) {
-    try {
-      // - redirect: 'error' stops a vetted public URL from bouncing (3xx) to a
-      //   private one *after* the pre-flight check (redirect/TOCTOU bypass);
-      //   a rejected redirect throws and is treated as a failure below.
-      // - AbortSignal.timeout caps a slow/hanging origin at 10s.
-      const res = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(10_000) });
-      if (!res.ok) {
-        if (attempt < retries) continue;
-        return null;
-      }
-      // Deterministic outcomes — don't retry. The body is read with a hard
-      // cap so a huge (or endless) response can't exhaust memory.
-      const buffer = await readCapped(res, env.UPLOAD_MAX_BYTES);
-      if (!buffer) return null;
-      // Trust the file's magic bytes, not the origin's Content-Type header.
-      const mime = sniffMime(buffer);
-      if (!mime) return null;
-      return await saveUploadBuffer(env, buffer, mime);
-    } catch {
+    const buffer = await fetchPublicBuffer(url, { maxBytes: env.UPLOAD_MAX_BYTES });
+    if (!buffer) {
       if (attempt < retries) continue;
       return null;
     }
+    // Trust the file's magic bytes, not the origin's Content-Type header.
+    const mime = sniffMime(buffer);
+    if (!mime) return null;
+    return saveUploadBuffer(env, buffer, mime);
   }
 }
 
