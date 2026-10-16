@@ -334,14 +334,10 @@ export type InventoryReport = {
 
 export type ScanResult = {
   result: ScanResultKind;
-  asset: {
-    id: string;
-    code: string;
-    name: string;
-    status: AssetStatus;
-    locationId: string | null;
-  };
-  report: InventoryReport;
+  /** Report list the asset now belongs to. */
+  list: 'found' | 'unexpected';
+  asset: InventoryReportAsset;
+  counts: InventoryReport['counts'];
 };
 
 async function uploadImportCsv(

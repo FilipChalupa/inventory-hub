@@ -310,13 +310,38 @@ export function openApiDocument() {
       '/api/inventory/{id}/scan': {
         post: {
           summary: 'Record a scan of an asset within the session',
+          description:
+            "`code` may be the asset code or any identifier the exact lookup resolves (serial, EAN…). `scannedAt` lets an offline-queued scan record when it really happened (accepted between session start and now + 1 min). The response carries the asset's report row, which list it belongs to now, and fresh counts — fetch GET /api/inventory/{id} for the full report.",
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
           requestBody: jsonBody({
             type: 'object',
             required: ['code'],
-            properties: { code: { type: 'string' } },
+            properties: {
+              code: { type: 'string' },
+              scannedAt: { type: 'string', format: 'date-time' },
+            },
           }),
-          responses: { 200: ok('Scanned'), 404: ok('Asset/session not found', ref('Error')) },
+          responses: {
+            200: ok('Scanned', {
+              type: 'object',
+              properties: {
+                result: { type: 'string', enum: ['found', 'unexpected', 'already'] },
+                list: { type: 'string', enum: ['found', 'unexpected'] },
+                asset: { type: 'object' },
+                counts: {
+                  type: 'object',
+                  properties: {
+                    expected: { type: 'integer' },
+                    found: { type: 'integer' },
+                    missing: { type: 'integer' },
+                    unexpected: { type: 'integer' },
+                  },
+                },
+              },
+            }),
+            404: ok('Asset/session not found', ref('Error')),
+            409: ok('Session closed, or identifier matches several assets', ref('Error')),
+          },
         },
       },
       '/api/inventory/{id}/close': {

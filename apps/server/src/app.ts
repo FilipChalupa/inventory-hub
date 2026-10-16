@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { compress } from 'hono/compress';
 import { csrf } from 'hono/csrf';
 import { HTTPException } from 'hono/http-exception';
 import { secureHeaders } from 'hono/secure-headers';
@@ -87,6 +88,10 @@ export function createApp(deps: { db: Db; env: Env; emailSender?: EmailSender })
     console.log(`[${c.get('requestId')}] ${c.req.method} ${path} ${c.res.status} ${ms}ms`);
   });
   app.use('*', cors({ origin: deps.env.PUBLIC_APP_URL, credentials: true }));
+  // JSON compresses ~10× (a large inventory report goes from ~3 MB to a few
+  // hundred KB) — matters on warehouse mobile data. Skips small bodies and
+  // clients that don't send Accept-Encoding.
+  app.use('/api/*', compress());
   // CSRF: rejects state-changing requests whose Origin/Sec-Fetch-Site
   // doesn't match our public URL. Cookies are SameSite=Lax which already
   // blocks most CSRF, this is belt-and-suspenders. Skipped for /health,

@@ -266,19 +266,43 @@ describe('inventory API', () => {
     expect(res.status).toBe(200);
   });
 
-  it('scan returns the freshly reconciled report for live updates', async () => {
+  it('scan returns the asset row and counts that match the full report', async () => {
     const a = await makeAsset(server, cookie, 'A');
     await makeAsset(server, cookie, 'B');
-    const sid = await createSession(server, cookie);
-
+    const outside = await makeAsset(server, cookie, 'Outside');
+    const sid = await createSession(server, cookie, { assetCodes: [a] });
     const res = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: a });
     const body = (await res.json()) as {
       result: string;
-      report: { counts: { found: number }; found: { code: string }[] };
+      list: string;
+      asset: { code: string; scannedAt: string | null };
+      counts: Record<string, number>;
+      report?: unknown;
     };
-    expect(body.result).toBe('found');
-    expect(body.report.counts.found).toBe(1);
-    expect(body.report.found.map((x) => x.code)).toContain(a);
+    expect(body).toMatchObject({ result: 'found', list: 'found', asset: { code: a } });
+    expect(body.asset.scannedAt).toBeTruthy();
+    expect(body.report).toBeUndefined();
+
+    const extra = (await (
+      await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: outside })
+    ).json()) as { list: string; counts: Record<string, number> };
+    expect(extra.list).toBe('unexpected');
+
+    const full = (await (await server.authRequest(`/api/inventory/${sid}`, { cookie })).json()) as {
+      report: { counts: Record<string, number> };
+    };
+    expect(extra.counts).toEqual(full.report.counts);
+    expect(full.report.counts).toEqual({ expected: 1, found: 1, missing: 0, unexpected: 1 });
+  });
+
+  it('gzips large API responses for clients that accept it', async () => {
+    for (let i = 0; i < 40; i++) await makeAsset(server, cookie, `Bulk ${i}`);
+    const sid = await createSession(server, cookie);
+    const res = await server.authRequest(`/api/inventory/${sid}`, {
+      cookie,
+      headers: { 'accept-encoding': 'gzip' },
+    });
+    expect(res.headers.get('content-encoding')).toBe('gzip');
   });
 
   it('scopes by asset type', async () => {

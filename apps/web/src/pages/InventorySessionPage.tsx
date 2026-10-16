@@ -24,6 +24,7 @@ import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
 import { classifyScan } from '../lib/scan.js';
 import { isNetworkError, scanQueue } from '../lib/scanQueue.js';
+import { applyScanToReport } from '../lib/inventoryReport.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 import { useT } from '../i18n/index.js';
 
@@ -65,6 +66,13 @@ export function InventorySessionPage() {
     );
   const applyReportRef = useRef(applyReport);
   applyReportRef.current = applyReport;
+  // Scans return only the scanned row + counts; patch the cached report.
+  const applyScan = (res: ScanResult) =>
+    queryClient.setQueryData<Detail>(['inventory', id], (old) =>
+      old ? { ...old, report: applyScanToReport(old.report, res) } : old,
+    );
+  const applyScanRef = useRef(applyScan);
+  applyScanRef.current = applyScan;
 
   const queue = useSyncExternalStore(scanQueue.subscribe, () => scanQueue.get(id));
 
@@ -88,7 +96,7 @@ export function InventorySessionPage() {
         try {
           const res = await apiClient.inventory.scan(id, item.code, item.scannedAt);
           scanQueue.done(id, item.id);
-          applyReportRef.current(res.report);
+          applyScanRef.current(res);
         } catch (err) {
           if (isNetworkError(err)) break;
           scanQueue.fail(id, item.id, errorMessage(err));
@@ -133,7 +141,7 @@ export function InventorySessionPage() {
               ? t.inventorySession.scanAlready(label)
               : t.inventorySession.scanUnexpected(label),
       });
-      applyReport(res.report);
+      applyScan(res);
     },
     onError: (e: unknown, code) => {
       if (isNetworkError(e)) {

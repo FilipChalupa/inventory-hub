@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { and, desc, eq, inArray, isNull, lt, or } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, lt, or, sql, type SQL } from 'drizzle-orm';
 import {
   createInventorySessionInput,
   inventoryItemNoteInput,
@@ -58,26 +58,62 @@ function locationSubtreeIds(db: Db, rootId: string): Set<string> {
 }
 
 /**
- * The expected set of assets for a session's scope. A hand-picked `assetIds`
- * list wins outright; otherwise every non-archived asset is narrowed by
- * `locationId` (subtree) and `typeIds`, each applied only when present.
+ * SQL condition (on `assets`) for a session's expected set. A hand-picked
+ * asset list wins outright; otherwise every non-archived asset narrowed by
+ * `locationId` (its subtree) and `typeIds`, each applied only when present.
+ * Evaluated in SQLite so a report never has to load the whole inventory.
  */
-function expectedAssets(db: Db, session: InventorySessionRow): AssetRow[] {
-  const all = db.select().from(assets).where(isNull(assets.archivedAt)).all();
+function scopeCondition(db: Db, session: InventorySessionRow): SQL {
+  const conds: SQL[] = [isNull(assets.archivedAt)];
   if (session.assetIds && session.assetIds.length > 0) {
-    const picked = new Set(session.assetIds);
-    return all.filter((a) => picked.has(a.id));
+    conds.push(inArray(assets.id, session.assetIds));
+  } else {
+    if (session.locationId) {
+      conds.push(inArray(assets.locationId, [...locationSubtreeIds(db, session.locationId)]));
+    }
+    if (session.typeIds && session.typeIds.length > 0) {
+      conds.push(inArray(assets.typeId, session.typeIds));
+    }
   }
-  let result = all;
-  if (session.locationId) {
-    const scope = locationSubtreeIds(db, session.locationId);
-    result = result.filter((a) => a.locationId !== null && scope.has(a.locationId));
-  }
-  if (session.typeIds && session.typeIds.length > 0) {
-    const types = new Set(session.typeIds);
-    result = result.filter((a) => a.typeId !== null && types.has(a.typeId));
-  }
-  return result;
+  return and(...conds)!;
+}
+
+/** Just the columns a report row needs (not notes, custom fields, …). */
+const REPORT_COLUMNS = {
+  id: assets.id,
+  code: assets.code,
+  name: assets.name,
+  status: assets.status,
+  locationId: assets.locationId,
+};
+
+function expectedAssets(db: Db, session: InventorySessionRow) {
+  return db.select(REPORT_COLUMNS).from(assets).where(scopeCondition(db, session)).all();
+}
+
+/** Report counts via a few COUNT queries — what a scan response carries. */
+function reportCounts(db: Db, session: InventorySessionRow) {
+  const scope = scopeCondition(db, session);
+  const expected =
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(assets)
+      .where(scope)
+      .get()?.n ?? 0;
+  const found =
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(inventoryScans)
+      .innerJoin(assets, eq(assets.id, inventoryScans.assetId))
+      .where(and(eq(inventoryScans.sessionId, session.id), scope))
+      .get()?.n ?? 0;
+  const scanned =
+    db
+      .select({ n: sql<number>`count(*)` })
+      .from(inventoryScans)
+      .where(eq(inventoryScans.sessionId, session.id))
+      .get()?.n ?? 0;
+  return { expected, found, missing: expected - found, unexpected: scanned - found };
 }
 
 /** Whether a single scanned asset belongs to the session's expected scope. */
@@ -155,7 +191,7 @@ function buildReport(db: Db, session: InventorySessionRow) {
     unexpectedIds.length === 0
       ? []
       : db
-          .select()
+          .select(REPORT_COLUMNS)
           .from(assets)
           .where(inArray(assets.id, unexpectedIds))
           .all()
@@ -440,19 +476,34 @@ export const inventoryRoutes = new Hono<AppContext>()
           .run();
       }
 
-      // Return the freshly reconciled report so the client can update its cache
-      // directly — the service worker serves GET /api/* stale-while-revalidate,
-      // so a refetch after the scan would otherwise show stale counts.
+      // Return just enough for the client to patch its cached report (the
+      // asset's report row + fresh counts). Sending the whole report on every
+      // beep cost ~3 MB / ~90 ms at 20k assets. The service worker serves
+      // GET /api/* stale-while-revalidate, so patching beats refetching.
+      const scanRow = db
+        .select({ scannedAt: inventoryScans.scannedAt })
+        .from(inventoryScans)
+        .where(and(eq(inventoryScans.sessionId, id), eq(inventoryScans.assetId, asset.id)))
+        .get();
+      const note = db
+        .select({ note: inventoryItemNotes.note })
+        .from(inventoryItemNotes)
+        .where(and(eq(inventoryItemNotes.sessionId, id), eq(inventoryItemNotes.assetId, asset.id)))
+        .get();
       return c.json({
         result,
+        // Which report list the asset now belongs to.
+        list: inScope ? 'found' : 'unexpected',
         asset: {
           id: asset.id,
           code: asset.code,
           name: asset.name,
           status: asset.status,
           locationId: asset.locationId,
+          scannedAt: scanRow?.scannedAt ?? null,
+          note: note?.note ?? null,
         },
-        report: buildReport(db, session),
+        counts: reportCounts(db, session),
       });
     },
   )
