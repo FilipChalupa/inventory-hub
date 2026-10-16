@@ -243,7 +243,10 @@ export function InventorySessionPage() {
 
   return (
     <section className="space-y-4">
-      <Link to="/inventory" className="inline-block text-sm text-slate-500 hover:underline">
+      <Link
+        to="/inventory"
+        className="inline-block text-sm text-slate-500 hover:underline print:hidden"
+      >
         {t.inventorySession.backToInventories}
       </Link>
 
@@ -258,15 +261,31 @@ export function InventorySessionPage() {
               : ''}
           </p>
         </div>
-        <span
-          className={
-            'text-xs px-2 py-0.5 rounded-sm font-medium ' +
-            (isOpen ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
-          }
-        >
-          {isOpen ? t.inventorySession.statusOpen : t.inventorySession.statusClosed}
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span
+            className={
+              'text-xs px-2 py-0.5 rounded-sm font-medium ' +
+              (isOpen ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')
+            }
+          >
+            {isOpen ? t.inventorySession.statusOpen : t.inventorySession.statusClosed}
+          </span>
+          <div className="flex gap-2 print:hidden">
+            <a
+              href={`/api/inventory/${encodeURIComponent(id)}/report.csv`}
+              className="inline-flex items-center rounded-sm border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-900 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600"
+            >
+              {t.inventorySession.exportCsv}
+            </a>
+            <Button variant="secondary" onClick={() => window.print()}>
+              {t.inventorySession.printPdf}
+            </Button>
+          </div>
+        </div>
       </div>
+      <p className="hidden print:block text-xs text-slate-500">
+        {t.inventorySession.printedAt(formatDate(new Date().toISOString()))}
+      </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <Stat label={t.inventorySession.statExpected} value={report.counts.expected} />
@@ -287,15 +306,17 @@ export function InventorySessionPage() {
       />
 
       {canWrite && isOpen && (
-        <ScanPanel
-          onCode={(code) => scan.mutate(code)}
-          pending={scan.isPending}
-          lastResult={lastResult}
-        />
+        <div className="print:hidden">
+          <ScanPanel
+            onCode={(code) => scan.mutate(code)}
+            pending={scan.isPending}
+            lastResult={lastResult}
+          />
+        </div>
       )}
 
       {pendingCount > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
+        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 print:hidden dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200">
           <span role="status">{t.inventorySession.queuePending(pendingCount)}</span>
           <Button variant="secondary" className="text-xs" onClick={() => void flushQueue()}>
             {t.inventorySession.queueSyncNow}
@@ -303,7 +324,7 @@ export function InventorySessionPage() {
         </div>
       )}
       {queue.failed.length > 0 && (
-        <div className="rounded-sm border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+        <div className="rounded-sm border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900 print:hidden dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
           <p className="font-medium">{t.inventorySession.queueFailedTitle}</p>
           <ul className="my-1 list-inside list-disc">
             {queue.failed.map((f) => (

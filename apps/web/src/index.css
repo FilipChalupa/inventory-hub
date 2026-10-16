@@ -59,6 +59,8 @@
 @media print {
   header,
   nav,
+  /* Controls never make sense on paper (e.g. a printed inventory report). */
+  button,
   .print\:hidden {
     display: none !important;
   }

@@ -202,6 +202,34 @@ describe('inventory API', () => {
     expect(Math.abs(t3 - Date.now())).toBeLessThan(5_000);
   });
 
+  it('exports the reconciled report as CSV', async () => {
+    const parent = await makeLocation(server, cookie, 'Praha');
+    const loc = await makeLocation(server, cookie, 'Sklad, B', parent);
+    const a = await makeAsset(server, cookie, 'Found one', loc);
+    await makeAsset(server, cookie, 'Missing one', loc);
+    const outside = await makeAsset(server, cookie, 'Elsewhere');
+    const sid = await createSession(server, cookie, { name: 'Q4 / Praha', locationId: parent });
+    await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: a });
+    await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: outside });
+
+    const res = await server.authRequest(`/api/inventory/${sid}/report.csv`, { cookie });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/csv');
+    expect(res.headers.get('content-disposition')).toContain('inventory-Q4-Praha.csv');
+    const text = (await res.text()).replace(/^\uFEFF/, '');
+    const lines = text.trim().split('\r\n');
+    expect(lines[0]).toBe('result,code,name,status,location,scanned_at,scanned_by,note');
+    expect(lines.find((l) => l.startsWith(`found,${a},`))).toContain('"Praha / Sklad, B"');
+    expect(lines.find((l) => l.startsWith(`found,${a},`))).toMatch(
+      /,\d{4}-\d\d-\d\dT[^,]+,Test User/,
+    );
+    expect(lines.some((l) => l.startsWith('missing,') && l.includes('Missing one'))).toBe(true);
+    expect(lines.some((l) => l.startsWith(`unexpected,${outside},`))).toBe(true);
+
+    const none = await server.authRequest(`/api/inventory/nope/report.csv`, { cookie });
+    expect(none.status).toBe(404);
+  });
+
   it('refuses an identifier that matches several assets', async () => {
     const a = await makeAsset(server, cookie, 'A');
     const b = await makeAsset(server, cookie, 'B');

@@ -20,9 +20,11 @@ import {
   inventoryScans,
   inventorySessions,
   locations,
+  users,
   type AssetRow,
   type InventorySessionRow,
 } from '../db/schema.js';
+import { toCsv } from '../lib/csv.js';
 
 // Inventory writes (create / scan / close / reopen / notes / mark-lost) are
 // stocktaking operations done by warehouse staff; restrict them to
@@ -261,6 +263,78 @@ export const inventoryRoutes = new Hono<AppContext>()
       return c.json({ session }, 201);
     },
   )
+  // The reconciled report as CSV, one row per asset (found / missing /
+  // unexpected) with who scanned it and when — for accounting / archiving.
+  .get('/:id/report.csv', (c) => {
+    const db = c.get('db');
+    const session = db
+      .select()
+      .from(inventorySessions)
+      .where(eq(inventorySessions.id, c.req.param('id')))
+      .get();
+    if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+    const report = buildReport(db, session);
+
+    // Full location paths ("Praha / Sklad B") read better than bare names.
+    const locs = new Map(
+      db
+        .select()
+        .from(locations)
+        .all()
+        .map((l) => [l.id, l]),
+    );
+    const locationPath = (id: string | null): string => {
+      const parts: string[] = [];
+      for (let cur = id ? locs.get(id) : undefined, guard = 0; cur && guard < 50; guard++) {
+        parts.unshift(cur.name);
+        cur = cur.parentId ? locs.get(cur.parentId) : undefined;
+      }
+      return parts.join(' / ');
+    };
+    const scannedBy = new Map(
+      db
+        .select({ assetId: inventoryScans.assetId, name: users.name })
+        .from(inventoryScans)
+        .leftJoin(users, eq(users.id, inventoryScans.scannedByUserId))
+        .where(eq(inventoryScans.sessionId, session.id))
+        .all()
+        .map((r) => [r.assetId, r.name]),
+    );
+    const rows = (['found', 'missing', 'unexpected'] as const).flatMap((result) =>
+      report[result].map((a) => ({
+        result,
+        code: a.code,
+        name: a.name,
+        status: a.status,
+        location: locationPath(a.locationId),
+        scannedAt: a.scannedAt,
+        scannedBy: scannedBy.get(a.id) ?? '',
+        note: a.note ?? '',
+      })),
+    );
+    const csv = toCsv(rows, [
+      { key: 'result', header: 'result' },
+      { key: 'code', header: 'code' },
+      { key: 'name', header: 'name' },
+      { key: 'status', header: 'status' },
+      { key: 'location', header: 'location' },
+      { key: 'scannedAt', header: 'scanned_at' },
+      { key: 'scannedBy', header: 'scanned_by' },
+      { key: 'note', header: 'note' },
+    ]);
+    const slug =
+      session.name
+        .normalize('NFKD')
+        .replace(/[^\w-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 40) || 'inventura';
+    return new Response('\uFEFF' + csv, {
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="inventory-${slug}.csv"`,
+      },
+    });
+  })
   .get('/:id', (c) => {
     const db = c.get('db');
     const id = c.req.param('id');

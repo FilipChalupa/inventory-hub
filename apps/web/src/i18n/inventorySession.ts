@@ -49,6 +49,9 @@ export const inventorySession = ns({
     queuePending: (n: number) =>
       `${n} ${n === 1 ? 'sken čeká' : n < 5 ? 'skeny čekají' : 'skenů čeká'} na odeslání — počty se aktualizují po připojení.`,
     queueSyncNow: 'Odeslat teď',
+    exportCsv: 'Export CSV',
+    printPdf: 'Tisk / PDF',
+    printedAt: (d: string) => `Vytištěno ${d}`,
     queueFailedTitle: 'Tyto offline skeny server odmítl:',
     queueFailedDismiss: 'Skrýt',
     markFound: 'Nalezeno',
@@ -110,6 +113,9 @@ export const inventorySession = ns({
     queuePending: (n: number) =>
       `${n} ${n === 1 ? 'scan is' : 'scans are'} waiting to be sent — counts update once online.`,
     queueSyncNow: 'Send now',
+    exportCsv: 'Export CSV',
+    printPdf: 'Print / PDF',
+    printedAt: (d: string) => `Printed ${d}`,
     queueFailedTitle: 'The server refused these offline scans:',
     queueFailedDismiss: 'Dismiss',
     markFound: 'Found',
