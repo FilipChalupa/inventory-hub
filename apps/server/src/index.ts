@@ -17,6 +17,7 @@ import { pruneOldAuditEvents } from './lib/retention.js';
 import { pruneExpiredSessions } from './lib/sessions.js';
 import { pruneExpiredOauth } from './mcp/oauth-store.js';
 import { runMcpTokenExpiryReminders } from './mcp/notify.js';
+import { pruneOrphanUploads } from './lib/upload-gc.js';
 
 const env = loadEnv();
 const { db, sqlite } = createDb(env.DATABASE_URL);
@@ -95,6 +96,19 @@ const weeklyReportTimer = setInterval(() => {
 // moment passes. Runs every few minutes so the delay stays small; the
 // manual "start" button covers the gap in between.
 const ACTIVATION_INTERVAL_MS = 5 * 60 * 1000;
+// Daily sweep of uploaded files nothing references any more.
+const ORPHAN_UPLOADS_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const runOrphanUploadPrune = () => {
+  if (!env.UPLOAD_ORPHAN_DAYS) return;
+  void pruneOrphanUploads(db, env, { graceDays: env.UPLOAD_ORPHAN_DAYS })
+    .then(({ deleted }) => {
+      if (deleted > 0) console.log(`Smazáno nepoužitých nahraných souborů: ${deleted}`);
+    })
+    .catch((err) => console.error('orphan upload prune failed:', err));
+};
+const orphanUploadsInitial = setTimeout(runOrphanUploadPrune, 10 * 60 * 1000);
+const orphanUploadsTimer = setInterval(runOrphanUploadPrune, ORPHAN_UPLOADS_INTERVAL_MS);
+
 const runActivation = () => {
   try {
     const { activated } = activateDueLoans(db);
@@ -140,6 +154,8 @@ const shutdown = () => {
   clearInterval(overdueTimer);
   clearInterval(weeklyReportTimer);
   clearInterval(activationTimer);
+  clearTimeout(orphanUploadsInitial);
+  clearInterval(orphanUploadsTimer);
   // Force-exit fallback: if server.close() hangs (e.g. a stuck keep-alive
   // connection never drains), don't wait forever. `.unref()` so this timer
   // itself doesn't keep the process alive if close finishes promptly.

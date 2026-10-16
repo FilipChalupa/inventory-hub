@@ -10,7 +10,7 @@ import { createTestDb } from './test-db.js';
 import { _resetRateLimits } from './rate-limit.js';
 import { generateRelativePath } from './uploads.js';
 
-import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 
@@ -26,6 +26,7 @@ const TEST_ENV_BASE: Env = {
   MCP_ACCESS_TOKEN_TTL: 3600,
   MCP_REFRESH_TOKEN_TTL: 60 * 60 * 24 * 30,
   MCP_RATE_LIMIT_PER_MIN: 120,
+  UPLOAD_ORPHAN_DAYS: 7,
   BACKUPS_CONFIGURED: false,
 };
 
@@ -57,7 +58,7 @@ export type TestServer = {
   laptopTypeId: string;
   sentEmails: Email[];
   /** Writes a real file into UPLOAD_DIR (a 1×1 PNG by default) and returns its stored path. */
-  storeUpload: (opts?: { ext?: 'png' | 'pdf'; ageDays?: number }) => string;
+  storeUpload: (opts?: { ext?: 'png' | 'pdf' }) => string;
 };
 
 /**
@@ -120,10 +121,6 @@ export function setupTestServer(envOverrides: Partial<Env> = {}): TestServer {
             'base64',
           ),
     );
-    if (opts.ageDays) {
-      const t = new Date(Date.now() - opts.ageDays * 24 * 60 * 60 * 1000);
-      utimesSync(abs, t, t);
-    }
     return rel;
   };
 

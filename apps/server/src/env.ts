@@ -52,6 +52,9 @@ const envSchema = z.object({
   // Max /mcp requests per minute for one token (connection). A looping agent
   // gets 429s instead of starving everyone else.
   MCP_RATE_LIMIT_PER_MIN: z.coerce.number().int().positive().default(120),
+  // Uploaded files no record references are deleted after this many days
+  // (abandoned uploads, detached photos). 0 disables the cleanup.
+  UPLOAD_ORPHAN_DAYS: z.coerce.number().int().min(0).default(7),
 });
 
 export type Env = z.infer<typeof envSchema>;
