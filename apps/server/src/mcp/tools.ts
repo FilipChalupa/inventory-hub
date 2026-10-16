@@ -10,6 +10,8 @@
  * the routers re-validate every payload regardless.
  */
 import { z } from 'zod';
+import type { McpPrincipal } from './principal.js';
+import { UPLOAD_LINK_TTL_MS, createUploadLink } from './upload-links.js';
 import {
   ASSET_STATUSES,
   TERMINAL_ASSET_STATUSES,
@@ -38,6 +40,10 @@ export type ToolContext = {
   callRaw: (
     path: string,
   ) => Promise<{ status: number; ok: boolean; bytes: Buffer; contentType: string | null }>;
+  /** Who is calling (user, granted scope, connection name). */
+  principal: McpPrincipal;
+  /** Public origin of this server, for links handed to the agent. */
+  serverUrl: string;
 };
 
 /** A tool result that may carry images for the model to look at. */
@@ -113,6 +119,10 @@ const imageSource = z.object({
     .optional()
     .describe('Image bytes as base64 (a data: URL prefix is fine).'),
   imageUrl: z.string().url().optional().describe('Public http(s) URL of the image.'),
+  uploadedPath: z
+    .string()
+    .optional()
+    .describe('A `path` returned by an upload link created with create_upload_link.'),
 });
 type ImageSource = z.infer<typeof imageSource>;
 
@@ -121,13 +131,16 @@ async function importImage(
   call: ToolContext['call'],
   src: ImageSource,
 ): Promise<{ ok: true; path: string } | (ToolCallResult & { ok: false })> {
-  if (Boolean(src.imageBase64) === Boolean(src.imageUrl)) {
+  const given = [src.imageBase64, src.imageUrl, src.uploadedPath].filter(Boolean).length;
+  if (given !== 1) {
     return {
       ok: false,
       status: 400,
-      body: { error: { message: 'Give exactly one of imageBase64 or imageUrl.' } },
+      body: { error: { message: 'Give exactly one of imageBase64, imageUrl or uploadedPath.' } },
     };
   }
+  // Already stored via an upload link; the attaching route verifies it.
+  if (src.uploadedPath) return { ok: true, path: src.uploadedPath };
   const res = await call(
     'POST',
     '/api/uploads/import',
@@ -615,7 +628,7 @@ export const MCP_TOOLS: McpTool[] = [
     ...tool(
       'report_damage',
       'write',
-      'Report damage on an asset code. Optionally attach up to 10 photos, each given as `imageBase64` or a public `imageUrl`.',
+      'Report damage on an asset code. Optionally attach up to 10 photos, each given as `imageBase64`, a public `imageUrl`, or an `uploadedPath` from create_upload_link.',
       (() => {
         const { assetId: _assetId, photoPaths: _paths, ...rest } = shapeOf(createDamageReportInput);
         return {
@@ -641,6 +654,61 @@ export const MCP_TOOLS: McpTool[] = [
   },
 
   // ---- photos --------------------------------------------------------------
+  {
+    ...tool(
+      'create_upload_link',
+      'write',
+      'Get a one-time URL to upload a file from disk with curl, instead of sending base64 through a tool call (much cheaper for large files). purpose "asset_photo" / "asset_document" attaches the file to asset `code` on upload; "damage_photo" just stores it and returns a `path` to pass to report_damage as photos: [{ uploadedPath }]. The link works once and expires in 15 minutes.',
+      {
+        purpose: z.enum(['asset_photo', 'asset_document', 'damage_photo']),
+        code: z
+          .string()
+          .optional()
+          .describe('Asset code; required for asset_photo / asset_document.'),
+      },
+      ({ code }) => ({ method: 'GET', path: `/api/assets/${encodeURIComponent(code ?? '')}` }),
+    ),
+    run: async ({ purpose, code }, { call, principal, serverUrl }) => {
+      if (purpose !== 'damage_photo') {
+        if (!code) {
+          return { ok: false, status: 400, body: { error: { message: '`code` is required.' } } };
+        }
+        if (!['admin', 'operator'].includes(principal.user.role)) {
+          return {
+            ok: false,
+            status: 403,
+            body: { error: { message: 'Only admins and operators can attach files to assets.' } },
+          };
+        }
+        const asset = await call('GET', `/api/assets/${encodeURIComponent(code)}`);
+        if (!asset.ok) return asset;
+      }
+      const { token, expiresAt } = createUploadLink({
+        userId: principal.user.id,
+        scope: principal.scope,
+        agentName: principal.agentName,
+        purpose:
+          purpose === 'damage_photo'
+            ? { kind: 'damage_photo' }
+            : { kind: purpose, code: String(code).toUpperCase() },
+      });
+      const uploadUrl = `${serverUrl}/upload/${token}`;
+      return {
+        ok: true,
+        status: 200,
+        body: {
+          uploadUrl,
+          expiresAt,
+          expiresInSeconds: UPLOAD_LINK_TTL_MS / 1000,
+          command: `curl -sS -F "file=@/path/to/file" ${uploadUrl}`,
+          then:
+            purpose === 'damage_photo'
+              ? 'The response contains `path`; pass it to report_damage as photos: [{ "uploadedPath": "<path>" }].'
+              : `The file is attached to ${String(code).toUpperCase()} as soon as the upload succeeds.`,
+        },
+      };
+    },
+  },
   {
     ...tool(
       'add_asset_photo',

@@ -86,7 +86,8 @@ connection and emails the user. Each connection is rate-limited
 (`MCP_RATE_LIMIT_PER_MIN`, default 120/min). List tools return compact, paged
 rows to keep the agent's context small. Agents can look assets up by serial
 number, EAN or any other identifier, manage those identifiers, attach photos
-(base64 or a public URL) and look at an asset's photos. The consent screen
+(base64, a public URL, or a one-time upload link they `curl` a file to) and
+look at an asset's photos. The consent screen
 preselects read-only and follows the user's app language.
 
 Tools mirror the REST API (assets, loans, contacts, damages, locations, asset

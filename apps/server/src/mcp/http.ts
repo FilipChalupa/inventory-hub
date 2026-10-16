@@ -12,15 +12,27 @@ import { getMcpIssuer, getMcpResourceUrl } from '../env.js';
 import type { EmailSender } from '../lib/email.js';
 import { users } from '../db/schema.js';
 import { createOauthRoutes } from './oauth-routes.js';
-import { clientIp, hitRateLimit } from '../lib/rate-limit.js';
+import { clientIp, hitRateLimit, rateLimit } from '../lib/rate-limit.js';
 import { getClient, touchToken, verifyAccessToken } from './oauth-store.js';
 import { createMcpRuntime } from './server.js';
+import { bodyLimit } from 'hono/body-limit';
+import { saveUploadBuffer, sniffMime } from '../lib/uploads.js';
+import { callApi, createMcpDispatchApp } from './dispatch.js';
+import { runWithPrincipal } from './principal.js';
+import { consumeUploadLink, getUploadLink } from './upload-links.js';
 import type { McpPrincipal } from './principal.js';
 
 const MCP_IP_LIMIT = { bucket: 'mcp-ip', windowMs: 60_000, max: 1200 };
 
 /** Paths whose POST/PUT/DELETE requests must bypass CSRF (called by OAuth/MCP clients, not browsers). */
-export const MCP_CSRF_EXEMPT_PREFIXES = ['/mcp', '/token', '/register', '/authorize/consent'];
+export const MCP_CSRF_EXEMPT_PREFIXES = [
+  '/mcp',
+  '/token',
+  '/register',
+  '/authorize/consent',
+  // One-time upload links (curl from an agent; the token is the credential).
+  '/upload',
+];
 
 export function isMcpCsrfExempt(path: string): boolean {
   return MCP_CSRF_EXEMPT_PREFIXES.some((p) => path === p || path.startsWith(p + '/'));
@@ -35,6 +47,79 @@ export function mountMcp(
 
   // OAuth AS + RS metadata endpoints, mounted at root.
   app.route('/', createOauthRoutes());
+
+  // One-time upload links minted by the create_upload_link tool. The token
+  // is the credential; the file is stored and attached as the user (and
+  // agent) that created the link, through the same routers MCP tools use.
+  const dispatch = createMcpDispatchApp(deps);
+  app.post(
+    '/upload/:token',
+    rateLimit({ bucket: 'upload-link', windowMs: 60_000, max: 30 }),
+    bodyLimit({
+      maxSize: env.UPLOAD_MAX_BYTES * 2,
+      onError: (c) => c.json({ error: { message: 'File too large.' } }, 413),
+    }),
+    async (c) => {
+      const token = c.req.param('token');
+      const link = getUploadLink(token);
+      if (!link)
+        return c.json({ error: { message: 'Upload link is invalid, used or expired.' } }, 404);
+      const user = db.select().from(users).where(eq(users.id, link.userId)).get();
+      if (!user || user.disabledAt)
+        return c.json({ error: { message: 'User no longer active.' } }, 403);
+
+      let form: FormData;
+      try {
+        form = await c.req.formData();
+      } catch {
+        return c.json({ error: { message: 'Send the file as multipart form field "file".' } }, 400);
+      }
+      const file = form.get('file');
+      if (!(file instanceof File)) {
+        return c.json({ error: { message: 'Send the file as multipart form field "file".' } }, 400);
+      }
+      const buf = Buffer.from(await file.arrayBuffer());
+      if (buf.byteLength > env.UPLOAD_MAX_BYTES) {
+        return c.json({ error: { message: `File exceeds ${env.UPLOAD_MAX_BYTES} bytes.` } }, 413);
+      }
+      // Type comes from the bytes, not the client's claim.
+      const mime = sniffMime(buf);
+      const wantsImage = link.purpose.kind !== 'asset_document';
+      if (!mime || (wantsImage && !mime.startsWith('image/'))) {
+        return c.json(
+          {
+            error: {
+              message: wantsImage
+                ? 'Not a supported image (JPEG, PNG, WebP, GIF).'
+                : 'Unsupported file type (JPEG, PNG, WebP, GIF, PDF).',
+            },
+          },
+          415,
+        );
+      }
+      const path = await saveUploadBuffer(env, buf, mime);
+      if (!path) return c.json({ error: { message: 'Could not store the file.' } }, 500);
+
+      const principal: McpPrincipal = { user, scope: link.scope, agentName: link.agentName };
+      const purpose = link.purpose;
+      if (purpose.kind === 'damage_photo') {
+        consumeUploadLink(token);
+        return c.json({ ok: true, path });
+      }
+      const route = purpose.kind === 'asset_photo' ? 'photos' : 'documents';
+      const attached = await runWithPrincipal(principal, () =>
+        callApi(dispatch, 'POST', `/api/assets/${encodeURIComponent(purpose.code)}/${route}`, {
+          path,
+        }),
+      );
+      if (!attached.ok) {
+        const msg = (attached.body as { error?: { message?: string } })?.error?.message;
+        return c.json({ error: { message: msg ?? 'Attaching failed.' } }, attached.status as 400);
+      }
+      consumeUploadLink(token);
+      return c.json({ ok: true, path, attachedTo: purpose.code, ...(attached.body as object) });
+    },
+  );
 
   // Bearer-protected MCP transport.
   app.all('/mcp', async (c) => {

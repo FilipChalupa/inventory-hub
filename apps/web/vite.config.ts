@@ -20,6 +20,8 @@ const config: UserConfig & { test: Record<string, unknown> } = {
       '/authorize': apiTarget,
       '/token': apiTarget,
       '/register': apiTarget,
+      // One-time upload links handed to MCP agents.
+      '^/upload/': apiTarget,
     },
   },
   build: {

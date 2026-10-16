@@ -10,6 +10,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Db } from '../db/client.js';
 import type { Env } from '../env.js';
+import { getMcpIssuer } from '../env.js';
 import type { EmailSender } from '../lib/email.js';
 import { callApi, callApiRaw, createMcpDispatchApp, type McpDispatchApp } from './dispatch.js';
 import { runWithPrincipal, type McpPrincipal } from './principal.js';
@@ -58,6 +59,7 @@ async function runTool(
   args: Record<string, unknown>,
   authInfo: AuthInfo | undefined,
   appUrl: string,
+  serverUrl: string,
 ): Promise<ToolResult> {
   const principal = authInfo?.extra?.principal as McpPrincipal | undefined;
   if (!principal) {
@@ -77,6 +79,8 @@ async function runTool(
       return t.run(args ?? {}, {
         call: (method, path, body) => callApi(app, method, path, body),
         callRaw: (path) => callApiRaw(app, path),
+        principal,
+        serverUrl,
       });
     }
     const spec = t.build(args ?? {});
@@ -92,7 +96,7 @@ async function runTool(
   return out;
 }
 
-function buildServer(app: McpDispatchApp, appUrl: string): McpServer {
+function buildServer(app: McpDispatchApp, appUrl: string, serverUrl: string): McpServer {
   const server = new McpServer(SERVER_INFO);
   for (const t of MCP_TOOLS) {
     server.registerTool(
@@ -113,7 +117,7 @@ function buildServer(app: McpDispatchApp, appUrl: string): McpServer {
         },
       },
       async (args: Record<string, unknown>, extra: { authInfo?: AuthInfo }) =>
-        runTool(app, t, args, extra?.authInfo, appUrl),
+        runTool(app, t, args, extra?.authInfo, appUrl, serverUrl),
     );
   }
   return server;
@@ -157,6 +161,8 @@ export function createMcpRuntime(
   const now = opts.now ?? Date.now;
   const dispatchApp = createMcpDispatchApp(deps);
   const appUrl = deps.env.PUBLIC_APP_URL.replace(/\/$/, '');
+  // Origin the MCP endpoint is served from (upload links point here).
+  const serverUrl = getMcpIssuer(deps.env);
   // Map iteration order = insertion order; re-inserting on every hit keeps the
   // least recently used session first, which makes eviction O(evicted).
   const sessions = new Map<string, Session>();
@@ -201,7 +207,7 @@ export function createMcpRuntime(
           sessions.delete(id);
         },
       });
-      const server = buildServer(dispatchApp, appUrl);
+      const server = buildServer(dispatchApp, appUrl, serverUrl);
       session.transport = transport;
       session.server = server;
       await server.connect(transport);

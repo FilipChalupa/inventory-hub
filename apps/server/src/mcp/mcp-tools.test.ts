@@ -363,3 +363,81 @@ describe('identifier lookup', () => {
     expect((await call('list_asset_external_ids', { code: a.code })).body.items).toEqual([]);
   });
 });
+
+describe('upload links', () => {
+  async function uploadTo(url: string, bytes: Buffer, name = 'f.png') {
+    const form = new FormData();
+    form.append('file', new File([bytes], name));
+    // No cookie, no Origin — exactly what curl sends.
+    return server.app.request(url, { method: 'POST', body: form });
+  }
+  const png = () => Buffer.from(PNG_1PX, 'base64');
+
+  it('uploads a photo once and attaches it to the asset as the agent', async () => {
+    const call = await connect(server.createUser({ role: 'operator' }));
+    const { code } = (await call('create_asset', { name: 'Cam', typeId: server.laptopTypeId }))
+      .body;
+    const link = await call('create_upload_link', { purpose: 'asset_photo', code });
+    expect(link.isError).toBe(false);
+    expect(link.body.uploadUrl).toMatch(/^http:\/\/localhost:5173\/upload\/[\w-]+$/);
+    expect(link.body.command).toContain('curl');
+
+    const res = await uploadTo(link.body.uploadUrl, png());
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { attachedTo: string; photoPaths: string[] };
+    expect(body.attachedTo).toBe(code);
+    expect(body.photoPaths).toHaveLength(1);
+
+    // Single use.
+    expect((await uploadTo(link.body.uploadUrl, png())).status).toBe(404);
+
+    const events = await call('get_asset_events', { code });
+    expect(events.body.items.find((e: any) => e.payload?.photo)).toMatchObject({ via: 'test' });
+  });
+
+  it('stores a damage photo and lets report_damage use the path', async () => {
+    const call = await connect(server.createUser({ role: 'member' }));
+    const op = await connect(server.createUser({ role: 'operator' }));
+    const { code } = (await op('create_asset', { name: 'Cam', typeId: server.laptopTypeId })).body;
+    const link = await call('create_upload_link', { purpose: 'damage_photo' });
+    const res = await uploadTo(link.body.uploadUrl, png());
+    const { path } = (await res.json()) as { path: string };
+    const report = await call('report_damage', {
+      code,
+      occurredAt: new Date().toISOString(),
+      description: 'dent',
+      severity: 'minor',
+      photos: [{ uploadedPath: path }],
+    });
+    expect(report.isError).toBe(false);
+  });
+
+  it('refuses members for asset files, non-images for photos, and bad tokens', async () => {
+    const member = await connect(server.createUser({ role: 'member' }));
+    const op = await connect(server.createUser({ role: 'operator' }));
+    const { code } = (await op('create_asset', { name: 'Cam', typeId: server.laptopTypeId })).body;
+    const denied = await member('create_upload_link', { purpose: 'asset_photo', code });
+    expect(denied.body.status).toBe(403);
+
+    const link = await op('create_upload_link', { purpose: 'asset_photo', code });
+    const pdf = await uploadTo(link.body.uploadUrl, Buffer.from('%PDF-1.4 x'), 'a.pdf');
+    expect(pdf.status).toBe(415);
+    // A failed attempt doesn't burn the link.
+    expect((await uploadTo(link.body.uploadUrl, png())).status).toBe(200);
+
+    const docLink = await op('create_upload_link', { purpose: 'asset_document', code });
+    expect(
+      (await uploadTo(docLink.body.uploadUrl, Buffer.from('%PDF-1.4 x'), 'a.pdf')).status,
+    ).toBe(200);
+
+    expect((await uploadTo('http://localhost:5173/upload/nope', png())).status).toBe(404);
+    const missing = await op('create_upload_link', { purpose: 'asset_photo', code: 'NOPE-1' });
+    expect(missing.body.status).toBe(404);
+  });
+
+  it('read-only connections cannot mint links', async () => {
+    const call = await connect(server.createUser({ role: 'admin' }), 'read');
+    const res = await call('create_upload_link', { purpose: 'damage_photo' });
+    expect(res.isError).toBe(true);
+  });
+});
