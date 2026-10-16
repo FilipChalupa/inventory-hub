@@ -74,6 +74,13 @@ export type LocationRow = {
   parentId: string | null;
 };
 
+export type AssetLookupMatch = {
+  field: 'code' | 'externalId' | 'customField';
+  key?: string;
+  value: string;
+  exact: boolean;
+};
+
 export type AssetEventRow = {
   id: string;
   assetId: string;
@@ -472,6 +479,10 @@ export const apiClient = {
   },
 
   assets: {
+    lookup: (value: string) =>
+      api<{ items: (Asset & { matchedOn: AssetLookupMatch[] })[] }>(
+        `/api/assets/lookup?value=${encodeURIComponent(value)}`,
+      ),
     list: (params: ListAssetsParams = {}) => {
       const qs = new URLSearchParams();
       if (params.q) qs.set('q', params.q);

@@ -201,6 +201,23 @@ export function openApiDocument() {
           },
         },
       },
+      '/api/assets/lookup': {
+        get: {
+          summary: 'Exact asset lookup by any identifier',
+          description:
+            'Matches the asset code, external IDs (serial, EAN, SKU…) and custom-field values, ignoring case and separators. Each item carries `matchedOn` explaining the hit. Use `q` on `/api/assets` for substring search.',
+          parameters: [
+            { name: 'value', in: 'query', required: true, schema: { type: 'string' } },
+            {
+              name: 'kind',
+              in: 'query',
+              schema: { type: 'string' },
+              description: 'Only this external-ID kind (e.g. serial); skips code/custom fields.',
+            },
+          ],
+          responses: { 200: ok('Matching assets with matchedOn') },
+        },
+      },
       '/api/assets/{code}': {
         get: {
           summary: 'Get an asset by code',

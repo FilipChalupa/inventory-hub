@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseScannedValue } from './scan.js';
+import { classifyScan, parseScannedValue } from './scan.js';
 
 describe('parseScannedValue', () => {
   it('extracts the code from a full URL', () => {
@@ -42,5 +42,23 @@ describe('parseScannedValue', () => {
 
   it('trims surrounding whitespace', () => {
     expect(parseScannedValue('  LAP-00001  ')).toBe('LAP-00001');
+  });
+});
+
+describe('classifyScan', () => {
+  it('opens our own QR URLs directly', () => {
+    expect(classifyScan('https://inv.example.com/a/lap-00001')).toEqual({
+      kind: 'code',
+      code: 'LAP-00001',
+    });
+  });
+
+  it('sends anything else (codes, serials, EANs) to the lookup', () => {
+    expect(classifyScan(' PF-3AB12 ')).toEqual({ kind: 'lookup', value: 'PF-3AB12' });
+    expect(classifyScan('8590000000001')).toEqual({ kind: 'lookup', value: '8590000000001' });
+  });
+
+  it('ignores blank input', () => {
+    expect(classifyScan('   ')).toBeNull();
   });
 });

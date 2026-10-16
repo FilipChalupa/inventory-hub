@@ -290,3 +290,70 @@ describe('MCP photos', () => {
     expect(denied.body.status).toBe(403);
   });
 });
+
+describe('identifier lookup', () => {
+  it('finds assets by serial, code or custom field — exact, separator-insensitive', async () => {
+    const call = await connect(server.createUser({ role: 'operator' }));
+    const a = (await call('create_asset', { name: 'ThinkPad', typeId: server.laptopTypeId })).body;
+    const b = (await call('create_asset', { name: 'Other', typeId: server.laptopTypeId })).body;
+    expect(
+      (await call('add_asset_external_id', { code: a.code, kind: 'serial', value: 'PF-3AB12' }))
+        .isError,
+    ).toBe(false);
+    await call('add_asset_external_id', { code: b.code, kind: 'serial', value: 'PF3AB123' });
+
+    const bySerial = await call('find_asset_by_identifier', { value: 'pf 3ab12' });
+    expect(bySerial.body.items).toHaveLength(1);
+    expect(bySerial.body.items[0]).toMatchObject({
+      code: a.code,
+      matchedOn: [{ field: 'externalId', key: 'serial', value: 'PF-3AB12', exact: false }],
+    });
+    expect(bySerial.body.items[0].url).toContain(`/a/${a.code}`);
+
+    const byCode = await call('find_asset_by_identifier', { value: a.code.toLowerCase() });
+    expect(byCode.body.items[0].matchedOn[0]).toMatchObject({ field: 'code' });
+
+    // Restricting the kind skips other kinds and codes.
+    const wrongKind = await call('find_asset_by_identifier', { value: 'PF-3AB12', kind: 'ean' });
+    expect(wrongKind.body.items).toEqual([]);
+
+    // Substring search via list_assets still finds both.
+    const fuzzy = await call('list_assets', { q: 'PF3AB12' });
+    expect(fuzzy.body.total).toBe(1); // only exact substring "PF3AB12" (b); a has a dash
+  });
+
+  it('matches custom-field values', async () => {
+    const call = await connect(server.createUser({ role: 'admin' }));
+    const db = server.db;
+    const a = (await call('create_asset', { name: 'Mon', typeId: server.laptopTypeId })).body;
+    const { assets } = await import('../db/schema.js');
+    const { eq } = await import('drizzle-orm');
+    db.update(assets)
+      .set({ customFields: { inventoryNo: 'INV/2024/007' } })
+      .where(eq(assets.code, a.code))
+      .run();
+    const res = await call('find_asset_by_identifier', { value: 'inv-2024-007' });
+    expect(res.body.items[0]).toMatchObject({
+      code: a.code,
+      matchedOn: [{ field: 'customField', key: 'inventoryNo', value: 'INV/2024/007' }],
+    });
+  });
+
+  it('manages external ids and rejects duplicates', async () => {
+    const call = await connect(server.createUser({ role: 'operator' }));
+    const a = (await call('create_asset', { name: 'X', typeId: server.laptopTypeId })).body;
+    const b = (await call('create_asset', { name: 'Y', typeId: server.laptopTypeId })).body;
+    await call('add_asset_external_id', { code: a.code, kind: 'ean', value: '8590000000001' });
+    const dup = await call('add_asset_external_id', {
+      code: b.code,
+      kind: 'ean',
+      value: '8590000000001',
+    });
+    expect(dup.isError).toBe(true);
+    expect(dup.body.status).toBe(409);
+    const list = await call('list_asset_external_ids', { code: a.code });
+    const id = list.body.items[0].id;
+    expect((await call('remove_asset_external_id', { code: a.code, id })).isError).toBe(false);
+    expect((await call('list_asset_external_ids', { code: a.code })).body.items).toEqual([]);
+  });
+});

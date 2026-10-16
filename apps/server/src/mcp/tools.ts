@@ -222,6 +222,7 @@ export const DESTRUCTIVE_TOOLS = new Set([
   'update_user',
   'revoke_invitation',
   'remove_asset_photo',
+  'remove_asset_external_id',
 ]);
 export const IDEMPOTENT_TOOLS = new Set([
   'update_asset',
@@ -280,7 +281,7 @@ export const MCP_TOOLS: McpTool[] = [
   tool(
     'list_assets',
     'read',
-    'List/search assets. Filter by free text, status, type, location. Returns compact rows (code, name, status, ids, url) with paging info; use get_asset for full details.',
+    'List/search assets. `q` matches code, name, custom-field values and external IDs (serial numbers, EAN…) as substrings. Filter by status, type, location. Returns compact rows (code, name, status, ids, url) with paging info; use get_asset for full details.',
     {
       q: z.string().optional(),
       status: z.enum(ASSET_STATUSES).optional(),
@@ -292,6 +293,51 @@ export const MCP_TOOLS: McpTool[] = [
     (a) => ({ method: 'GET', path: `/api/assets${qs({ ...a, limit: a.limit ?? 25 })}` }),
     enrichAssets,
     paged(compactAsset, 25),
+  ),
+  tool(
+    'find_asset_by_identifier',
+    'read',
+    'Exact lookup of an asset by any identifier — asset code, serial number, EAN, SKU or other external ID, or a custom-field value — ignoring case and separators (spaces, dashes…). Each match says what it matched on. Use this for "which asset has serial X"; use list_assets for fuzzy search.',
+    {
+      value: z.string().min(1),
+      kind: z
+        .string()
+        .optional()
+        .describe('Only this external-ID kind, e.g. "serial" or "ean". Omit to search everything.'),
+    },
+    (a) => ({ method: 'GET', path: `/api/assets/lookup${qs(a)}` }),
+    enrichAssets,
+    (body) => ({
+      items: (body?.items ?? []).map((a: any) => ({ ...compactAsset(a), matchedOn: a.matchedOn })),
+    }),
+  ),
+  tool(
+    'list_asset_external_ids',
+    'read',
+    "List an asset's external identifiers (serial number, EAN, manufacturer SKU…).",
+    { code: z.string() },
+    (a) => ({ method: 'GET', path: `/api/assets/${encodeURIComponent(a.code)}/external-ids` }),
+  ),
+  tool(
+    'add_asset_external_id',
+    'write',
+    'Attach an external identifier to an asset (admin/operator). `kind` is free text; the app uses "serial", "ean", "sku" and "other". A kind+value pair is unique across the organization.',
+    { code: z.string(), kind: z.string().min(1).max(40), value: z.string().min(1).max(200) },
+    ({ code, ...body }) => ({
+      method: 'POST',
+      path: `/api/assets/${encodeURIComponent(code)}/external-ids`,
+      body,
+    }),
+  ),
+  tool(
+    'remove_asset_external_id',
+    'write',
+    'Remove an external identifier from an asset (admin/operator); `id` comes from list_asset_external_ids.',
+    { code: z.string(), id: z.string() },
+    ({ code, id }) => ({
+      method: 'DELETE',
+      path: `/api/assets/${encodeURIComponent(code)}/external-ids/${encodeURIComponent(id)}`,
+    }),
   ),
   tool(
     'get_asset',
