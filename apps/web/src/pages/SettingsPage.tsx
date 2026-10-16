@@ -165,7 +165,10 @@ export function SettingsPage() {
                   {t.settings.webhookHint1}
                   <span className="font-mono">loan.overdue</span>,{' '}
                   <span className="font-mono">damage.reported</span>,{' '}
-                  <span className="font-mono">asset.archived</span>
+                  <span className="font-mono">asset.archived</span>,{' '}
+                  <span className="font-mono">warranty.expiring</span>,{' '}
+                  <span className="font-mono">service.due</span>,{' '}
+                  <span className="font-mono">inventory.closed</span>
                   {t.settings.webhookHint2}
                   <span className="font-mono">x-inventory-signature</span>
                   {t.settings.webhookHint3}

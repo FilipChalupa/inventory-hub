@@ -25,6 +25,8 @@ import {
   type InventorySessionRow,
 } from '../db/schema.js';
 import { toCsv } from '../lib/csv.js';
+import { emailCopy } from '../lib/email-copy.js';
+import { emitWebhook } from '../lib/webhooks.js';
 
 // Inventory writes (create / scan / close / reopen / notes / mark-lost) are
 // stocktaking operations done by warehouse staff; restrict them to
@@ -507,7 +509,7 @@ export const inventoryRoutes = new Hono<AppContext>()
       });
     },
   )
-  .post('/:id/close', requireAuth('admin', 'operator'), (c) => {
+  .post('/:id/close', requireAuth('admin', 'operator'), async (c) => {
     const db = c.get('db');
     const user = c.get('user')!;
     const id = c.req.param('id');
@@ -525,7 +527,50 @@ export const inventoryRoutes = new Hono<AppContext>()
       })
       .where(eq(inventorySessions.id, id))
       .run();
-    return c.json({ ok: true });
+
+    // Tell the admins how it went (and any webhook listener), so the result
+    // doesn't depend on someone opening the page.
+    const report = buildReport(db, session);
+    const env = c.get('env');
+    const appUrl = env.PUBLIC_APP_URL.replace(/\/$/, '');
+    emitWebhook(db, 'inventory.closed', {
+      sessionId: id,
+      name: session.name,
+      closedBy: user.name,
+      counts: report.counts,
+      missing: report.missing.map((a) => a.code),
+      unexpected: report.unexpected.map((a) => a.code),
+    });
+    const LIST_MAX = 30;
+    const admins = db
+      .select()
+      .from(users)
+      .where(eq(users.role, 'admin'))
+      .all()
+      .filter((u) => !u.disabledAt);
+    const copy = emailCopy(env.EMAIL_LOCALE);
+    for (const admin of admins) {
+      const built = copy.inventoryClosed({
+        adminName: admin.name,
+        sessionName: session.name,
+        closedBy: user.name,
+        counts: report.counts,
+        missing: report.missing.slice(0, LIST_MAX),
+        moreMissing: Math.max(0, report.missing.length - LIST_MAX),
+        unexpected: report.unexpected.slice(0, LIST_MAX),
+        moreUnexpected: Math.max(0, report.unexpected.length - LIST_MAX),
+        sessionUrl: appUrl ? `${appUrl}/inventory/${id}` : undefined,
+        csvUrl: appUrl ? `${appUrl}/api/inventory/${id}/report.csv` : undefined,
+      });
+      try {
+        await c
+          .get('emailSender')
+          .send({ to: admin.email, subject: built.subject, text: built.text });
+      } catch (err) {
+        console.error(`Inventory-closed email failed for ${admin.email}:`, err);
+      }
+    }
+    return c.json({ ok: true, counts: report.counts });
   })
   .post('/:id/reopen', requireAuth('admin', 'operator'), (c) => {
     const db = c.get('db');

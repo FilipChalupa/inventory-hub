@@ -9,7 +9,8 @@ export type WebhookEvent =
   | 'damage.reported'
   | 'asset.archived'
   | 'warranty.expiring'
-  | 'service.due';
+  | 'service.due'
+  | 'inventory.closed';
 
 /**
  * POSTs an event to the org's configured webhook URL (if any), signing the body

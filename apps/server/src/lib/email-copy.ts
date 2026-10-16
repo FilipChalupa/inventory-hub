@@ -94,6 +94,19 @@ export type AgentConnectedParams = {
   readWrite: boolean;
   manageUrl?: string;
 };
+export type InventoryClosedParams = {
+  adminName: string;
+  sessionName: string;
+  closedBy: string;
+  counts: { expected: number; found: number; missing: number; unexpected: number };
+  /** Already truncated by the caller; `more*` say how many were left out. */
+  missing: { code: string; name: string }[];
+  moreMissing: number;
+  unexpected: { code: string; name: string }[];
+  moreUnexpected: number;
+  sessionUrl?: string;
+  csvUrl?: string;
+};
 export type AgentReuseRevokedParams = { name: string; agentName: string; manageUrl?: string };
 export type McpTokensExpiringParams = {
   name: string;
@@ -116,6 +129,7 @@ export type EmailCopy = {
   agentConnected(p: AgentConnectedParams): Pick<Email, 'subject' | 'text'>;
   mcpTokensExpiring(p: McpTokensExpiringParams): Pick<Email, 'subject' | 'text'>;
   agentReuseRevoked(p: AgentReuseRevokedParams): Pick<Email, 'subject' | 'text'>;
+  inventoryClosed(p: InventoryClosedParams): Pick<Email, 'subject' | 'text'>;
 };
 
 const ROLE_CS: Record<Role, string> = {
@@ -303,6 +317,30 @@ const cs: EmailCopy = {
       p.manageUrl && `Přehled připojení: ${p.manageUrl}`,
     ]),
   }),
+  inventoryClosed: (p) => ({
+    subject:
+      p.counts.missing > 0
+        ? `Inventura „${p.sessionName}" uzavřena — chybí ${p.counts.missing}`
+        : `Inventura „${p.sessionName}" uzavřena — vše nalezeno`,
+    text: body([
+      `Ahoj ${p.adminName},`,
+      '',
+      `${p.closedBy} uzavřel(a) inventuru „${p.sessionName}".`,
+      '',
+      `Očekáváno: ${p.counts.expected} · nalezeno: ${p.counts.found} · chybí: ${p.counts.missing} · navíc: ${p.counts.unexpected}`,
+      p.missing.length > 0 && '',
+      p.missing.length > 0 && 'Chybí:',
+      ...p.missing.map((a) => `  • ${a.code} ${a.name}`),
+      p.moreMissing > 0 && `  … a dalších ${p.moreMissing}`,
+      p.unexpected.length > 0 && '',
+      p.unexpected.length > 0 && 'Navíc / mimo rozsah:',
+      ...p.unexpected.map((a) => `  • ${a.code} ${a.name}`),
+      p.moreUnexpected > 0 && `  … a dalších ${p.moreUnexpected}`,
+      '',
+      p.sessionUrl && `Detail: ${p.sessionUrl}`,
+      p.csvUrl && `Export CSV: ${p.csvUrl}`,
+    ]),
+  }),
 };
 
 const en: EmailCopy = {
@@ -475,6 +513,30 @@ const en: EmailCopy = {
       'If you still use the assistant, just connect it again. Also consider where it was signed in.',
       '',
       p.manageUrl && `Your connections: ${p.manageUrl}`,
+    ]),
+  }),
+  inventoryClosed: (p) => ({
+    subject:
+      p.counts.missing > 0
+        ? `Stock-take "${p.sessionName}" closed — ${p.counts.missing} missing`
+        : `Stock-take "${p.sessionName}" closed — everything found`,
+    text: body([
+      `Hi ${p.adminName},`,
+      '',
+      `${p.closedBy} closed the stock-take "${p.sessionName}".`,
+      '',
+      `Expected: ${p.counts.expected} · found: ${p.counts.found} · missing: ${p.counts.missing} · extra: ${p.counts.unexpected}`,
+      p.missing.length > 0 && '',
+      p.missing.length > 0 && 'Missing:',
+      ...p.missing.map((a) => `  • ${a.code} ${a.name}`),
+      p.moreMissing > 0 && `  … and ${p.moreMissing} more`,
+      p.unexpected.length > 0 && '',
+      p.unexpected.length > 0 && 'Extra / out of scope:',
+      ...p.unexpected.map((a) => `  • ${a.code} ${a.name}`),
+      p.moreUnexpected > 0 && `  … and ${p.moreUnexpected} more`,
+      '',
+      p.sessionUrl && `Details: ${p.sessionUrl}`,
+      p.csvUrl && `CSV export: ${p.csvUrl}`,
     ]),
   }),
 };

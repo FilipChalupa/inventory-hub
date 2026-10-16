@@ -230,6 +230,28 @@ describe('inventory API', () => {
     expect(none.status).toBe(404);
   });
 
+  it('emails admins a summary when the session is closed', async () => {
+    const a = await makeAsset(server, cookie, 'Present');
+    const b = await makeAsset(server, cookie, 'Gone missing');
+    const sid = await createSession(server, cookie, { name: 'Sklad Q4', assetCodes: [a, b] });
+    await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: a });
+    const before = server.sentEmails.length;
+
+    const res = await jsonPost(server, cookie, `/api/inventory/${sid}/close`, {});
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as { counts: { missing: number } }).counts.missing).toBe(1);
+
+    const mails = server.sentEmails.slice(before);
+    expect(mails.length).toBeGreaterThan(0);
+    const mail = mails[0]!;
+    expect(mail.subject).toContain('Sklad Q4');
+    expect(mail.subject).toContain('chybí 1');
+    expect(mail.text).toContain(`${b} Gone missing`);
+    expect(mail.text).not.toContain(`${a} Present`);
+    expect(mail.text).toContain(`/inventory/${sid}`);
+    expect(mail.text).toContain('report.csv');
+  });
+
   it('refuses an identifier that matches several assets', async () => {
     const a = await makeAsset(server, cookie, 'A');
     const b = await makeAsset(server, cookie, 'B');
