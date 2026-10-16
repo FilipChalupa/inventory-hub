@@ -47,7 +47,9 @@ export const inventoryItemNoteInput = z.object({
 export type InventoryItemNoteInput = z.infer<typeof inventoryItemNoteInput>;
 
 export const scanInventoryInput = z.object({
-  code: assetCodeSchema,
+  // An asset code, or any identifier the exact lookup resolves (serial
+  // number, EAN, custom-field value…) — e.g. a manufacturer barcode.
+  code: z.string().trim().min(1).max(200),
 });
 export type ScanInventoryInput = z.infer<typeof scanInventoryInput>;
 

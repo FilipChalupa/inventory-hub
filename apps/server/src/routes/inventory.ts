@@ -12,6 +12,7 @@ import {
 import type { AppContext } from '../app.js';
 import type { Db } from '../db/client.js';
 import { requireAuth } from '../middleware/auth.js';
+import { lookupAssetsByIdentifier } from '../lib/asset-lookup.js';
 import {
   assetEvents,
   assets,
@@ -294,7 +295,7 @@ export const inventoryRoutes = new Hono<AppContext>()
       const db = c.get('db');
       const user = c.get('user')!;
       const id = c.req.param('id');
-      const code = c.req.valid('json').code.toUpperCase();
+      const scanned = c.req.valid('json').code;
 
       const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
       if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
@@ -302,8 +303,25 @@ export const inventoryRoutes = new Hono<AppContext>()
         return c.json({ error: { message: 'Inventura je už uzavřená' } }, 409);
       }
 
-      const asset = db.select().from(assets).where(eq(assets.code, code)).get();
-      if (!asset) return c.json({ error: { message: `Asset ${code} nenalezen` } }, 404);
+      // Our own code first; otherwise resolve it like any other identifier
+      // (a manufacturer serial/EAN barcode), but only when unambiguous.
+      let asset = db.select().from(assets).where(eq(assets.code, scanned.toUpperCase())).get();
+      if (!asset) {
+        const matches = lookupAssetsByIdentifier(db, scanned);
+        if (matches.length > 1) {
+          const codes = matches.map((m) => m.asset.code).join(', ');
+          return c.json(
+            {
+              error: {
+                message: `„${scanned}" odpovídá více assetům (${codes}), naskenuj jejich kód.`,
+              },
+            },
+            409,
+          );
+        }
+        asset = matches[0]?.asset;
+      }
+      if (!asset) return c.json({ error: { message: `Asset ${scanned} nenalezen` } }, 404);
 
       const already = db
         .select({ id: inventoryScans.id })

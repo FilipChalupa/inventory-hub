@@ -27,6 +27,7 @@ import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
 import { likeContains } from '../lib/search.js';
 import { isStoredUpload } from '../lib/uploads.js';
+import { lookupAssetsByIdentifier } from '../lib/asset-lookup.js';
 import { emitWebhook } from '../lib/webhooks.js';
 import { requireAuth } from '../middleware/auth.js';
 import type { Db } from '../db/client.js';
@@ -150,96 +151,16 @@ const lookupQuery = z.object({
   kind: z.string().trim().min(1).max(40).optional(),
 });
 
-/** Case- and separator-insensitive form of an identifier: "ab-12 3" → "AB123". */
-function normalizeIdentifier(v: string): string {
-  return v.toUpperCase().replace(/[\s\-_.:/]/g, '');
-}
-
-export type LookupMatch = {
-  field: 'code' | 'externalId' | 'customField';
-  /** External-ID kind or custom-field key. */
-  key?: string;
-  value: string;
-  exact: boolean;
-};
-
 export const assetRoutes = new Hono<AppContext>()
   // Exact identifier lookup — "which asset has serial ABC123?". Matches the
   // asset code, any external ID (serial, EAN, SKU…) and custom-field values,
   // ignoring case and separators, and says what matched. Unlike `q` on the
   // list this never returns substring hits.
   .get('/lookup', zValidator('query', lookupQuery), (c) => {
-    const db = c.get('db');
     const { value, kind } = c.req.valid('query');
-    const wanted = normalizeIdentifier(value);
-    if (!wanted) return c.json({ items: [] });
-    const norm = (col: unknown) =>
-      sql`upper(replace(replace(replace(replace(replace(replace(${col}, ' ', ''), '-', ''), '_', ''), '.', ''), ':', ''), '/', ''))`;
-
-    const hits = new Map<string, LookupMatch[]>();
-    const add = (assetId: string, m: LookupMatch) =>
-      hits.set(assetId, [...(hits.get(assetId) ?? []), m]);
-
-    if (!kind) {
-      const byCode = db
-        .select({ id: assets.id, code: assets.code })
-        .from(assets)
-        .where(sql`${norm(assets.code)} = ${wanted}`)
-        .all();
-      for (const a of byCode) add(a.id, { field: 'code', value: a.code, exact: a.code === value });
-    }
-
-    const byExternal = db
-      .select({
-        assetId: assetExternalIds.assetId,
-        kind: assetExternalIds.kind,
-        value: assetExternalIds.value,
-      })
-      .from(assetExternalIds)
-      .where(
-        and(
-          sql`${norm(assetExternalIds.value)} = ${wanted}`,
-          kind ? eq(assetExternalIds.kind, kind) : undefined,
-        ),
-      )
-      .all();
-    for (const e of byExternal) {
-      add(e.assetId, {
-        field: 'externalId',
-        key: e.kind,
-        value: e.value,
-        exact: e.value === value,
-      });
-    }
-
-    if (!kind) {
-      // Scalar custom-field values (json_each skips nested objects' leaves,
-      // which custom fields don't use).
-      const byCustom = db.all<{ id: string; key: string; value: string }>(
-        sql`SELECT a.id AS id, je.key AS key, CAST(je.value AS TEXT) AS value
-            FROM ${assets} a, json_each(a.custom_fields) je
-            WHERE je.type IN ('text', 'integer', 'real')
-              AND ${norm(sql`CAST(je.value AS TEXT)`)} = ${wanted}`,
-      );
-      for (const r of byCustom) {
-        add(r.id, { field: 'customField', key: r.key, value: r.value, exact: r.value === value });
-      }
-    }
-
-    if (hits.size === 0) return c.json({ items: [] });
-    const rows = db
-      .select()
-      .from(assets)
-      .where(inArray(assets.id, [...hits.keys()]))
-      .all();
-    const items = rows
-      .map((asset) => ({ ...asset, matchedOn: hits.get(asset.id)! }))
-      // Exact (as typed) matches first, then live before archived.
-      .sort(
-        (a, b) =>
-          Number(b.matchedOn.some((m) => m.exact)) - Number(a.matchedOn.some((m) => m.exact)) ||
-          Number(Boolean(a.archivedAt)) - Number(Boolean(b.archivedAt)),
-      );
+    const items = lookupAssetsByIdentifier(c.get('db'), value, kind).map(
+      ({ asset, matchedOn }) => ({ ...asset, matchedOn }),
+    );
     return c.json({ items });
   })
   .get('/', zValidator('query', listQuery), (c) => {

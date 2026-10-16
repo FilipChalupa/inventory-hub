@@ -852,7 +852,7 @@ export const MCP_TOOLS: McpTool[] = [
   tool(
     'scan_inventory_item',
     'write',
-    'Record an asset as found in an open inventory session (admin/operator). Idempotent.',
+    'Record an asset as found in an open inventory session (admin/operator). `code` may be the asset code or any identifier find_asset_by_identifier resolves (serial number, EAN…), as long as it is unambiguous. Idempotent.',
     { id: z.string(), code: z.string() },
     ({ id, code }) => ({
       method: 'POST',

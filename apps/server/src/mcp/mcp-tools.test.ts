@@ -98,7 +98,13 @@ describe('MCP tool registry', () => {
     expect(created.isError).toBe(false);
     const id = created.body.session.id as string;
 
-    expect((await call('scan_inventory_item', { id, code })).isError).toBe(false);
+    await call('add_asset_external_id', { code, kind: 'serial', value: 'SN-INV-1' });
+    // Scanning the manufacturer serial resolves to the asset.
+    const bySerial = await call('scan_inventory_item', { id, code: 'sn inv 1' });
+    expect(bySerial.isError).toBe(false);
+    expect(bySerial.body).toMatchObject({ result: 'found', asset: { code } });
+    expect((await call('scan_inventory_item', { id, code })).body.result).toBe('already');
+    expect((await call('scan_inventory_item', { id, code: 'NOPE-404' })).body.status).toBe(404);
     const report = await call('get_inventory', { id });
     expect(report.body.report.found).toHaveLength(1);
     const capped = await call('get_inventory', { id, maxPerList: 0 });

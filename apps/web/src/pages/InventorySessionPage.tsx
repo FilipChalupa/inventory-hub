@@ -22,7 +22,7 @@ import {
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
-import { parseScannedValue } from '../lib/scan.js';
+import { classifyScan } from '../lib/scan.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 import { useT } from '../i18n/index.js';
 
@@ -433,8 +433,11 @@ function ScanPanel({
           { fps: 10, qrbox: { width: 250, height: 250 } },
           (decodedText) => {
             if (stopped) return;
-            const code = parseScannedValue(decodedText);
-            if (!code) return;
+            // Our QR → its code; anything else (serial/EAN barcode) is sent
+            // as-is and resolved by the server's identifier lookup.
+            const target = classifyScan(decodedText);
+            if (!target) return;
+            const code = target.kind === 'code' ? target.code : target.value;
             const now = Date.now();
             if (lastScanRef.current.code === code && now - lastScanRef.current.at < 2500) return;
             lastScanRef.current = { code, at: now };
@@ -484,7 +487,8 @@ function ScanPanel({
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          const code = parseScannedValue(manual);
+          const target = classifyScan(manual);
+          const code = target && (target.kind === 'code' ? target.code : target.value);
           if (!code) {
             setError(t.inventorySession.invalidCodeFormat);
             return;

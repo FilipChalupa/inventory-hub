@@ -172,6 +172,22 @@ describe('inventory API', () => {
     expect(res.status).toBe(404);
   });
 
+  it('refuses an identifier that matches several assets', async () => {
+    const a = await makeAsset(server, cookie, 'A');
+    const b = await makeAsset(server, cookie, 'B');
+    await jsonPost(server, cookie, `/api/assets/${a}/external-ids`, {
+      kind: 'serial',
+      value: 'X-1',
+    });
+    await jsonPost(server, cookie, `/api/assets/${b}/external-ids`, { kind: 'ean', value: 'X1' });
+    const sid = await createSession(server, cookie);
+    const res = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: 'x1' });
+    expect(res.status).toBe(409);
+    const body = (await res.json()) as { error: { message: string } };
+    expect(body.error.message).toContain(a);
+    expect(body.error.message).toContain(b);
+  });
+
   it('forbids non-write roles from creating or scanning', async () => {
     const memberCookie = server.loginAs(server.createUser({ role: 'member' }));
     const create = await jsonPost(server, memberCookie, '/api/inventory', {});
