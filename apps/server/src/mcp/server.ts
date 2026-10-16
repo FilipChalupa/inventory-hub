@@ -11,15 +11,21 @@ import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import type { Db } from '../db/client.js';
 import type { Env } from '../env.js';
 import type { EmailSender } from '../lib/email.js';
-import { callApi, createMcpDispatchApp, type McpDispatchApp } from './dispatch.js';
+import { callApi, callApiRaw, createMcpDispatchApp, type McpDispatchApp } from './dispatch.js';
 import { runWithPrincipal, type McpPrincipal } from './principal.js';
 import { scopeAllowsWrite } from './oauth-store.js';
-import { DESTRUCTIVE_TOOLS, IDEMPOTENT_TOOLS, MCP_TOOLS, type McpTool } from './tools.js';
+import {
+  DESTRUCTIVE_TOOLS,
+  IDEMPOTENT_TOOLS,
+  MCP_TOOLS,
+  type McpTool,
+  type ToolOutcome,
+} from './tools.js';
 
 const SERVER_INFO = { name: 'inventory-hub', version: '0.1.0' } as const;
 
 type ToolResult = {
-  content: { type: 'text'; text: string }[];
+  content: ({ type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string })[];
   structuredContent?: Record<string, unknown>;
   isError?: boolean;
 };
@@ -66,14 +72,24 @@ async function runTool(
       true,
     );
   }
-  const spec = t.build(args ?? {});
-  const result = await runWithPrincipal(principal, () =>
-    callApi(app, spec.method, spec.path, spec.body),
-  );
+  const result: ToolOutcome = await runWithPrincipal(principal, () => {
+    if (t.run) {
+      return t.run(args ?? {}, {
+        call: (method, path, body) => callApi(app, method, path, body),
+        callRaw: (path) => callApiRaw(app, path),
+      });
+    }
+    const spec = t.build(args ?? {});
+    return callApi(app, spec.method, spec.path, spec.body);
+  });
   if (!result.ok) return errorResult(result.status, result.body);
   let body = t.enrich ? t.enrich(result.body, appUrl) : result.body;
   if (t.shape) body = t.shape(body, args ?? {});
-  return textResult(body);
+  const out = textResult(body);
+  for (const img of result.images ?? []) {
+    out.content.push({ type: 'image', data: img.data, mimeType: img.mimeType });
+  }
+  return out;
 }
 
 function buildServer(app: McpDispatchApp, appUrl: string): McpServer {

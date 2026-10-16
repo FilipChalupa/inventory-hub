@@ -618,6 +618,33 @@ export function openApiDocument() {
           },
         },
       },
+      '/api/uploads/import': {
+        post: {
+          summary: 'Store a file given as base64 or a public URL (JSON) → returns a stored path',
+          description:
+            "Send exactly one of `dataBase64` (a data: URL prefix is fine) or `url` (public http(s) only; private/loopback hosts are refused). The type comes from the file's magic bytes. Attach the returned `path` with e.g. `POST /api/assets/{code}/photos`.",
+          requestBody: jsonBody({
+            type: 'object',
+            properties: {
+              dataBase64: { type: 'string' },
+              url: { type: 'string', format: 'uri' },
+            },
+          }),
+          responses: {
+            200: ok('Stored', {
+              type: 'object',
+              properties: {
+                path: { type: 'string' },
+                url: { type: 'string' },
+                contentType: { type: 'string' },
+              },
+            }),
+            413: ok('Too large', ref('Error')),
+            415: ok('Unsupported type', ref('Error')),
+            422: ok('URL unreachable/not public, or unsupported/too large', ref('Error')),
+          },
+        },
+      },
       '/api/export/assets.csv': {
         get: { summary: 'Export all assets as CSV', responses: { 200: ok('CSV file') } },
       },

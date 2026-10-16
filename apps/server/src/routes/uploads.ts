@@ -3,7 +3,27 @@ import { mkdir, stat, writeFile, readFile } from 'node:fs/promises';
 import { resolve, join, normalize } from 'node:path';
 import type { AppContext } from '../app.js';
 import { rateLimit } from '../lib/rate-limit.js';
-import { ALLOWED_MIME, generateRelativePath, isInside, sniffMime } from '../lib/uploads.js';
+import { zValidator } from '@hono/zod-validator';
+import { z } from 'zod';
+import {
+  ALLOWED_MIME,
+  generateRelativePath,
+  isInside,
+  saveUploadBuffer,
+  sniffMime,
+  storeRemoteFile,
+} from '../lib/uploads.js';
+
+// JSON alternative to the multipart upload, for API/MCP clients that hold a
+// file as base64 or only know its public URL. Exactly one of the two.
+const importInput = z
+  .object({
+    dataBase64: z.string().min(1).optional(),
+    url: z.string().url().optional(),
+  })
+  .refine((v) => Boolean(v.dataBase64) !== Boolean(v.url), {
+    message: 'Pošli buď dataBase64, nebo url.',
+  });
 
 export const uploadRoutes = new Hono<AppContext>()
   .post('/', rateLimit({ bucket: 'uploads', windowMs: 60_000, max: 60 }), async (c) => {
@@ -73,6 +93,54 @@ export const uploadRoutes = new Hono<AppContext>()
       contentType: file.type,
     });
   })
+  .post(
+    '/import',
+    rateLimit({ bucket: 'uploads', windowMs: 60_000, max: 60 }),
+    zValidator('json', importInput),
+    async (c) => {
+      const env = c.get('env');
+      const input = c.req.valid('json');
+      let path: string | null;
+      if (input.dataBase64) {
+        // Strip an optional data: URL prefix; base64 is ~4/3 of the payload.
+        const b64 = input.dataBase64.replace(/^data:[^,]*,/, '');
+        if (b64.length > Math.ceil((env.UPLOAD_MAX_BYTES * 4) / 3) + 4) {
+          return c.json(
+            { error: { message: `Soubor je větší než limit ${env.UPLOAD_MAX_BYTES} B` } },
+            413,
+          );
+        }
+        const buf = Buffer.from(b64, 'base64');
+        const mime = sniffMime(buf);
+        if (!mime) {
+          return c.json(
+            {
+              error: { message: 'Nepodporovaný typ souboru. Povoleno: JPEG, PNG, WebP, GIF, PDF' },
+            },
+            415,
+          );
+        }
+        path = await saveUploadBuffer(env, buf, mime);
+      } else {
+        // Public http(s) only (SSRF guard), size-capped, type from magic bytes.
+        path = await storeRemoteFile(env, input.url!, 0);
+      }
+      if (!path) {
+        return c.json(
+          {
+            error: {
+              message:
+                'Soubor se nepodařilo uložit (nedostupná nebo neveřejná URL, nepodporovaný typ, nebo příliš velký).',
+            },
+          },
+          422,
+        );
+      }
+      const ext = path.slice(path.lastIndexOf('.') + 1);
+      const contentType = [...ALLOWED_MIME].find(([, e]) => e === ext)?.[0];
+      return c.json({ path, url: `/api/uploads/${path}`, contentType });
+    },
+  )
   .get('/:y/:m/:name', async (c) => {
     const env = c.get('env');
     const { y, m, name } = c.req.param();

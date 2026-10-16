@@ -19,6 +19,7 @@ import {
   createInventorySessionInput,
   createLoanInput,
   markMissingLostInput,
+  MAX_DAMAGE_PHOTOS,
   orgSettingsSchema,
   requestLoanInput,
   returnLoanItemInput,
@@ -29,6 +30,19 @@ export type ToolAccess = 'read' | 'write';
 
 export type ToolRequest = { method: string; path: string; body?: unknown };
 
+export type ToolCallResult = { status: number; ok: boolean; body: unknown };
+
+/** In-process API access handed to multi-step tools. */
+export type ToolContext = {
+  call: (method: string, path: string, body?: unknown) => Promise<ToolCallResult>;
+  callRaw: (
+    path: string,
+  ) => Promise<{ status: number; ok: boolean; bytes: Buffer; contentType: string | null }>;
+};
+
+/** A tool result that may carry images for the model to look at. */
+export type ToolOutcome = ToolCallResult & { images?: { data: string; mimeType: string }[] };
+
 export type McpTool = {
   name: string;
   description: string;
@@ -36,6 +50,12 @@ export type McpTool = {
   /** Raw Zod shape registered as the tool's input schema. */
   inputShape: z.ZodRawShape;
   build: (args: Record<string, any>) => ToolRequest;
+  /**
+   * Multi-step tools (upload, then attach…) implement `run` instead of a
+   * single request; `build` then only declares the primary route for the
+   * dispatch-coverage test.
+   */
+  run?: (args: Record<string, any>, ctx: ToolContext) => Promise<ToolOutcome>;
   /**
    * Optional post-processor applied to a successful response body before it is
    * returned to the MCP client. Used to inject human-facing deep-link `url`
@@ -81,6 +101,54 @@ function tool(
   shape?: McpTool['shape'],
 ): McpTool {
   return { name, access, description, inputShape, build, enrich, shape };
+}
+
+// ---- images ------------------------------------------------------------------
+
+/** Where an image comes from: inline base64 or a public URL the server fetches. */
+const imageSource = z.object({
+  imageBase64: z
+    .string()
+    .max(8_000_000)
+    .optional()
+    .describe('Image bytes as base64 (a data: URL prefix is fine).'),
+  imageUrl: z.string().url().optional().describe('Public http(s) URL of the image.'),
+});
+type ImageSource = z.infer<typeof imageSource>;
+
+/** Stores an image via POST /api/uploads/import; images only. */
+async function importImage(
+  call: ToolContext['call'],
+  src: ImageSource,
+): Promise<{ ok: true; path: string } | (ToolCallResult & { ok: false })> {
+  if (Boolean(src.imageBase64) === Boolean(src.imageUrl)) {
+    return {
+      ok: false,
+      status: 400,
+      body: { error: { message: 'Give exactly one of imageBase64 or imageUrl.' } },
+    };
+  }
+  const res = await call(
+    'POST',
+    '/api/uploads/import',
+    src.imageBase64 ? { dataBase64: src.imageBase64 } : { url: src.imageUrl },
+  );
+  if (!res.ok) return { ...res, ok: false };
+  const body = res.body as { path: string; contentType?: string };
+  if (!body.contentType?.startsWith('image/')) {
+    return {
+      ok: false,
+      status: 415,
+      body: { error: { message: 'Only images can be attached as photos.' } },
+    };
+  }
+  return { ok: true, path: body.path };
+}
+
+/** Prefixes an error message with which input caused it. */
+function withContext(res: ToolCallResult, where: string): ToolCallResult {
+  const msg = (res.body as any)?.error?.message ?? 'failed';
+  return { ...res, body: { error: { message: `${where}: ${msg}` } } };
 }
 
 // ---- response size control -------------------------------------------------
@@ -153,6 +221,7 @@ export const DESTRUCTIVE_TOOLS = new Set([
   'update_org_settings',
   'update_user',
   'revoke_invitation',
+  'remove_asset_photo',
 ]);
 export const IDEMPOTENT_TOOLS = new Set([
   'update_asset',
@@ -169,6 +238,7 @@ export const IDEMPOTENT_TOOLS = new Set([
   'reopen_inventory',
   'update_org_settings',
   'update_user',
+  'remove_asset_photo',
 ]);
 
 const stripSlash = (u: string) => u.replace(/\/$/, '');
@@ -495,20 +565,98 @@ export const MCP_TOOLS: McpTool[] = [
     { code: z.string() },
     (a) => ({ method: 'GET', path: `/api/damages/by-asset/${encodeURIComponent(a.code)}` }),
   ),
+  {
+    ...tool(
+      'report_damage',
+      'write',
+      'Report damage on an asset code. Optionally attach up to 10 photos, each given as `imageBase64` or a public `imageUrl`.',
+      (() => {
+        const { assetId: _assetId, photoPaths: _paths, ...rest } = shapeOf(createDamageReportInput);
+        return {
+          ...rest,
+          code: z.string(),
+          photos: z.array(imageSource).max(MAX_DAMAGE_PHOTOS).optional(),
+        };
+      })(),
+      ({ code }) => ({ method: 'POST', path: `/api/damages/by-asset/${encodeURIComponent(code)}` }),
+    ),
+    run: async ({ code, photos, ...body }, { call }) => {
+      const photoPaths: string[] = [];
+      for (const [i, photo] of ((photos ?? []) as ImageSource[]).entries()) {
+        const up = await importImage(call, photo);
+        if (!up.ok) return withContext(up, `photos[${i}]`);
+        photoPaths.push(up.path);
+      }
+      return call('POST', `/api/damages/by-asset/${encodeURIComponent(code)}`, {
+        ...body,
+        photoPaths,
+      });
+    },
+  },
+
+  // ---- photos --------------------------------------------------------------
+  {
+    ...tool(
+      'add_asset_photo',
+      'write',
+      "Attach a photo to an asset (admin/operator). Give the image as `imageBase64` (raw base64 or a data: URL) or as a public https `imageUrl` the server downloads. JPEG, PNG, WebP or GIF; max size is the server's upload limit.",
+      { code: z.string(), ...imageSource.shape },
+      ({ code }) => ({ method: 'POST', path: `/api/assets/${encodeURIComponent(code)}/photos` }),
+    ),
+    run: async ({ code, ...source }, { call }) => {
+      const up = await importImage(call, source as ImageSource);
+      if (!up.ok) return up;
+      return call('POST', `/api/assets/${encodeURIComponent(code)}/photos`, { path: up.path });
+    },
+  },
   tool(
-    'report_damage',
+    'remove_asset_photo',
     'write',
-    'Report damage on an asset code.',
-    (() => {
-      const { assetId: _assetId, ...rest } = shapeOf(createDamageReportInput);
-      return { ...rest, code: z.string() };
-    })(),
-    ({ code, ...body }) => ({
-      method: 'POST',
-      path: `/api/damages/by-asset/${encodeURIComponent(code)}`,
-      body,
+    "Detach a photo from an asset (admin/operator). `path` is one of the asset's photoPaths.",
+    { code: z.string(), path: z.string() },
+    ({ code, path }) => ({
+      method: 'DELETE',
+      path: `/api/assets/${encodeURIComponent(code)}/photos`,
+      body: { path },
     }),
   ),
+  {
+    ...tool(
+      'get_asset_photo',
+      'read',
+      "Fetch one of an asset's photos as an image you can look at (e.g. to judge its condition). `index` picks from photoPaths (default 0, the first).",
+      { code: z.string(), index: z.number().int().min(0).optional() },
+      ({ code }) => ({ method: 'GET', path: `/api/assets/${encodeURIComponent(code)}` }),
+    ),
+    run: async ({ code, index = 0 }, { call, callRaw }) => {
+      const res = await call('GET', `/api/assets/${encodeURIComponent(code)}`);
+      if (!res.ok) return res;
+      const paths = ((res.body as any)?.asset?.photoPaths ?? []) as string[];
+      const path = paths[index];
+      if (!path) {
+        return {
+          ok: false,
+          status: 404,
+          body: { error: { message: `Asset has ${paths.length} photo(s); no index ${index}.` } },
+        };
+      }
+      const file = await callRaw(`/api/uploads/${path}`);
+      const mimeType = file.contentType?.split(';')[0] ?? '';
+      if (!file.ok || !mimeType.startsWith('image/')) {
+        return {
+          ok: false,
+          status: file.ok ? 415 : file.status,
+          body: { error: { message: 'Photo unavailable.' } },
+        };
+      }
+      return {
+        ok: true,
+        status: 200,
+        body: { code, index, path, photoCount: paths.length, mimeType, bytes: file.bytes.length },
+        images: [{ data: file.bytes.toString('base64'), mimeType }],
+      };
+    },
+  },
   tool(
     'resolve_damage',
     'write',

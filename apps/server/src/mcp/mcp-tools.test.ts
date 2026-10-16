@@ -178,3 +178,115 @@ describe('MCP response size + hints', () => {
     expect(byName.get('list_assets')).toMatchObject({ readOnlyHint: true, openWorldHint: false });
   });
 });
+
+// 1×1 transparent PNG.
+const PNG_1PX =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+
+describe('MCP photos', () => {
+  async function connectRaw(user: UserRow) {
+    const { token } = createPersonalToken(server.db, {
+      user,
+      name: 'cam',
+      access: 'read-write',
+      expiresInDays: 30,
+    });
+    const init = await rpc(token, {
+      jsonrpc: '2.0',
+      id: 1,
+      method: 'initialize',
+      params: {
+        protocolVersion: '2025-06-18',
+        capabilities: {},
+        clientInfo: { name: 't', version: '1' },
+      },
+    });
+    const sid = init.headers.get('mcp-session-id')!;
+    let id = 1;
+    return async (name: string, args: Record<string, unknown>) => {
+      const res = await rpc(
+        token,
+        { jsonrpc: '2.0', id: ++id, method: 'tools/call', params: { name, arguments: args } },
+        sid,
+      );
+      return ((await res.json()) as any).result as {
+        isError?: boolean;
+        content: { type: string; text?: string; data?: string; mimeType?: string }[];
+      };
+    };
+  }
+
+  it('attaches a base64 photo, then returns it as an image', async () => {
+    const op = server.createUser({ role: 'operator' });
+    const call = await connect(op);
+    const raw = await connectRaw(op);
+    const { code } = (await call('create_asset', { name: 'Cam', typeId: server.laptopTypeId }))
+      .body;
+
+    const added = await call('add_asset_photo', {
+      code,
+      imageBase64: `data:image/png;base64,${PNG_1PX}`,
+    });
+    expect(added.isError).toBe(false);
+    expect(added.body.photoPaths).toHaveLength(1);
+
+    const photo = await raw('get_asset_photo', { code });
+    expect(photo.isError).toBeFalsy();
+    const img = photo.content.find((c) => c.type === 'image')!;
+    expect(img).toMatchObject({ mimeType: 'image/png', data: PNG_1PX });
+
+    const missing = await call('get_asset_photo', { code, index: 5 });
+    expect(missing.isError).toBe(true);
+
+    const removed = await call('remove_asset_photo', { code, path: added.body.photoPaths[0] });
+    expect(removed.body.photoPaths).toEqual([]);
+  });
+
+  it('rejects private URLs, non-images and ambiguous input', async () => {
+    const call = await connect(server.createUser({ role: 'operator' }));
+    const { code } = (await call('create_asset', { name: 'Cam', typeId: server.laptopTypeId }))
+      .body;
+
+    const ssrf = await call('add_asset_photo', {
+      code,
+      imageUrl: 'http://127.0.0.1:3001/secret.png',
+    });
+    expect(ssrf.isError).toBe(true);
+    expect(ssrf.body.status).toBe(422);
+
+    const pdf = await call('add_asset_photo', {
+      code,
+      imageBase64: Buffer.from('%PDF-1.4 fake').toString('base64'),
+    });
+    expect(pdf.isError).toBe(true);
+    expect(pdf.body.status).toBe(415);
+
+    const both = await call('add_asset_photo', {
+      code,
+      imageBase64: PNG_1PX,
+      imageUrl: 'https://x.y/a.png',
+    });
+    expect(both.isError).toBe(true);
+  });
+
+  it('a member reports damage with a photo but cannot attach asset photos', async () => {
+    const op = await connect(server.createUser({ role: 'operator' }));
+    const { code } = (await op('create_asset', { name: 'Cam', typeId: server.laptopTypeId })).body;
+    const member = await connect(server.createUser({ role: 'member' }));
+
+    const report = await member('report_damage', {
+      code,
+      occurredAt: new Date().toISOString(),
+      description: 'Cracked screen',
+      severity: 'minor',
+      photos: [{ imageBase64: PNG_1PX }],
+    });
+    expect(report.isError).toBe(false);
+    const damages = await member('list_asset_damages', { code });
+    expect(damages.body.items[0].photoPaths).toHaveLength(1);
+
+    const denied = await member('add_asset_photo', { code, imageBase64: PNG_1PX });
+    expect(denied.isError).toBe(true);
+    expect(denied.body.status).toBe(403);
+  });
+});

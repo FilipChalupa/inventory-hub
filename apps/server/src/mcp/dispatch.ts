@@ -93,7 +93,7 @@ export async function callApi(
   body?: unknown,
 ): Promise<ApiResult> {
   const init: RequestInit = { method };
-  if (body !== undefined && method !== 'GET' && method !== 'DELETE') {
+  if (body !== undefined && method !== 'GET') {
     init.headers = { 'content-type': 'application/json' };
     init.body = JSON.stringify(body);
   }
@@ -109,4 +109,18 @@ export async function callApi(
     }
   }
   return { status: res.status, ok: res.ok, body: parsed };
+}
+
+/** Like {@link callApi} but returns the raw bytes (for serving uploads). */
+export async function callApiRaw(
+  app: McpDispatchApp,
+  path: string,
+): Promise<{ status: number; ok: boolean; bytes: Buffer; contentType: string | null }> {
+  const res = await app.request(`http://mcp.internal${path}`);
+  return {
+    status: res.status,
+    ok: res.ok,
+    bytes: Buffer.from(await res.arrayBuffer()),
+    contentType: res.headers.get('content-type'),
+  };
 }
