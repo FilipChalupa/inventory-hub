@@ -26,6 +26,7 @@ import { locationPath } from '../lib/locations.js';
 import { classifyScan } from '../lib/scan.js';
 import { isNetworkError, scanQueue } from '../lib/scanQueue.js';
 import { applyScanToReport } from '../lib/inventoryReport.js';
+import { isScanSoundOn, scanFeedback, setScanSoundOn } from '../lib/scanFeedback.js';
 import { hasRole, useCurrentUser } from '../auth/AuthContext.js';
 import { useT } from '../i18n/index.js';
 
@@ -82,6 +83,7 @@ export function InventorySessionPage() {
   // Offline → queue the scan locally; it is sent by the flusher below.
   const queueScan = (code: string) => {
     const added = scanQueue.enqueue(id, code, userId);
+    scanFeedback(added ? 'queued' : 'already');
     setLastResult({
       kind: 'queued',
       text: added ? t.inventorySession.queuedOffline(code) : t.inventorySession.alreadyQueued(code),
@@ -136,6 +138,7 @@ export function InventorySessionPage() {
       return apiClient.inventory.scan(id, code);
     },
     onSuccess: (res) => {
+      scanFeedback(res.result);
       const label = `${res.asset.code} — ${res.asset.name}`;
       setLastResult({
         kind: res.result,
@@ -153,6 +156,7 @@ export function InventorySessionPage() {
         queueScan(code);
         return;
       }
+      scanFeedback('error');
       setLastResult({
         kind: 'unexpected',
         text: e instanceof Error ? e.message : t.inventorySession.scanError,
@@ -633,6 +637,7 @@ function ScanPanel({
   const t = useT();
   const [manual, setManual] = useState('');
   const [scanning, setScanning] = useState(false);
+  const [soundOn, setSoundOn] = useState(isScanSoundOn);
   const [error, setError] = useState<string | null>(null);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   // Debounce repeat reads of the same code from the live camera.
@@ -693,9 +698,25 @@ function ScanPanel({
     <Card className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="font-semibold">{t.inventorySession.scanHeading}</h2>
-        <Button variant={scanning ? 'secondary' : 'primary'} onClick={() => setScanning((s) => !s)}>
-          {scanning ? t.inventorySession.stopCamera : t.inventorySession.startCamera}
-        </Button>
+        <div className="flex items-center gap-3">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+            <input
+              type="checkbox"
+              checked={soundOn}
+              onChange={(e) => {
+                setSoundOn(e.target.checked);
+                setScanSoundOn(e.target.checked);
+              }}
+            />
+            {t.inventorySession.scanSound}
+          </label>
+          <Button
+            variant={scanning ? 'secondary' : 'primary'}
+            onClick={() => setScanning((s) => !s)}
+          >
+            {scanning ? t.inventorySession.stopCamera : t.inventorySession.startCamera}
+          </Button>
+        </div>
       </div>
 
       {scanning && (

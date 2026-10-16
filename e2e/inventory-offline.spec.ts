@@ -44,4 +44,36 @@ test.describe('inventory offline', () => {
     await page.getByRole('button', { name: 'Skrýt' }).click();
     await expect(page.getByRole('listitem').filter({ hasText: 'NOPE-404' })).toHaveCount(0);
   });
+
+  test('each scan outcome vibrates differently', async ({ page }) => {
+    await page.addInitScript(() => {
+      (window as unknown as { __vibes: unknown[] }).__vibes = [];
+      navigator.vibrate = (p: VibratePattern) => {
+        (window as unknown as { __vibes: unknown[] }).__vibes.push(p);
+        return true;
+      };
+    });
+    await devLogin(page);
+    const post = async (path: string, body: unknown) =>
+      (
+        await page.request.post(path, {
+          headers: { 'content-type': 'application/json' },
+          data: JSON.stringify(body),
+        })
+      ).json();
+    await post('/api/assets', { name: 'Beep A', code: 'LAP-97301' });
+    const { session } = await post('/api/inventory', {
+      name: 'Beep test',
+      assetCodes: ['LAP-97301'],
+    });
+    await page.goto(`/inventory/${session.id}`);
+    const manual = page.getByPlaceholder('LAP-00001 nebo sériové číslo, EAN…');
+    for (const code of ['LAP-97301', 'LAP-97301', 'NOPE-777']) {
+      await manual.fill(code);
+      await manual.press('Enter');
+      await page.waitForTimeout(300);
+    }
+    const vibes = await page.evaluate(() => (window as unknown as { __vibes: unknown[] }).__vibes);
+    expect(vibes).toEqual([[60], [40, 60, 40], [200, 80, 200]]);
+  });
 });
