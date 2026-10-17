@@ -250,15 +250,25 @@ export const inventoryRoutes = new Hono<AppContext>()
       .orderBy(desc(inventorySessions.createdAt))
       .limit(200)
       .all();
-    // Cheap per-session scan tally for the list view.
-    const items = rows.map((s) => {
-      const scanCount = db
-        .select({ id: inventoryScans.id })
-        .from(inventoryScans)
-        .where(eq(inventoryScans.sessionId, s.id))
-        .all().length;
-      return { ...publicSession(s), scanCount };
-    });
+    // Per-session scan tally in one grouped query (was one query loading
+    // every scan row per session).
+    const counts = new Map(
+      rows.length === 0
+        ? []
+        : db
+            .select({ sessionId: inventoryScans.sessionId, n: sql<number>`count(*)` })
+            .from(inventoryScans)
+            .where(
+              inArray(
+                inventoryScans.sessionId,
+                rows.map((r) => r.id),
+              ),
+            )
+            .groupBy(inventoryScans.sessionId)
+            .all()
+            .map((r) => [r.sessionId, r.n]),
+    );
+    const items = rows.map((s) => ({ ...publicSession(s), scanCount: counts.get(s.id) ?? 0 }));
     return c.json({ items });
   })
   .post(

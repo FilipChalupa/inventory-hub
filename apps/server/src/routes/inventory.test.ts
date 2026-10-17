@@ -326,6 +326,22 @@ describe('inventory API', () => {
     ).toBe(404);
   });
 
+  it('lists sessions with their scan counts', async () => {
+    const a = await makeAsset(server, cookie, 'A');
+    const b = await makeAsset(server, cookie, 'B');
+    const s1 = await createSession(server, cookie, { name: 'One' });
+    const s2 = await createSession(server, cookie, { name: 'Two' });
+    await jsonPost(server, cookie, `/api/inventory/${s1}/scan`, { code: a });
+    await jsonPost(server, cookie, `/api/inventory/${s1}/scan`, { code: b });
+    const list = (await (await server.authRequest('/api/inventory', { cookie })).json()) as {
+      items: { id: string; scanCount: number; expectedSnapshot?: unknown }[];
+    };
+    const byId = new Map(list.items.map((i) => [i.id, i]));
+    expect(byId.get(s1)!.scanCount).toBe(2);
+    expect(byId.get(s2)!.scanCount).toBe(0);
+    expect(byId.get(s1)).not.toHaveProperty('expectedSnapshot');
+  });
+
   it('refuses an identifier that matches several assets', async () => {
     const a = await makeAsset(server, cookie, 'A');
     const b = await makeAsset(server, cookie, 'B');
