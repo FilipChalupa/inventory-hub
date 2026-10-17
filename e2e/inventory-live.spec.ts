@@ -33,6 +33,7 @@ test.describe('inventory live updates', () => {
     await other.close();
 
     await expect(found).toHaveText(/^1/, { timeout: 25_000 });
-    await expect(page.getByRole('listitem').filter({ hasText: 'LAP-97502' })).toBeVisible();
+    // first(): it may also be listed in the comparison with another spec's session.
+    await expect(page.getByRole('listitem').filter({ hasText: 'LAP-97502' }).first()).toBeVisible();
   });
 });
