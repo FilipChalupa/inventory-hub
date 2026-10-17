@@ -26,7 +26,7 @@ import {
   type InventorySessionRow,
 } from '../db/schema.js';
 import { toCsv } from '../lib/csv.js';
-import { emailCopy } from '../lib/email-copy.js';
+import { emailCopy, recipientLocale } from '../lib/email-copy.js';
 import { emitWebhook } from '../lib/webhooks.js';
 
 // Inventory writes (create / scan / close / reopen / notes / mark-lost) are
@@ -788,9 +788,8 @@ export const inventoryRoutes = new Hono<AppContext>()
       .where(eq(users.role, 'admin'))
       .all()
       .filter((u) => !u.disabledAt);
-    const copy = emailCopy(env.EMAIL_LOCALE);
     for (const admin of admins) {
-      const built = copy.inventoryClosed({
+      const built = emailCopy(recipientLocale(admin, env.EMAIL_LOCALE)).inventoryClosed({
         adminName: admin.name,
         sessionName: session.name,
         closedBy: user.name,

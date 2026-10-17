@@ -70,6 +70,9 @@ export const users = sqliteTable(
     // Last time the user opened the in-app notification feed; anything newer
     // counts as unread for the badge.
     lastNotificationsSeenAt: integer('last_notifications_seen_at', { mode: 'timestamp_ms' }),
+    // UI language the user picked in the app; emails to them use it.
+    // Null = not chosen yet → the org default (EMAIL_LOCALE).
+    locale: text('locale', { enum: ['cs', 'en'] }),
     ...timestamps,
   },
   (t) => ({

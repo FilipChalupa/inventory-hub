@@ -2,7 +2,7 @@ import { eq, isNull, isNotNull, or, sql } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { assets, loanItems, loans, users } from '../db/schema.js';
 import type { EmailSender } from './email.js';
-import { emailCopy, type EmailLocale } from './email-copy.js';
+import { emailCopy, recipientLocale, type EmailLocale } from './email-copy.js';
 
 export type WeeklyReportResult = { notifiedAdmins: number };
 
@@ -58,12 +58,11 @@ export async function runWeeklyReport(
   ).length;
 
   const money = (minor: number) => (minor / 100).toFixed(2);
-  const copy = emailCopy(options.locale);
 
   let notifiedAdmins = 0;
   for (const admin of admins) {
     try {
-      const built = copy.weeklyReport({
+      const built = emailCopy(recipientLocale(admin, options.locale)).weeklyReport({
         adminName: admin.name,
         totalActive,
         totalValue: money(totalValue),

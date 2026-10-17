@@ -79,4 +79,19 @@ test('language switcher flips the UI live', async ({ page }) => {
   await page.locator('header').getByRole('combobox', { name: 'Jazyk' }).selectOption('en');
   await expect(page.getByRole('link', { name: 'Assets', exact: true })).toBeVisible();
   await expect(page.getByRole('link', { name: 'Assety', exact: true })).toHaveCount(0);
+
+  // The choice is saved to the account, so emails to this user follow it.
+  await expect
+    .poll(async () => (await (await page.request.get('/auth/me')).json()).user.locale)
+    .toBe('en');
+
+  // Switch back (the e2e account is shared by every spec).
+  const switcher = page.locator('header').getByRole('combobox', { name: 'Language' });
+  if (!(await switcher.isVisible())) {
+    await page.getByRole('button').filter({ hasText: 'E2E Admin' }).click();
+  }
+  await switcher.selectOption('cs');
+  await expect
+    .poll(async () => (await (await page.request.get('/auth/me')).json()).user.locale)
+    .toBe('cs');
 });

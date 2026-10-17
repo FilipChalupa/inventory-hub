@@ -2,7 +2,7 @@ import { and, eq, isNotNull, isNull, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { assets, users } from '../db/schema.js';
 import type { EmailSender } from './email.js';
-import { emailCopy, type EmailLocale } from './email-copy.js';
+import { emailCopy, recipientLocale, type EmailLocale } from './email-copy.js';
 
 export type WarrantyRunResult = { found: number; notifiedAdmins: number };
 
@@ -51,7 +51,6 @@ export async function runWarrantyReminders(
 
   let notifiedAdmins = 0;
   if (admins.length > 0) {
-    const copy = emailCopy(options.locale);
     const items = expiring.map((a) => ({
       code: a.code,
       name: a.name,
@@ -59,7 +58,7 @@ export async function runWarrantyReminders(
     }));
     for (const admin of admins) {
       try {
-        const built = copy.warrantyDigest({
+        const built = emailCopy(recipientLocale(admin, options.locale)).warrantyDigest({
           adminName: admin.name,
           windowDays: WARRANTY_WINDOW_DAYS,
           items,

@@ -543,6 +543,17 @@ const en: EmailCopy = {
 
 const CATALOG: Record<EmailLocale, EmailCopy> = { cs, en };
 
+/**
+ * Language for an email to `recipient`: their own choice in the app when
+ * they have an account and picked one, else the org default.
+ */
+export function recipientLocale(
+  recipient: { locale?: EmailLocale | null } | null | undefined,
+  orgDefault: EmailLocale | undefined,
+): EmailLocale | undefined {
+  return recipient?.locale ?? orgDefault;
+}
+
 /** Returns the email copy builders for the given locale (defaults to Czech). */
 export function emailCopy(locale: EmailLocale | undefined): EmailCopy {
   return CATALOG[locale ?? 'cs'] ?? cs;

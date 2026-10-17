@@ -57,8 +57,21 @@ export const authRoutes = new Hono<AppContext>()
         name: user.name,
         role: user.role,
         imageUrl: user.imageUrl,
+        locale: user.locale,
       },
     });
+  })
+  // The user's UI language — emails to them follow it.
+  .put('/me/locale', zValidator('json', z.object({ locale: z.enum(['cs', 'en']) })), (c) => {
+    const user = c.get('user');
+    if (!user) return c.json({ error: { message: 'Nepřihlášen' } }, 401);
+    const { locale } = c.req.valid('json');
+    c.get('db')
+      .update(users)
+      .set({ locale, updatedAt: new Date() })
+      .where(eq(users.id, user.id))
+      .run();
+    return c.json({ ok: true, locale });
   })
 
   // Public capability probe for the login page: which sign-in methods this

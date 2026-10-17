@@ -24,7 +24,7 @@ import {
 } from '../db/schema.js';
 import type { Db } from '../db/client.js';
 import { type Email, type EmailSender } from '../lib/email.js';
-import { emailCopy, type EmailLocale } from '../lib/email-copy.js';
+import { emailCopy, type EmailLocale, recipientLocale } from '../lib/email-copy.js';
 import { findLoanWindowConflicts } from '../lib/loan.js';
 import { activateLoan } from '../lib/loanActivation.js';
 import { runOverdueCheck } from '../lib/overdue.js';
@@ -106,7 +106,7 @@ async function notifyReservationDecision(
   const period = loan.expectedReturnAt
     ? `${fmtDay(loan.loanedAt)} – ${fmtDay(loan.expectedReturnAt)}`
     : fmtDay(loan.loanedAt);
-  const copy = emailCopy(locale);
+  const copy = emailCopy(recipientLocale(requester, locale));
   const built =
     decision === 'approved'
       ? copy.reservationApproved({

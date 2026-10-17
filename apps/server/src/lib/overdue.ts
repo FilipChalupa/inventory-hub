@@ -2,8 +2,26 @@ import { and, eq, gt, isNotNull, isNull, lt, lte, or } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { loanItems, loans, users } from '../db/schema.js';
 import type { Email, EmailSender } from './email.js';
-import { emailCopy, type EmailLocale } from './email-copy.js';
+import { emailCopy, recipientLocale, type EmailLocale } from './email-copy.js';
 import { emitWebhook } from './webhooks.js';
+
+/**
+ * A borrower with an account gets emails in their own language; an external
+ * borrower (contact only) gets the org default.
+ */
+function borrowerLocale(
+  db: Db,
+  loan: { borrowerUserId: string | null },
+  orgDefault: EmailLocale | undefined,
+): EmailLocale | undefined {
+  if (!loan.borrowerUserId) return orgDefault;
+  const user = db
+    .select({ locale: users.locale })
+    .from(users)
+    .where(eq(users.id, loan.borrowerUserId))
+    .get();
+  return recipientLocale(user, orgDefault);
+}
 
 export type OverdueRunResult = {
   found: number;
@@ -58,11 +76,10 @@ export async function runOverdueCheck(
 
   if (overdue.length === 0) return { found: 0, notifiedBorrowers: 0, notifiedAdmins: 0 };
 
-  const copy = emailCopy(options.locale);
   let notifiedBorrowers = 0;
   for (const loan of overdue) {
     if (!loan.borrowerContact) continue;
-    const built = copy.overdueBorrower({
+    const built = emailCopy(borrowerLocale(db, loan, options.locale)).overdueBorrower({
       borrowerName: loan.borrowerName,
       dueDate: formatDate(loan.expectedReturnAt!),
       purpose: loan.purpose,
@@ -93,7 +110,7 @@ export async function runOverdueCheck(
     }));
     for (const admin of adminTargets) {
       try {
-        const built = copy.overdueDigest({
+        const built = emailCopy(recipientLocale(admin, options.locale)).overdueDigest({
           adminName: admin.name,
           items,
           loansUrl: options.publicAppUrl ? `${options.publicAppUrl}/loans` : undefined,
@@ -162,11 +179,10 @@ export async function runStartReminders(
     countByLoan.set(loan.id, items.length);
   }
 
-  const copy = emailCopy(options.locale);
   let notifiedBorrowers = 0;
   for (const loan of upcoming) {
     if (!loan.borrowerContact) continue;
-    const built = copy.startBorrower({
+    const built = emailCopy(borrowerLocale(db, loan, options.locale)).startBorrower({
       borrowerName: loan.borrowerName,
       startDate: formatDate(loan.loanedAt),
       purpose: loan.purpose,
@@ -197,7 +213,7 @@ export async function runStartReminders(
     }));
     for (const admin of adminTargets) {
       try {
-        const built = copy.startDigest({
+        const built = emailCopy(recipientLocale(admin, options.locale)).startDigest({
           adminName: admin.name,
           items,
           loansUrl: options.publicAppUrl ? `${options.publicAppUrl}/loans` : undefined,

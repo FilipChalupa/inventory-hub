@@ -22,7 +22,7 @@ import {
   orgSettings,
   users,
 } from '../db/schema.js';
-import { emailCopy } from '../lib/email-copy.js';
+import { emailCopy, recipientLocale } from '../lib/email-copy.js';
 import { generateAssetCode } from '../lib/asset-code.js';
 import { parseCsv } from '../lib/csv.js';
 import { likeContains } from '../lib/search.js';
@@ -685,7 +685,7 @@ export const assetRoutes = new Hono<AppContext>()
         const env = c.get('env');
         const assignee = db.select().from(users).where(eq(users.id, userId)).get();
         if (assignee && !assignee.disabledAt) {
-          const built = emailCopy(env.EMAIL_LOCALE).assetAssigned({
+          const built = emailCopy(recipientLocale(assignee, env.EMAIL_LOCALE)).assetAssigned({
             name: assignee.name,
             assetCode: asset.code,
             assetName: asset.name,

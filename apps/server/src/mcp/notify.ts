@@ -7,7 +7,7 @@ import { and, eq, gt, isNull, lt } from 'drizzle-orm';
 import type { Db } from '../db/client.js';
 import { oauthTokens, users } from '../db/schema.js';
 import type { EmailSender } from '../lib/email.js';
-import { emailCopy, type EmailLocale } from '../lib/email-copy.js';
+import { emailCopy, recipientLocale, type EmailLocale } from '../lib/email-copy.js';
 
 /** How far ahead an expiring personal token triggers a reminder. */
 export const TOKEN_EXPIRY_WINDOW_DAYS = 7;
@@ -30,7 +30,7 @@ export async function notifyAgentConnected(
 ): Promise<void> {
   const user = db.select().from(users).where(eq(users.id, input.userId)).get();
   if (!user || user.disabledAt) return;
-  const built = emailCopy(input.locale).agentConnected({
+  const built = emailCopy(recipientLocale(user, input.locale)).agentConnected({
     name: user.name,
     agentName: input.agentName,
     kind: input.kind,
@@ -52,7 +52,7 @@ export async function notifyAgentRevokedForReuse(
 ): Promise<void> {
   const user = db.select().from(users).where(eq(users.id, input.userId)).get();
   if (!user || user.disabledAt) return;
-  const built = emailCopy(input.locale).agentReuseRevoked({
+  const built = emailCopy(recipientLocale(user, input.locale)).agentReuseRevoked({
     name: user.name,
     agentName: input.agentName,
     manageUrl: manageUrl(input.publicAppUrl),
@@ -91,12 +91,11 @@ export async function runMcpTokenExpiryReminders(
 
   const byUser = new Map<string, typeof due>();
   for (const t of due) byUser.set(t.userId, [...(byUser.get(t.userId) ?? []), t]);
-  const copy = emailCopy(options.locale);
   let notifiedUsers = 0;
   for (const [userId, tokens] of byUser) {
     const user = db.select().from(users).where(eq(users.id, userId)).get();
     if (user && !user.disabledAt) {
-      const built = copy.mcpTokensExpiring({
+      const built = emailCopy(recipientLocale(user, options.locale)).mcpTokensExpiring({
         name: user.name,
         items: tokens.map((t) => ({
           name: t.name ?? '',

@@ -267,7 +267,15 @@ export type AuthMe =
   | { authenticated: false }
   | {
       authenticated: true;
-      user: { id: string; email: string; name: string; role: UserRole; imageUrl: string | null };
+      user: {
+        id: string;
+        email: string;
+        name: string;
+        role: UserRole;
+        imageUrl: string | null;
+        /** Language the user picked (emails follow it); null = not chosen yet. */
+        locale?: 'cs' | 'en' | null;
+      };
     };
 
 export type InvitationRow = {
@@ -456,6 +464,8 @@ export const apiClient = {
     me: () => api<AuthMe>('/auth/me'),
     config: () => api<{ googleConfigured: boolean; devLoginEnabled: boolean }>('/auth/config'),
     logout: () => api<{ ok: true }>('/auth/logout', { method: 'POST' }),
+    setLocale: (locale: 'cs' | 'en') =>
+      api<{ ok: true }>('/auth/me/locale', { method: 'PUT', body: { locale } }),
     googleStartUrl: '/auth/google/start',
     devLogin: (email: string) =>
       api<{ ok: true; user: { id: string; email: string; name: string; role: UserRole } }>(
