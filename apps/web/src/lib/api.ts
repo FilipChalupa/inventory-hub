@@ -327,6 +327,10 @@ export type InventoryReportAsset = {
   locationId: string | null;
   scannedAt: string | null;
   note: string | null;
+  /** Where it was found (scanned rows only). */
+  scannedLocationId: string | null;
+  /** Found somewhere other than where the register has it. */
+  misplaced: boolean;
 };
 
 export type InventoryReport = {
@@ -351,6 +355,7 @@ export type InventoryComparison =
       recovered: InventoryCompareAsset[];
       stillMissing: InventoryCompareAsset[];
       addedToScope: InventoryCompareAsset[];
+      moved: (InventoryCompareAsset & { from: string; to: string })[];
       removedFromScope: InventoryCompareAsset[];
     };
 
@@ -774,10 +779,23 @@ export const apiClient = {
       api<{ session: InventorySessionRow }>('/api/inventory', { method: 'POST', body: input }),
     update: (id: string, input: UpdateInventorySessionInput) =>
       api<{ ok: true }>(`/api/inventory/${id}`, { method: 'PATCH', body: input }),
-    scan: (id: string, code: string, scannedAt?: string) =>
+    scan: (
+      id: string,
+      code: string,
+      opts: { scannedAt?: string; locationId?: string | null } = {},
+    ) =>
       api<ScanResult>(`/api/inventory/${id}/scan`, {
         method: 'POST',
-        body: scannedAt ? { code, scannedAt } : { code },
+        body: {
+          code,
+          ...(opts.scannedAt ? { scannedAt: opts.scannedAt } : {}),
+          ...(opts.locationId ? { locationId: opts.locationId } : {}),
+        },
+      }),
+    relocate: (id: string, assetIds?: string[]) =>
+      api<{ moved: number; report: InventoryReport }>(`/api/inventory/${id}/relocate`, {
+        method: 'POST',
+        body: assetIds ? { assetIds } : {},
       }),
     setItemNote: (id: string, assetId: string, note: string) =>
       api<{ ok: true; report: InventoryReport }>(

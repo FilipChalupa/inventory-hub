@@ -379,6 +379,15 @@ export const inventoryScans = sqliteTable(
     scannedAt: integer('scanned_at', { mode: 'timestamp_ms' })
       .notNull()
       .default(sql`(unixepoch() * 1000)`),
+    // Where the asset was physically found (the operator's "scanning in"
+    // location) and where the register had it at that moment. Lets a report
+    // flag misplaced assets and comparisons tell what moved.
+    scannedLocationId: text('scanned_location_id').references(() => locations.id, {
+      onDelete: 'set null',
+    }),
+    recordedLocationId: text('recorded_location_id').references(() => locations.id, {
+      onDelete: 'set null',
+    }),
   },
   (t) => ({
     sessionIdx: index('inventory_scans_session_idx').on(t.sessionId),

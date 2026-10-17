@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from 'react';
 import { errorMessage } from '../lib/errors.js';
 import { Html5Qrcode } from 'html5-qrcode';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -23,6 +30,7 @@ import {
 import { confirm } from '../components/ConfirmDialog.js';
 import { toast } from '../components/Toast.js';
 import { locationPath } from '../lib/locations.js';
+import { LocationSelect } from '../components/LocationSelect.js';
 import { classifyScan } from '../lib/scan.js';
 import { isNetworkError, scanQueue } from '../lib/scanQueue.js';
 import { applyScanToReport } from '../lib/inventoryReport.js';
@@ -80,9 +88,33 @@ export function InventorySessionPage() {
 
   const queue = useSyncExternalStore(scanQueue.subscribe, () => scanQueue.get(id));
 
+  // Where the operator is scanning ('' = the session's own location),
+  // remembered per session on this device.
+  const scanLocationKey = `ih.scanLocation.${id}`;
+  const [scanLocation, setScanLocationState] = useState<string>(() => {
+    try {
+      return localStorage.getItem(scanLocationKey) ?? '';
+    } catch {
+      return '';
+    }
+  });
+  const setScanLocation = (v: string) => {
+    setScanLocationState(v);
+    try {
+      if (v) localStorage.setItem(scanLocationKey, v);
+      else localStorage.removeItem(scanLocationKey);
+    } catch {
+      // ignore
+    }
+  };
+  const scanLocationRef = useRef(scanLocation);
+  scanLocationRef.current = scanLocation;
+
   // Offline → queue the scan locally; it is sent by the flusher below.
   const queueScan = (code: string) => {
-    const added = scanQueue.enqueue(id, code, userId);
+    const added = scanQueue.enqueue(id, code, userId, {
+      locationId: scanLocationRef.current || null,
+    });
     scanFeedback(added ? 'queued' : 'already');
     setLastResult({
       kind: 'queued',
@@ -101,7 +133,10 @@ export function InventorySessionPage() {
       // scans must not be sent under the current account.
       for (const item of scanQueue.pendingFor(id, userId)) {
         try {
-          const res = await apiClient.inventory.scan(id, item.code, item.scannedAt);
+          const res = await apiClient.inventory.scan(id, item.code, {
+            scannedAt: item.scannedAt,
+            locationId: item.locationId,
+          });
           scanQueue.done(id, item.id);
           applyScanRef.current(res);
         } catch (err) {
@@ -135,7 +170,7 @@ export function InventorySessionPage() {
     mutationFn: async (code: string) => {
       // Known offline → don't wait for a doomed request; onError queues it.
       if (!navigator.onLine) throw new TypeError('offline');
-      return apiClient.inventory.scan(id, code);
+      return apiClient.inventory.scan(id, code, { locationId: scanLocationRef.current || null });
     },
     onSuccess: (res) => {
       scanFeedback(res.result);
@@ -162,6 +197,16 @@ export function InventorySessionPage() {
         text: e instanceof Error ? e.message : t.inventorySession.scanError,
       });
     },
+  });
+
+  const relocate = useMutation({
+    mutationFn: (assetIds?: string[]) => apiClient.inventory.relocate(id, assetIds),
+    onSuccess: (res) => {
+      applyReport(res.report);
+      toast.success(t.inventorySession.relocated(res.moved));
+    },
+    onError: (e: unknown) =>
+      setActionError(e instanceof Error ? e.message : t.inventorySession.genericError),
   });
 
   const itemNote = useMutation({
@@ -254,6 +299,9 @@ export function InventorySessionPage() {
           .filter(Boolean)
           .join(' · ');
 
+  const misplacedCount = [...report.found, ...report.unexpected].filter((a) => a.misplaced).length;
+  const onRelocate = canWrite ? (assetId: string) => relocate.mutate([assetId]) : undefined;
+
   const onSaveNote = canWrite
     ? (assetId: string, note: string) => itemNote.mutate({ assetId, note })
     : undefined;
@@ -328,6 +376,24 @@ export function InventorySessionPage() {
             onCode={(code) => scan.mutate(code)}
             pending={scan.isPending}
             lastResult={lastResult}
+            scanLocationSelect={
+              <label className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-slate-600 dark:text-slate-300">
+                  {t.inventorySession.scanningIn}
+                </span>
+                <LocationSelect
+                  locations={locations.data?.items ?? []}
+                  value={scanLocation}
+                  onChange={(e) => setScanLocation(e.target.value)}
+                  placeholder={
+                    session.locationId
+                      ? t.inventorySession.scanningInSession(locationLabel(session.locationId))
+                      : t.inventorySession.scanningInUnknown
+                  }
+                  className="w-auto"
+                />
+              </label>
+            }
           />
         </div>
       )}
@@ -399,6 +465,20 @@ export function InventorySessionPage() {
         </div>
       )}
 
+      {canWrite && misplacedCount > 0 && (
+        <div className="flex flex-wrap items-center gap-2 rounded-sm border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-900 print:hidden dark:border-sky-800 dark:bg-sky-950/30 dark:text-sky-200">
+          <span>{t.inventorySession.misplacedSummary(misplacedCount)}</span>
+          <Button
+            variant="secondary"
+            className="text-xs"
+            disabled={relocate.isPending}
+            onClick={() => relocate.mutate(undefined)}
+          >
+            {t.inventorySession.relocateAll}
+          </Button>
+        </div>
+      )}
+
       <AssetGroup
         title={t.inventorySession.groupMissingTitle}
         hint={t.inventorySession.groupMissingHint}
@@ -417,6 +497,7 @@ export function InventorySessionPage() {
         emptyText={t.inventorySession.groupUnexpectedEmpty}
         canWrite={canWrite}
         onSaveNote={onSaveNote}
+        onRelocate={onRelocate}
       />
       <AssetGroup
         title={t.inventorySession.groupFoundTitle}
@@ -425,6 +506,7 @@ export function InventorySessionPage() {
         emptyText={t.inventorySession.groupFoundEmpty}
         canWrite={canWrite}
         onSaveNote={onSaveNote}
+        onRelocate={onRelocate}
       />
 
       <CompareSection sessionId={id} />
@@ -493,6 +575,7 @@ function CompareSection({ sessionId }: { sessionId: string }) {
                 t.inventorySession.compareRecovered,
                 'text-emerald-700 dark:text-emerald-300',
               ],
+              ['moved', t.inventorySession.compareMoved, 'text-sky-700 dark:text-sky-300'],
               ['addedToScope', t.inventorySession.compareAdded, ''],
               ['removedFromScope', t.inventorySession.compareRemoved, ''],
             ] as const
@@ -629,9 +712,11 @@ function ScanPanel({
   onCode,
   pending,
   lastResult,
+  scanLocationSelect,
 }: {
   onCode: (code: string) => void;
   pending: boolean;
+  scanLocationSelect: ReactNode;
   lastResult: { kind: ScanResult['result'] | 'queued'; text: string } | null;
 }) {
   const t = useT();
@@ -719,6 +804,8 @@ function ScanPanel({
         </div>
       </div>
 
+      {scanLocationSelect}
+
       {scanning && (
         <div
           id={SCANNER_ELEMENT_ID}
@@ -771,6 +858,7 @@ function AssetGroup({
   canWrite,
   onMarkFound,
   onSaveNote,
+  onRelocate,
 }: {
   title: string;
   hint?: string;
@@ -780,6 +868,7 @@ function AssetGroup({
   canWrite: boolean;
   onMarkFound?: (code: string) => void;
   onSaveNote?: (assetId: string, note: string) => void;
+  onRelocate?: (assetId: string) => void;
 }) {
   const t = useT();
   return (
@@ -800,6 +889,7 @@ function AssetGroup({
               canWrite={canWrite}
               onMarkFound={onMarkFound}
               onSaveNote={onSaveNote}
+              onRelocate={onRelocate}
             />
           ))}
         </ul>
@@ -814,12 +904,14 @@ function ReportItem({
   canWrite,
   onMarkFound,
   onSaveNote,
+  onRelocate,
 }: {
   asset: InventoryReportAsset;
   locationLabel: (id: string | null) => string;
   canWrite: boolean;
   onMarkFound?: (code: string) => void;
   onSaveNote?: (assetId: string, note: string) => void;
+  onRelocate?: (assetId: string) => void;
 }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
@@ -861,6 +953,21 @@ function ReportItem({
           )}
         </div>
       </div>
+
+      {asset.misplaced && asset.scannedLocationId && (
+        <p className="flex flex-wrap items-center gap-2 text-xs text-sky-800 dark:text-sky-300">
+          📍{' '}
+          {t.inventorySession.misplacedRow(
+            locationLabel(asset.scannedLocationId),
+            locationLabel(asset.locationId),
+          )}
+          {canWrite && onRelocate && (
+            <Button variant="ghost" className="text-xs py-0" onClick={() => onRelocate(asset.id)}>
+              {t.inventorySession.relocateOne}
+            </Button>
+          )}
+        </p>
+      )}
 
       {asset.note && !editing && (
         <p className="text-xs text-slate-500 dark:text-slate-400">📝 {asset.note}</p>

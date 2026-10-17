@@ -183,6 +183,13 @@
       "when": 1792191802962,
       "tag": "0025_ambitious_star_brand",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "6",
+      "when": 1792223741787,
+      "tag": "0026_thick_stardust",
+      "breakpoints": true
     }
   ]
 }

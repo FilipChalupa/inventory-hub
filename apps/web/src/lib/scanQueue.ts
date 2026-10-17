@@ -7,7 +7,14 @@
  */
 
 /** `userId`: who scanned it — a shared device must not send it as someone else. */
-export type QueuedScan = { id: string; code: string; scannedAt: string; userId?: string };
+export type QueuedScan = {
+  id: string;
+  code: string;
+  scannedAt: string;
+  userId?: string;
+  /** Where the operator was scanning. */
+  locationId?: string | null;
+};
 export type FailedScan = QueuedScan & { error: string };
 type State = { pending: QueuedScan[]; failed: FailedScan[] };
 
@@ -64,14 +71,25 @@ export const scanQueue = {
     };
   },
   /** Queues a scan; returns false if that code is already waiting. */
-  enqueue(sessionId: string, code: string, userId?: string, scannedAt = new Date()): boolean {
+  enqueue(
+    sessionId: string,
+    code: string,
+    userId?: string,
+    opts: { scannedAt?: Date; locationId?: string | null } = {},
+  ): boolean {
     const state = read(sessionId);
     if (state.pending.some((p) => p.code === code && p.userId === userId)) return false;
     write(sessionId, {
       ...state,
       pending: [
         ...state.pending,
-        { id: crypto.randomUUID(), code, scannedAt: scannedAt.toISOString(), userId },
+        {
+          id: crypto.randomUUID(),
+          code,
+          scannedAt: (opts.scannedAt ?? new Date()).toISOString(),
+          userId,
+          locationId: opts.locationId ?? null,
+        },
       ],
     });
     return true;

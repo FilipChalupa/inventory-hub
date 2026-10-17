@@ -52,6 +52,17 @@ export const inventorySession = ns({
     exportCsv: 'Export CSV',
     printPdf: 'Tisk / PDF',
     scanSound: 'Zvuk',
+    scanningIn: 'Skenuji v:',
+    scanningInSession: (name: string) => `lokaci inventury (${name})`,
+    scanningInUnknown: '— nevybráno —',
+    misplacedRow: (found: string, recorded: string) => `nalezeno v ${found}, vedeno v ${recorded}`,
+    misplacedSummary: (n: number) =>
+      `${n} ${n === 1 ? 'asset se našel' : n < 5 ? 'assety se našly' : 'assetů se našlo'} jinde, než je v evidenci.`,
+    relocateAll: 'Přesunout všechny na místo skenu',
+    relocateOne: 'Přesunout sem',
+    relocated: (n: number) => `Přesunuto: ${n}`,
+    compareMoved: 'Přesunulo se',
+
     compareTitle: 'Porovnání s minulou inventurou',
     compareNone: 'Zatím není s čím porovnat — žádná dřívější uzavřená inventura.',
     compareWith: 'Porovnat s',
@@ -128,6 +139,18 @@ export const inventorySession = ns({
     exportCsv: 'Export CSV',
     printPdf: 'Print / PDF',
     scanSound: 'Sound',
+    scanningIn: 'Scanning in:',
+    scanningInSession: (name: string) => `the stock-take's location (${name})`,
+    scanningInUnknown: '— not set —',
+    misplacedRow: (found: string, recorded: string) =>
+      `found in ${found}, registered in ${recorded}`,
+    misplacedSummary: (n: number) =>
+      `${n} ${n === 1 ? 'asset was' : 'assets were'} found somewhere other than the register says.`,
+    relocateAll: 'Move all to where they were scanned',
+    relocateOne: 'Move here',
+    relocated: (n: number) => `Moved: ${n}`,
+    compareMoved: 'Moved',
+
     compareTitle: 'Compared with the previous stock-take',
     compareNone: 'Nothing to compare with yet — no earlier closed stock-take.',
     compareWith: 'Compare with',

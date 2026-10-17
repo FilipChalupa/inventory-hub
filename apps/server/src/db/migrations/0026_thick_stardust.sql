@@ -1,0 +1,2 @@
+ALTER TABLE `inventory_scans` ADD `scanned_location_id` text REFERENCES locations(id) ON DELETE SET NULL;--> statement-breakpoint
+ALTER TABLE `inventory_scans` ADD `recorded_location_id` text REFERENCES locations(id) ON DELETE SET NULL;

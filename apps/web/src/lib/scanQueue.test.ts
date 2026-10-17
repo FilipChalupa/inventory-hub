@@ -22,11 +22,15 @@ describe('scanQueue', () => {
   });
 
   it('survives a reload (state lives in localStorage)', () => {
-    scanQueue.enqueue('s1', 'LAP-2', 'u1', new Date('2026-01-01T10:00:00Z'));
+    scanQueue.enqueue('s1', 'LAP-2', 'u1', {
+      scannedAt: new Date('2026-01-01T10:00:00Z'),
+      locationId: 'loc-1',
+    });
     const raw = localStorage.getItem('ih.scanQueue.s1')!;
     expect(JSON.parse(raw).pending[0]).toMatchObject({
       code: 'LAP-2',
       scannedAt: '2026-01-01T10:00:00.000Z',
+      locationId: 'loc-1',
     });
   });
 

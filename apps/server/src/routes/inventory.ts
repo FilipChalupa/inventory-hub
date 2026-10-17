@@ -6,6 +6,7 @@ import {
   inventoryItemNoteInput,
   markMissingLostInput,
   scanInventoryInput,
+  relocateInventoryInput,
   updateInventorySessionInput,
   type ScanResultKind,
 } from '@inventory-hub/shared';
@@ -57,6 +58,27 @@ function locationSubtreeIds(db: Db, rootId: string): Set<string> {
     for (const child of childrenOf.get(cur) ?? []) stack.push(child);
   }
   return out;
+}
+
+/**
+ * `within(locationId, rootId)`: is the location inside rootId's subtree?
+ * Built once per report from the whole (small) locations table.
+ */
+function locationContainment(db: Db) {
+  const parentOf = new Map(
+    db
+      .select({ id: locations.id, parentId: locations.parentId })
+      .from(locations)
+      .all()
+      .map((l) => [l.id, l.parentId]),
+  );
+  return (locationId: string | null, rootId: string): boolean => {
+    for (let cur = locationId, guard = 0; cur && guard < 100; guard++) {
+      if (cur === rootId) return true;
+      cur = parentOf.get(cur) ?? null;
+    }
+    return false;
+  };
 }
 
 /**
@@ -158,6 +180,10 @@ type ReportAsset = {
   locationId: string | null;
   scannedAt: Date | null;
   note: string | null;
+  /** Where it was found (scans only). */
+  scannedLocationId: string | null;
+  /** Found somewhere other than where the register has it. */
+  misplaced: boolean;
 };
 
 /**
@@ -173,11 +199,24 @@ function buildReport(db: Db, session: InventorySessionRow) {
   const expectedById = new Map(expected.map((a) => [a.id, a]));
 
   const scans = db
-    .select({ assetId: inventoryScans.assetId, scannedAt: inventoryScans.scannedAt })
+    .select({
+      assetId: inventoryScans.assetId,
+      scannedAt: inventoryScans.scannedAt,
+      scannedLocationId: inventoryScans.scannedLocationId,
+    })
     .from(inventoryScans)
     .where(eq(inventoryScans.sessionId, sessionId))
     .all();
   const scannedAtById = new Map(scans.map((s) => [s.assetId, s.scannedAt]));
+  const scannedLocById = new Map(scans.map((s) => [s.assetId, s.scannedLocationId]));
+  const within = locationContainment(db);
+  const placement = (assetId: string, assetLocationId: string | null) => {
+    const scannedLocationId = scannedLocById.get(assetId) ?? null;
+    return {
+      scannedLocationId,
+      misplaced: scannedLocationId !== null && !within(assetLocationId, scannedLocationId),
+    };
+  };
 
   const noteRows = db
     .select({ assetId: inventoryItemNotes.assetId, note: inventoryItemNotes.note })
@@ -198,6 +237,7 @@ function buildReport(db: Db, session: InventorySessionRow) {
       locationId: a.locationId,
       scannedAt,
       note: noteByAsset.get(a.id) ?? null,
+      ...placement(a.id, a.locationId),
     };
     if (scannedAt) found.push(entry);
     else missing.push(entry);
@@ -221,6 +261,7 @@ function buildReport(db: Db, session: InventorySessionRow) {
             locationId: a.locationId,
             scannedAt: scannedAtById.get(a.id) ?? null,
             note: noteByAsset.get(a.id) ?? null,
+            ...placement(a.id, a.locationId),
           }));
 
   const sortByCode = (a: ReportAsset, b: ReportAsset) => a.code.localeCompare(b.code);
@@ -372,6 +413,7 @@ export const inventoryRoutes = new Hono<AppContext>()
     const ids = (list: ReportAsset[]) => new Set(list.map((a) => a.id));
     const brief = (a: ReportAsset) => ({ id: a.id, code: a.code, name: a.name, status: a.status });
     const beforeFound = ids(before.found);
+    const beforeScannedAt = new Map(before.found.map((a) => [a.id, a.scannedLocationId]));
     const beforeMissing = ids(before.missing);
     const nowExpected = ids([...now.found, ...now.missing]);
     const beforeExpected = new Set([...beforeFound, ...beforeMissing]);
@@ -393,6 +435,13 @@ export const inventoryRoutes = new Hono<AppContext>()
         .filter((a) => !beforeExpected.has(a.id))
         .map(brief)
         .sort((a, b) => a.code.localeCompare(b.code)),
+      // Found in both, but in different places.
+      moved: now.found.flatMap((a) => {
+        const from = beforeScannedAt.get(a.id);
+        return from && a.scannedLocationId && from !== a.scannedLocationId
+          ? [{ ...brief(a), from, to: a.scannedLocationId }]
+          : [];
+      }),
       removedFromScope: [...before.found, ...before.missing]
         .filter((a) => !nowExpected.has(a.id))
         .map(brief)
@@ -444,6 +493,8 @@ export const inventoryRoutes = new Hono<AppContext>()
         status: a.status,
         location: locationPath(a.locationId),
         scannedAt: a.scannedAt,
+        scannedIn: a.scannedLocationId ? locationPath(a.scannedLocationId) : '',
+        misplaced: a.misplaced,
         scannedBy: scannedBy.get(a.id) ?? '',
         note: a.note ?? '',
       })),
@@ -455,6 +506,8 @@ export const inventoryRoutes = new Hono<AppContext>()
       { key: 'status', header: 'status' },
       { key: 'location', header: 'location' },
       { key: 'scannedAt', header: 'scanned_at' },
+      { key: 'scannedIn', header: 'scanned_in' },
+      { key: 'misplaced', header: 'misplaced' },
       { key: 'scannedBy', header: 'scanned_by' },
       { key: 'note', header: 'note' },
     ]);
@@ -505,12 +558,24 @@ export const inventoryRoutes = new Hono<AppContext>()
       const db = c.get('db');
       const user = c.get('user')!;
       const id = c.req.param('id');
-      const { code: scanned, scannedAt: claimedAt } = c.req.valid('json');
+      const { code: scanned, scannedAt: claimedAt, locationId: scanLocation } = c.req.valid('json');
 
       const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
       if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
       if (session.status !== 'open') {
         return c.json({ error: { message: 'Inventura je už uzavřená' } }, 409);
+      }
+      // Where the operator is: their pick, else the session's own location.
+      const scannedLocationId = scanLocation ?? session.locationId ?? null;
+      if (
+        scannedLocationId &&
+        !db
+          .select({ id: locations.id })
+          .from(locations)
+          .where(eq(locations.id, scannedLocationId))
+          .get()
+      ) {
+        return c.json({ error: { message: 'Lokace nenalezena' } }, 400);
       }
 
       // Our own code first; otherwise resolve it like any other identifier
@@ -555,7 +620,14 @@ export const inventoryRoutes = new Hono<AppContext>()
             ? claimedAt
             : received;
         db.insert(inventoryScans)
-          .values({ sessionId: id, assetId: asset.id, scannedByUserId: user.id, scannedAt: now })
+          .values({
+            sessionId: id,
+            assetId: asset.id,
+            scannedByUserId: user.id,
+            scannedAt: now,
+            scannedLocationId,
+            recordedLocationId: asset.locationId,
+          })
           .run();
         // Never move lastSeenAt backwards (a late-synced offline scan may be
         // older than a sighting recorded meanwhile).
@@ -581,7 +653,10 @@ export const inventoryRoutes = new Hono<AppContext>()
       // beep cost ~3 MB / ~90 ms at 20k assets. The service worker serves
       // GET /api/* stale-while-revalidate, so patching beats refetching.
       const scanRow = db
-        .select({ scannedAt: inventoryScans.scannedAt })
+        .select({
+          scannedAt: inventoryScans.scannedAt,
+          scannedLocationId: inventoryScans.scannedLocationId,
+        })
         .from(inventoryScans)
         .where(and(eq(inventoryScans.sessionId, id), eq(inventoryScans.assetId, asset.id)))
         .get();
@@ -602,9 +677,50 @@ export const inventoryRoutes = new Hono<AppContext>()
           locationId: asset.locationId,
           scannedAt: scanRow?.scannedAt ?? null,
           note: note?.note ?? null,
+          scannedLocationId: scanRow?.scannedLocationId ?? null,
+          misplaced:
+            !!scanRow?.scannedLocationId &&
+            !locationContainment(db)(asset.locationId, scanRow.scannedLocationId),
         },
         counts: reportCounts(db, session),
       });
+    },
+  )
+  // Moves misplaced assets (found somewhere other than where the register has
+  // them) to where they were scanned — the usual clean-up after a stock-take.
+  .post(
+    '/:id/relocate',
+    requireAuth('admin', 'operator'),
+    zValidator('json', relocateInventoryInput),
+    (c) => {
+      const db = c.get('db');
+      const user = c.get('user')!;
+      const id = c.req.param('id');
+      const session = db.select().from(inventorySessions).where(eq(inventorySessions.id, id)).get();
+      if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+      const only = c.req.valid('json').assetIds;
+      const report = buildReport(db, session);
+      const candidates = [...report.found, ...report.unexpected].filter(
+        (a) => a.misplaced && a.scannedLocationId && (!only || only.includes(a.id)),
+      );
+      const now = new Date();
+      db.transaction((tx) => {
+        for (const a of candidates) {
+          tx.update(assets)
+            .set({ locationId: a.scannedLocationId, updatedAt: now })
+            .where(eq(assets.id, a.id))
+            .run();
+          tx.insert(assetEvents)
+            .values({
+              assetId: a.id,
+              actorUserId: user.id,
+              type: 'moved',
+              payload: { locationId: a.scannedLocationId, from: a.locationId, sessionId: id },
+            })
+            .run();
+        }
+      });
+      return c.json({ moved: candidates.length, report: buildReport(db, session) });
     },
   )
   .post('/:id/close', requireAuth('admin', 'operator'), async (c) => {

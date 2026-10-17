@@ -10,6 +10,8 @@ const row = (code: string, scannedAt: string | null = null): InventoryReportAsse
   locationId: null,
   scannedAt,
   note: null,
+  scannedLocationId: null,
+  misplaced: false,
 });
 
 const base: InventoryReport = {

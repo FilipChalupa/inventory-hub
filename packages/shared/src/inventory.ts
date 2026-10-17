@@ -54,7 +54,15 @@ export const scanInventoryInput = z.object({
   // sent later. The server ignores implausible values (future / before the
   // session started) and uses the receive time instead.
   scannedAt: z.coerce.date().optional(),
+  // Where the operator is scanning (defaults to the session's location).
+  locationId: z.string().uuid().nullable().optional(),
 });
+
+export const relocateInventoryInput = z.object({
+  // Assets to move to where they were scanned; omit for every misplaced one.
+  assetIds: z.array(z.string()).max(2000).optional(),
+});
+export type RelocateInventoryInput = z.infer<typeof relocateInventoryInput>;
 export type ScanInventoryInput = z.infer<typeof scanInventoryInput>;
 
 export const markMissingLostInput = z.object({

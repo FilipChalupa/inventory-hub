@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, beforeEach } from 'vitest';
 import { eq } from 'drizzle-orm';
-import { assetEvents, assets, inventorySessions } from '../db/schema.js';
+import { assetEvents, assets, inventoryScans, inventorySessions } from '../db/schema.js';
 import { setupTestServer, type TestServer } from '../lib/test-server.js';
 
 async function jsonPost(server: TestServer, cookie: string, path: string, body: unknown) {
@@ -218,10 +218,13 @@ describe('inventory API', () => {
     expect(res.headers.get('content-disposition')).toContain('inventory-Q4-Praha.csv');
     const text = (await res.text()).replace(/^\uFEFF/, '');
     const lines = text.trim().split('\r\n');
-    expect(lines[0]).toBe('result,code,name,status,location,scanned_at,scanned_by,note');
+    expect(lines[0]).toBe(
+      'result,code,name,status,location,scanned_at,scanned_in,misplaced,scanned_by,note',
+    );
     expect(lines.find((l) => l.startsWith(`found,${a},`))).toContain('"Praha / Sklad, B"');
     expect(lines.find((l) => l.startsWith(`found,${a},`))).toMatch(
-      /,\d{4}-\d\d-\d\dT[^,]+,Test User/,
+      // scanned in the session location (Praha); Sklad B is inside Praha, so not misplaced
+      /,\d{4}-\d\d-\d\dT[^,]+,Praha,0,Test User/,
     );
     expect(lines.some((l) => l.startsWith('missing,') && l.includes('Missing one'))).toBe(true);
     expect(lines.some((l) => l.startsWith(`unexpected,${outside},`))).toBe(true);
@@ -340,6 +343,111 @@ describe('inventory API', () => {
     expect(byId.get(s1)!.scanCount).toBe(2);
     expect(byId.get(s2)!.scanCount).toBe(0);
     expect(byId.get(s1)).not.toHaveProperty('expectedSnapshot');
+  });
+
+  it('flags assets found somewhere else and moves them on request', async () => {
+    const wh = await makeLocation(server, cookie, 'Warehouse');
+    const shelf = await makeLocation(server, cookie, 'Shelf 3', wh);
+    const office = await makeLocation(server, cookie, 'Office');
+    const onShelf = await makeAsset(server, cookie, 'On shelf', shelf); // inside Warehouse
+    const strayed = await makeAsset(server, cookie, 'Strayed', office); // register says Office
+    const sid = await createSession(server, cookie, { locationId: wh });
+
+    await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: onShelf });
+    const res = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: strayed });
+    const body = (await res.json()) as {
+      list: string;
+      asset: { misplaced: boolean; scannedLocationId: string };
+    };
+    expect(body).toMatchObject({
+      list: 'unexpected',
+      asset: { misplaced: true, scannedLocationId: wh },
+    });
+
+    // The operator can say they're scanning in a specific room.
+    const elsewhere = await makeAsset(server, cookie, 'Elsewhere', office);
+    const picked = await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, {
+      code: elsewhere,
+      locationId: shelf,
+    });
+    expect(
+      ((await picked.json()) as { asset: { scannedLocationId: string } }).asset.scannedLocationId,
+    ).toBe(shelf);
+
+    const detail = (await (
+      await server.authRequest(`/api/inventory/${sid}`, { cookie })
+    ).json()) as {
+      report: {
+        found: { code: string; misplaced: boolean }[];
+        unexpected: { code: string; misplaced: boolean }[];
+      };
+    };
+    expect(detail.report.found.find((a) => a.code === onShelf)!.misplaced).toBe(false);
+    expect(
+      detail.report.unexpected
+        .filter((a) => a.misplaced)
+        .map((a) => a.code)
+        .sort(),
+    ).toEqual([strayed, elsewhere].sort());
+
+    // Move just one, then the rest.
+    const strayedId = server.db.select().from(assets).where(eq(assets.code, strayed)).get()!.id;
+    const one = (await (
+      await jsonPost(server, cookie, `/api/inventory/${sid}/relocate`, { assetIds: [strayedId] })
+    ).json()) as { moved: number; report: { counts: Record<string, number> } };
+    expect(one.moved).toBe(1);
+    // Now inside the scope → found, no longer unexpected.
+    expect(one.report.counts).toMatchObject({ found: 2, unexpected: 1 });
+    const rest = (await (
+      await jsonPost(server, cookie, `/api/inventory/${sid}/relocate`, {})
+    ).json()) as {
+      moved: number;
+    };
+    expect(rest.moved).toBe(1);
+    const moved = server.db.select().from(assets).where(eq(assets.code, elsewhere)).get()!;
+    expect(moved.locationId).toBe(shelf);
+    const events = server.db
+      .select()
+      .from(assetEvents)
+      .where(eq(assetEvents.assetId, moved.id))
+      .all();
+    expect(events.find((e) => e.type === 'moved')!.payload).toMatchObject({
+      from: office,
+      sessionId: sid,
+    });
+  });
+
+  it('a location used as scan place can still be deleted', async () => {
+    const tmp = await makeLocation(server, cookie, 'Temp room');
+    const a = await makeAsset(server, cookie, 'X');
+    const sid = await createSession(server, cookie);
+    await jsonPost(server, cookie, `/api/inventory/${sid}/scan`, { code: a, locationId: tmp });
+    const del = await server.authRequest(`/api/locations/${tmp}`, { cookie, method: 'DELETE' });
+    expect(del.status).toBe(200);
+    const scan = server.db.select().from(inventoryScans).get()!;
+    expect(scan.scannedLocationId).toBeNull();
+  });
+
+  it('comparison lists what moved between stock-takes', async () => {
+    const roomA = await makeLocation(server, cookie, 'Room A');
+    const roomB = await makeLocation(server, cookie, 'Room B');
+    const a = await makeAsset(server, cookie, 'Wanderer', roomA);
+    const first = await createSession(server, cookie);
+    await jsonPost(server, cookie, `/api/inventory/${first}/scan`, { code: a, locationId: roomA });
+    await jsonPost(server, cookie, `/api/inventory/${first}/close`, {});
+    server.db
+      .update(inventorySessions)
+      .set({ createdAt: new Date(Date.now() - 60_000) })
+      .where(eq(inventorySessions.id, first))
+      .run();
+    const second = await createSession(server, cookie);
+    await jsonPost(server, cookie, `/api/inventory/${second}/scan`, { code: a, locationId: roomB });
+    const cmp = (await (
+      await server.authRequest(`/api/inventory/${second}/compare`, { cookie })
+    ).json()) as {
+      moved: { code: string; from: string; to: string }[];
+    };
+    expect(cmp.moved).toEqual([expect.objectContaining({ code: a, from: roomA, to: roomB })]);
   });
 
   it('refuses an identifier that matches several assets', async () => {
