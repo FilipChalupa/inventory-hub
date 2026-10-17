@@ -69,6 +69,30 @@ export function InventorySessionPage() {
   const report = detail.data?.report;
   const isOpen = session?.status === 'open';
 
+  // Several people may scan the same session: poll the cheap counts while
+  // the page is visible and pull the full report only when they differ.
+  const live = useQuery({
+    queryKey: ['inventory', id, 'counts'],
+    queryFn: () => apiClient.inventory.counts(id),
+    enabled: Boolean(session) && isOpen,
+    refetchInterval: 15_000,
+    refetchIntervalInBackground: false,
+  });
+  const liveCounts = live.data ? JSON.stringify(live.data.counts) + live.data.status : null;
+  const localCounts = report && session ? JSON.stringify(report.counts) + session.status : null;
+  useEffect(() => {
+    if (!liveCounts || !localCounts || liveCounts === localCounts) return;
+    void queryClient
+      .fetchQuery({
+        queryKey: ['inventory', id],
+        queryFn: () => apiClient.inventory.get(id, { fresh: true }),
+        staleTime: 0,
+      })
+      .catch(() => undefined);
+    // Only react to a change in what the server reports.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveCounts]);
+
   // Write the fresh report straight into the cache. The service worker serves
   // GET /api/* stale-while-revalidate, so relying on a refetch would show
   // stale counts until a reload — the mutations return the report instead.

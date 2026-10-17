@@ -26,6 +26,8 @@ type ApiOptions = {
   method?: string;
   body?: unknown;
   signal?: AbortSignal;
+  /** 'no-store' also makes the service worker skip its API cache. */
+  cache?: RequestCache;
 };
 
 async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
@@ -35,6 +37,7 @@ async function api<T>(path: string, opts: ApiOptions = {}): Promise<T> {
     body: opts.body ? JSON.stringify(opts.body) : undefined,
     credentials: 'include',
     signal: opts.signal,
+    cache: opts.cache,
   });
   if (!res.ok) {
     // The session is gone (expired, revoked, user disabled): don't keep this
@@ -773,8 +776,16 @@ export const apiClient = {
       api<InventoryComparison>(
         `/api/inventory/${id}/compare${withId ? `?with=${encodeURIComponent(withId)}` : ''}`,
       ),
-    get: (id: string) =>
-      api<{ session: InventorySessionRow; report: InventoryReport }>(`/api/inventory/${id}`),
+    get: (id: string, opts: { fresh?: boolean } = {}) =>
+      api<{ session: InventorySessionRow; report: InventoryReport }>(`/api/inventory/${id}`, {
+        cache: opts.fresh ? 'no-store' : undefined,
+      }),
+    counts: (id: string) =>
+      api<{
+        status: 'open' | 'closed';
+        counts: InventoryReport['counts'];
+        lastScanAt: string | null;
+      }>(`/api/inventory/${id}/counts`, { cache: 'no-store' }),
     create: (input: CreateInventorySessionInput) =>
       api<{ session: InventorySessionRow }>('/api/inventory', { method: 'POST', body: input }),
     update: (id: string, input: UpdateInventorySessionInput) =>

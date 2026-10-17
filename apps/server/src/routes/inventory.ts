@@ -368,6 +368,30 @@ export const inventoryRoutes = new Hono<AppContext>()
       return c.json({ session: publicSession(session) }, 201);
     },
   )
+  // Cheap change detector for the session page: when several people scan
+  // the same session, each device polls this and refetches the full report
+  // only when something changed.
+  .get('/:id/counts', (c) => {
+    const db = c.get('db');
+    const session = db
+      .select()
+      .from(inventorySessions)
+      .where(eq(inventorySessions.id, c.req.param('id')))
+      .get();
+    if (!session) return c.json({ error: { message: 'Inventura nenalezena' } }, 404);
+    const last = db
+      .select({ at: sql<number | null>`max(${inventoryScans.scannedAt})` })
+      .from(inventoryScans)
+      .where(eq(inventoryScans.sessionId, session.id))
+      .get();
+    return c.json({
+      status: session.status,
+      counts:
+        session.status === 'closed' ? buildReport(db, session).counts : reportCounts(db, session),
+      lastScanAt: last?.at ? new Date(last.at) : null,
+      updatedAt: session.updatedAt,
+    });
+  })
   // What changed since an earlier stock-take: assets newly missing, found
   // again, missing in both (repeat losses), and the scope's churn. `with`
   // picks the earlier session; by default the latest earlier closed session

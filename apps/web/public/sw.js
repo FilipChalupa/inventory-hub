@@ -70,6 +70,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // A caller that explicitly asks for fresh data (fetch cache: 'no-store',
+  // e.g. live polling of a stock-take) goes straight to the network.
+  if (req.cache === 'no-store') return;
+
   // API GETs → stale-while-revalidate.
   if (url.pathname.startsWith('/api/')) {
     event.respondWith(staleWhileRevalidate(req));

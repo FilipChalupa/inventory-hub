@@ -450,6 +450,23 @@ describe('inventory API', () => {
     expect(cmp.moved).toEqual([expect.objectContaining({ code: a, from: roomA, to: roomB })]);
   });
 
+  it('counts endpoint reflects scans from anyone', async () => {
+    const a = await makeAsset(server, cookie, 'A');
+    const sid = await createSession(server, cookie, { assetCodes: [a] });
+    const get = async () =>
+      (await (await server.authRequest(`/api/inventory/${sid}/counts`, { cookie })).json()) as {
+        status: string;
+        counts: Record<string, number>;
+        lastScanAt: string | null;
+      };
+    expect(await get()).toMatchObject({ status: 'open', counts: { found: 0 }, lastScanAt: null });
+    const other = server.loginAs(server.createUser({ role: 'operator' }));
+    await jsonPost(server, other, `/api/inventory/${sid}/scan`, { code: a });
+    const after = await get();
+    expect(after.counts.found).toBe(1);
+    expect(after.lastScanAt).not.toBeNull();
+  });
+
   it('refuses an identifier that matches several assets', async () => {
     const a = await makeAsset(server, cookie, 'A');
     const b = await makeAsset(server, cookie, 'B');
